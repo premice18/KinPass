@@ -16,3 +16,9 @@ node_modules
 
 # Build artifacts
 *.tsbuildinfo
+
+# Playwright (rapports et traces de tests)
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/

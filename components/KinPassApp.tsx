@@ -1,15 +1,25 @@
 'use client'
 
+// ────────────────────────────────────────────────────────────────────────────
+// Coquille applicative (SPA) Kin Pass.
+//
+// À ce stade du projet, la navigation est gérée par état (pas encore de
+// routing App Router par URL — cf. Phase 6). Les vues sont donc regroupées
+// par domaine dans `components/features/*` et montées/démontées ici selon la
+// vue active. Chaque dossier `features/<domaine>` correspond à une future
+// route de l'application (landing → `/`, dashboard → `/dashboard`, etc.).
+// ────────────────────────────────────────────────────────────────────────────
+
 import { useState } from 'react'
 import { CardWallet, Dashboard, Menu, PlusCircle, Scanning, SecurityPass, X } from 'iconoir-react'
 import { Button } from '@/components/ui/button'
-import { Logo } from '@/components/Logo'
-import { ThemeToggle } from '@/components/ThemeToggle'
-import { LandingPage } from '@/components/views/LandingPage'
-import { OrganizerDashboard } from '@/components/views/OrganizerDashboard'
-import { EventCreationForm } from '@/components/views/EventCreationForm'
-import { TicketCheckout } from '@/components/views/TicketCheckout'
-import { ScannerView } from '@/components/views/ScannerView'
+import { Logo } from '@/components/layout/Logo'
+import { ThemeToggle } from '@/components/layout/ThemeToggle'
+import { LandingPage } from '@/components/features/landing/LandingPage'
+import { OrganizerDashboard } from '@/components/features/dashboard/OrganizerDashboard'
+import { EventCreationForm } from '@/components/features/event-creation/EventCreationForm'
+import { TicketCheckout } from '@/components/features/checkout/TicketCheckout'
+import { Scanner } from '@/components/features/scanner/Scanner'
 import { getEventById, type EditableEvent } from '@/lib/actions/events'
 
 type View = 'home' | 'dashboard' | 'create' | 'checkout' | 'scanner'
@@ -65,7 +75,7 @@ export function KinPassApp() {
     ) : view === 'checkout' ? (
       <TicketCheckout />
     ) : (
-      <ScannerView />
+      <Scanner />
     )
 
   return (

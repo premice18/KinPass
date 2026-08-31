@@ -201,6 +201,7 @@ export function EventCreationForm({ onNavigateBack, initialData }: EventCreation
               {successMessage && (
                 <div
                   role="status"
+                  data-testid="form-success"
                   className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300"
                 >
                   <CheckCircle className="h-4 w-4 shrink-0" />
@@ -212,6 +213,7 @@ export function EventCreationForm({ onNavigateBack, initialData }: EventCreation
               {formError && (
                 <div
                   role="alert"
+                  data-testid="form-error"
                   className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
                 >
                   <WarningCircle className="h-4 w-4 shrink-0" />
@@ -227,6 +229,7 @@ export function EventCreationForm({ onNavigateBack, initialData }: EventCreation
                     onChange={(e) => setTitle(e.target.value)}
                     placeholder="Ex. Kin House : Open Studio"
                     aria-required="true"
+                    data-testid="event-title-input"
                   />
                 </Field>
 
@@ -295,7 +298,7 @@ export function EventCreationForm({ onNavigateBack, initialData }: EventCreation
                     <p className="font-medium">Types de billets</p>
                     <p className="text-sm text-muted-foreground">Définissez les prix et capacités.</p>
                   </div>
-                  <Button type="button" variant="outline" size="sm" onClick={addTicketType}>
+                  <Button type="button" variant="outline" size="sm" onClick={addTicketType} data-testid="add-ticket-type">
                     <Plus className="h-4 w-4" />
                     Ajouter un type
                   </Button>
@@ -303,7 +306,11 @@ export function EventCreationForm({ onNavigateBack, initialData }: EventCreation
 
                 <div className="mt-4 space-y-3">
                   {ticketTypes.map((ticket, index) => (
-                    <div key={ticket.key} className="rounded-lg border border-border bg-background p-3">
+                    <div
+                      key={ticket.key}
+                      data-testid="ticket-type-row"
+                      className="rounded-lg border border-border bg-background p-3"
+                    >
                       <div className="mb-3 flex items-center justify-between">
                         <span className="text-sm font-medium text-muted-foreground">
                           Billet {index + 1}
@@ -314,6 +321,7 @@ export function EventCreationForm({ onNavigateBack, initialData }: EventCreation
                           size="icon-sm"
                           onClick={() => removeTicketType(ticket.key)}
                           aria-label={`Supprimer le billet ${index + 1}`}
+                          data-testid="remove-ticket-type"
                           disabled={ticketTypes.length <= 1}
                         >
                           <Trash className="h-4 w-4" />
@@ -368,7 +376,7 @@ export function EventCreationForm({ onNavigateBack, initialData }: EventCreation
               </div>
 
               <div className="flex items-center gap-3">
-                <Button type="submit" disabled={isPending} className="min-w-44">
+                <Button type="submit" disabled={isPending} className="min-w-44" data-testid="submit-event-button">
                   {isPending ? (
                     <>
                       <Refresh className="h-4 w-4 animate-spin" />
