@@ -1,19 +1,26 @@
 {
-  "name": "my-project",
+  "name": "kin-pass",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "db:push": "drizzle-kit push",
+    "db:generate": "drizzle-kit generate",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
     "@vercel/analytics": "1.6.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "lucide-react": "^1.16.0",
+    "drizzle-orm": "^0.45.2",
+    "iconoir-react": "^7.12.1",
     "next": "16.3.3",
+    "next-themes": "^0.4.6",
+    "postgres": "^3.4.9",
     "react": "^19",
     "react-dom": "^19",
     "shadcn": "^4.11.0",
@@ -25,6 +32,8 @@
     "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^17.4.2",
+    "drizzle-kit": "^0.31.10",
     "postcss": "^8.5",
     "tailwindcss": "^4.3.3",
     "typescript": "5.7.3"
