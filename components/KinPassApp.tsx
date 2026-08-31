@@ -10,6 +10,7 @@ import { OrganizerDashboard } from '@/components/views/OrganizerDashboard'
 import { EventCreationForm } from '@/components/views/EventCreationForm'
 import { TicketCheckout } from '@/components/views/TicketCheckout'
 import { ScannerView } from '@/components/views/ScannerView'
+import { getEventById, type EditableEvent } from '@/lib/actions/events'
 
 type View = 'home' | 'dashboard' | 'create' | 'checkout' | 'scanner'
 
@@ -24,19 +25,43 @@ const nav = [
 export function KinPassApp() {
   const [view, setView] = useState<View>('home')
   const [menuOpen, setMenuOpen] = useState(false)
+  // Événement chargé pour le mode édition du formulaire (null = mode création).
+  const [editingEvent, setEditingEvent] = useState<EditableEvent | null>(null)
 
   const navigate = (next: View) => {
     setView(next)
     setMenuOpen(false)
   }
 
+  // Ouvre le formulaire en mode création (réinitialise l'édition en cours).
+  const openCreateEvent = () => {
+    setEditingEvent(null)
+    navigate('create')
+  }
+
+  // Ouvre le formulaire en mode édition : charge l'événement en base via la
+  // Server Action, puis navigue vers la vue formulaire pré-remplie.
+  const openEditEvent = async (eventId: string) => {
+    const result = await getEventById(eventId)
+    if (!result.success) {
+      // MVP : alerte native faute d'état d'erreur global dans l'app.
+      alert(result.error)
+      return
+    }
+    setEditingEvent(result.data)
+    navigate('create')
+  }
+
   const content =
     view === 'home' ? (
       <LandingPage onGetStarted={() => navigate('dashboard')} onCheckout={() => navigate('checkout')} />
     ) : view === 'dashboard' ? (
-      <OrganizerDashboard onCreateEvent={() => navigate('create')} />
+      <OrganizerDashboard onCreateEvent={openCreateEvent} onEditEvent={openEditEvent} />
     ) : view === 'create' ? (
-      <EventCreationForm onEventCreated={() => navigate('dashboard')} />
+      <EventCreationForm
+        initialData={editingEvent ?? undefined}
+        onNavigateBack={() => navigate('dashboard')}
+      />
     ) : view === 'checkout' ? (
       <TicketCheckout />
     ) : (

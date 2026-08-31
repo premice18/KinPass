@@ -19,16 +19,16 @@
 
 ### 1.1 Palette de couleurs strictes
 
-| Nom technique         | Hexadécimal | Usage |
-| :-------------------- | :---------- | :---- |
-| **Electric Blue**     | `#2563EB`   | CTA primaires, liens, états actifs/surbrillance, dégradé du logo. |
-| **Flash Cyan**        | `#06B6D4`   | Accents, badges « mis en avant », dégradé du logo (2e stop), compteurs. |
-| **Midnight Dark**     | `#0F172A`   | Texte des titres (H1/H2), fond du footer, fond du mode sombre. |
-| **Slate Background**  | `#F8FAFC`   | Fond global des pages en mode clair. |
-| **Pure White**        | `#FFFFFF`   | Texte sur fond bleu/foncé, fond des cards et inputs. |
-| **Success Green**     | `#10B981`   | État scanner **VALIDE**, boutons de confirmation. |
-| **Warning Amber**     | `#F59E0B`   | État scanner **DÉJÀ SCANNÉ** (orange). |
-| **Danger Red**        | `#EF4444`   | État scanner **INVALIDE**, erreurs de formulaire, actions destructives. |
+| Nom technique        | Hexadécimal | Usage                                                                   |
+| :------------------- | :---------- | :---------------------------------------------------------------------- |
+| **Electric Blue**    | `#2563EB`   | CTA primaires, liens, états actifs/surbrillance, dégradé du logo.       |
+| **Flash Cyan**       | `#06B6D4`   | Accents, badges « mis en avant », dégradé du logo (2e stop), compteurs. |
+| **Midnight Dark**    | `#0F172A`   | Texte des titres (H1/H2), fond du footer, fond du mode sombre.          |
+| **Slate Background** | `#F8FAFC`   | Fond global des pages en mode clair.                                    |
+| **Pure White**       | `#FFFFFF`   | Texte sur fond bleu/foncé, fond des cards et inputs.                    |
+| **Success Green**    | `#10B981`   | État scanner **VALIDE**, boutons de confirmation.                       |
+| **Warning Amber**    | `#F59E0B`   | État scanner **DÉJÀ SCANNÉ** (orange).                                  |
+| **Danger Red**       | `#EF4444`   | État scanner **INVALIDE**, erreurs de formulaire, actions destructives. |
 
 > 🎯 **Sémantique scanner (cœur produit)** : VERT = billet authentique non utilisé → `Success Green` ; ORANGE = billet déjà scanné → `Warning Amber` ; ROUGE = code inexistant/étranger à l'événement → `Danger Red`. Ces trois états sont portés par les couleurs ci-dessus et doublés d'un libellé textuel + icône (jamais la couleur seule).
 
@@ -84,16 +84,16 @@
 
 - **KPIs temps réel** : chiffre d'affaires (USD/CDF), billets vendus, taux de remplissage, personnes entrées (scannées).
 - **Liste des événements** : cartes avec statut (Brouillon / Publié / Terminé), progression des ventes, accès à la gestion.
-- **État** : ✅ maquette statique (`components/views/OrganizerDashboard.tsx`, données codées en dur).
+- **État** : ✅ fait (`components/views/OrganizerDashboard.tsx`, branché sur les données réelles via `getOrganizerEvents()` — KPIs agrégés en base, actions Publier/Éditer/Supprimer).
 
 ### 📄 Création d'événement — Route `/events/new` (À VENIR, protégée)
 
 - Informations générales : titre, description, catégorie (Concert/Conférence/Mariage/Soirée privée).
 - Localisation & date : lieu, date/heure début, date/heure fin.
-- Visuel : upload de l'affiche (Supabase Storage / Vercel Blob).
+- Visuel : upload de l'affiche (Supabase Storage / Vercel Blob) — **MVP : champ URL** (`poster_url`).
 - **Paramétrage des billets** : plusieurs types (Standard/VIP/Invitation), prix, devise, capacité par type.
 - Slug unique `/e/[slug]` généré depuis le titre.
-- **État** : 🚧 maquette (`components/views/EventCreationForm.tsx` — validation du titre uniquement, pas de persistance, pas de multi-types).
+- **État** : ✅ fait (`components/views/EventCreationForm.tsx` — persistance réelle via Server Actions, multi-types de billets dynamiques, validation Zod + client, mode édition pré-rempli ; navigation par état SPA, la vraie route `/events/new` viendra avec le routing Phase 6).
 
 ### 📄 Page publique événement — Route `/e/[slug]` (À VENIR, publique)
 
@@ -121,65 +121,65 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 
 ### Table `users`
 
-| Colonne | Type | Contrainte | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | uuid | PK, defaultRandom | Identifiant |
-| `email` | varchar(255) | UNIQUE NOT NULL | Connexion |
-| `password_hash` | text | NOT NULL | Hash bcrypt |
-| `full_name` | varchar(255) | NOT NULL | Nom complet |
-| `role` | varchar(20) | default `'organizer'` | `organizer` \| `agent` |
-| `created_at` / `updated_at` | timestamptz | defaultNow | Horodatage |
+| Colonne                     | Type         | Contrainte            | Description            |
+| :-------------------------- | :----------- | :-------------------- | :--------------------- |
+| `id`                        | uuid         | PK, defaultRandom     | Identifiant            |
+| `email`                     | varchar(255) | UNIQUE NOT NULL       | Connexion              |
+| `password_hash`             | text         | NOT NULL              | Hash bcrypt            |
+| `full_name`                 | varchar(255) | NOT NULL              | Nom complet            |
+| `role`                      | varchar(20)  | default `'organizer'` | `organizer` \| `agent` |
+| `created_at` / `updated_at` | timestamptz  | defaultNow            | Horodatage             |
 
 ### Table `events`
 
-| Colonne | Type | Contrainte | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | uuid | PK | Identifiant |
-| `organizer_id` | uuid | FK `users` ON DELETE CASCADE | Organisateur |
-| `title` | varchar(255) | NOT NULL | Titre |
-| `slug` | varchar(255) | UNIQUE (index) | URL `/e/[slug]` |
-| `description` | text | | Description |
-| `category` | varchar(50) | | Concert/Conférence/Mariage/Soirée |
-| `venue` / `location` | varchar(255) | | Lieu |
-| `start_at` / `end_at` | timestamptz | | Dates |
-| `poster_url` | text | | Affiche |
-| `status` | varchar(20) | default `'draft'` | `draft` \| `published` \| `finished` |
+| Colonne               | Type         | Contrainte                   | Description                          |
+| :-------------------- | :----------- | :--------------------------- | :----------------------------------- |
+| `id`                  | uuid         | PK                           | Identifiant                          |
+| `organizer_id`        | uuid         | FK `users` ON DELETE CASCADE | Organisateur                         |
+| `title`               | varchar(255) | NOT NULL                     | Titre                                |
+| `slug`                | varchar(255) | UNIQUE (index)               | URL `/e/[slug]`                      |
+| `description`         | text         |                              | Description                          |
+| `category`            | varchar(50)  |                              | Concert/Conférence/Mariage/Soirée    |
+| `venue` / `location`  | varchar(255) |                              | Lieu                                 |
+| `start_at` / `end_at` | timestamptz  |                              | Dates                                |
+| `poster_url`          | text         |                              | Affiche                              |
+| `status`              | varchar(20)  | default `'draft'`            | `draft` \| `published` \| `finished` |
 
 ### Table `ticket_types`
 
-| Colonne | Type | Contrainte | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | uuid | PK | Identifiant |
-| `event_id` | uuid | FK `events` CASCADE | Événement |
-| `name` | varchar(100) | NOT NULL | Standard/VIP/Invitation |
-| `price` | numeric(12,2) | default 0 | Prix |
-| `currency` | varchar(10) | default `'USD'` | `USD` \| `CDF` |
-| `capacity` | integer | | Capacité |
-| `sold_count` | integer | default 0 | Vendus |
+| Colonne      | Type          | Contrainte          | Description             |
+| :----------- | :------------ | :------------------ | :---------------------- |
+| `id`         | uuid          | PK                  | Identifiant             |
+| `event_id`   | uuid          | FK `events` CASCADE | Événement               |
+| `name`       | varchar(100)  | NOT NULL            | Standard/VIP/Invitation |
+| `price`      | numeric(12,2) | default 0           | Prix                    |
+| `currency`   | varchar(10)   | default `'USD'`     | `USD` \| `CDF`          |
+| `capacity`   | integer       |                     | Capacité                |
+| `sold_count` | integer       | default 0           | Vendus                  |
 
 ### Table `tickets`
 
-| Colonne | Type | Contrainte | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | uuid | PK | Identifiant |
-| `event_id` | uuid | FK `events` CASCADE | Événement |
-| `ticket_type_id` | uuid | FK `ticket_types` CASCADE | Type de billet |
-| `buyer_name` | varchar(255) | NOT NULL | Acheteur |
-| `buyer_phone` / `buyer_email` | varchar | | Contact |
-| `code` | varchar(10) | **UNIQUE (index)** | Code 6 caractères — objectif validation < 500 ms |
-| `status` | varchar(20) | default `'valid'` | `valid` \| `used` \| `cancelled` |
-| `scanned_at` | timestamptz | | Premier scan |
+| Colonne                       | Type         | Contrainte                | Description                                      |
+| :---------------------------- | :----------- | :------------------------ | :----------------------------------------------- |
+| `id`                          | uuid         | PK                        | Identifiant                                      |
+| `event_id`                    | uuid         | FK `events` CASCADE       | Événement                                        |
+| `ticket_type_id`              | uuid         | FK `ticket_types` CASCADE | Type de billet                                   |
+| `buyer_name`                  | varchar(255) | NOT NULL                  | Acheteur                                         |
+| `buyer_phone` / `buyer_email` | varchar      |                           | Contact                                          |
+| `code`                        | varchar(10)  | **UNIQUE (index)**        | Code 6 caractères — objectif validation < 500 ms |
+| `status`                      | varchar(20)  | default `'valid'`         | `valid` \| `used` \| `cancelled`                 |
+| `scanned_at`                  | timestamptz  |                           | Premier scan                                     |
 
 ### Table `scans`
 
-| Colonne | Type | Contrainte | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | uuid | PK | Identifiant |
-| `ticket_id` | uuid | FK `tickets` CASCADE | Billet scanné |
-| `event_id` | uuid | FK `events` CASCADE | Événement |
-| `agent_id` | uuid | FK `users` SET NULL | Agent |
-| `result` | varchar(20) | NOT NULL | `valid` \| `used` \| `invalid` |
-| `scanned_at` | timestamptz | defaultNow | Horodatage |
+| Colonne      | Type        | Contrainte           | Description                    |
+| :----------- | :---------- | :------------------- | :----------------------------- |
+| `id`         | uuid        | PK                   | Identifiant                    |
+| `ticket_id`  | uuid        | FK `tickets` CASCADE | Billet scanné                  |
+| `event_id`   | uuid        | FK `events` CASCADE  | Événement                      |
+| `agent_id`   | uuid        | FK `users` SET NULL  | Agent                          |
+| `result`     | varchar(20) | NOT NULL             | `valid` \| `used` \| `invalid` |
+| `scanned_at` | timestamptz | defaultNow           | Horodatage                     |
 
 **Index de performance** : `tickets.code` (UNIQUE), `tickets.event_id`, `tickets.ticket_type_id`, `scans.ticket_id`, `scans.event_id`, `events.slug` (UNIQUE), `events.organizer_id`, `users.email`.
 
@@ -222,17 +222,18 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 - [ ] Routes `/auth/login` et `/auth/register`.
 - [ ] Middleware/proxy protégeant `/dashboard`, `/events/*`, `/scan/*`.
 
-### ❌ Phase 5 — Gestion des événements (À VENIR)
+### ✅ Phase 5 — Gestion des événements (FAITE — sans auth, organisateur de test)
 
-- [ ] API/Server Actions : créer/lire/éditer/publier un événement (persistance en base).
-- [ ] Route `/events/new` branchée au formulaire existant (multi-types de billets, upload affiche).
-- [ ] Dashboard branché sur les données réelles (KPIs + liste).
+- [x] Server Actions `lib/actions/events.ts` : créer/lire/éditer/publier/supprimer (persistance en base, transactions atomiques, slug unique, validation Zod en français, `organizer_id` fixe temporaire).
+- [x] Formulaire `EventCreationForm` branché (multi-types de billets dynamiques, affiche par URL, validation client + serveur, mode édition) — navigation par état SPA en attendant le routing.
+- [x] Dashboard `OrganizerDashboard` branché sur les données réelles (KPIs agrégés, progression des ventes, actions Publier/Éditer/Supprimer).
+- [x] Données de démo : `scripts/seed-demo.mts` (organisateur de test + 2 événements, billets, scans ; option `--reset`).
 
 ### ❌ Phase 6 — Billetterie publique & paiement (À VENIR)
 
 - [ ] Page publique `/e/[slug]`.
 - [ ] Checkout branché : génération du code 6 caractères unique + QR (`qrcode.react`).
-- [ ] Paiement Mobile Money (agrégateur ou flux simulé MVP) + webhook de confirmation.
+- [ ] Paiement Mobile Money (agrégateur KPAY ou flux simulé MVP) + webhook de confirmation.
 
 ### ❌ Phase 7 — Contrôle d'accès (À VENIR)
 
@@ -270,12 +271,12 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 - **Phase 2** : ✅ TERMINÉE (base Neon + schéma Drizzle appliqué).
 - **Phase 3** : ✅ TERMINÉE (logo ticket, dark/light, menu mobile).
 - **Phase 4 (auth)** : ❌ À VENIR.
-- **Phase 5 (événements)** : ❌ À VENIR.
+- **Phase 5 (événements)** : ✅ TERMINÉE — CRUD complet + publication, organisateur de test fixe (`lib/constants.ts`), à sécuriser par la session dès la Phase 4.
 - **Phase 6 (billetterie + paiement)** : ❌ À VENIR.
 - **Phase 7 (scanner)** : ❌ À VENIR.
 - **Phase 8 (polish)** : ❌ À VENIR.
 
-**Avancement global estimé : ~25 %** (UI + fondations base de données posées ; toute la logique métier / backend reste à faire).
+**Avancement global estimé : ~40 %** (UI + fondations base de données + gestion des événements de bout en bout ; auth, billetterie publique et scanner restent à faire).
 
 ---
 
@@ -293,10 +294,16 @@ components/
   views/              # LandingPage, OrganizerDashboard, EventCreationForm, TicketCheckout, ScannerView
   ui/                 # button, card, input, badge, tabs
 lib/
+  actions/events.ts   # Server Actions CRUD événements (+ stats agrégées)
+  validators/events.ts# Schémas Zod (messages français) — séparés des actions
+  constants.ts        # Organisateur de test temporaire + catégories/devises/statuts
+  slug.ts             # slugify + suffixe aléatoire (slug URL unique)
   db/
     schema.ts         # Schéma Drizzle (5 tables)
     index.ts          # Client Drizzle (singleton)
   utils.ts            # cn()
+scripts/
+  seed-demo.mts       # Seed organisateur de test + données démo (--reset)
 drizzle.config.ts     # Config drizzle-kit
 .env.local            # DATABASE_URL (gitignoré)
 ```
@@ -305,15 +312,16 @@ drizzle.config.ts     # Config drizzle-kit
 
 ## 8. VARIABLES D'ENVIRONNEMENT & COMMANDES
 
-| Variable | Obligatoire | Description |
-| :--- | :--- | :--- |
-| `DATABASE_URL` | ✅ | URL de connexion Neon (poolée). |
+| Variable       | Obligatoire | Description                     |
+| :------------- | :---------- | :------------------------------ |
+| `DATABASE_URL` | ✅          | URL de connexion Neon (poolée). |
 
-| Commande | Description |
-| :--- | :--- |
-| `pnpm dev` | Serveur de développement |
-| `pnpm build` / `pnpm start` | Build / démarrage production |
-| `pnpm typecheck` | Vérification TypeScript |
-| `pnpm db:push` | Pousse le schéma vers la base |
-| `pnpm db:generate` | Génère les migrations SQL |
-| `pnpm db:studio` | Ouvre Drizzle Studio |
+| Commande                    | Description                   |
+| :-------------------------- | :---------------------------- |
+| `pnpm dev`                  | Serveur de développement      |
+| `pnpm build` / `pnpm start` | Build / démarrage production  |
+| `pnpm typecheck`            | Vérification TypeScript       |
+| `pnpm db:push`              | Pousse le schéma vers la base |
+| `pnpm db:generate`          | Génère les migrations SQL     |
+| `pnpm db:studio`            | Ouvre Drizzle Studio          |
+| `node scripts/seed-demo.mts` | Seed organisateur de test + données démo (`--reset` pour repartir de zéro) |
