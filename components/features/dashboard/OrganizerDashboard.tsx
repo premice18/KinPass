@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Tableau de bord organisateur (Phase 5) — branché sur les données réelles
@@ -13,7 +13,7 @@
 //   ventes, actions Publier / Éditer / Supprimer (avec confirmation).
 // ────────────────────────────────────────────────────────────────────────────
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Barcode,
   Calendar,
@@ -28,117 +28,143 @@ import {
   StatsReport,
   Trash,
   WarningCircle,
-} from 'iconoir-react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { cn } from '@/lib/utils'
-import { deleteEvent, getOrganizerEvents, publishEvent, type EventWithStats } from '@/lib/actions/events'
+} from "iconoir-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import {
+  deleteEvent,
+  getOrganizerEvents,
+  publishEvent,
+  type EventWithStats,
+} from "@/lib/actions/events";
 
 interface DashboardProps {
   // Navigation par état : ouvre le formulaire en mode création.
-  onCreateEvent: () => void
+  onCreateEvent: () => void;
   // Navigation par état : ouvre le formulaire en mode édition (id).
-  onEditEvent: (eventId: string) => void
+  onEditEvent: (eventId: string) => void;
 }
 
 // Formate un montant avec des milliers à la française et la devise RDC.
-function formatMoney(amount: number, currency: 'USD' | 'CDF'): string {
-  const formatted = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(amount)
-  return currency === 'USD' ? `${formatted} $` : `${formatted} FC`
+function formatMoney(amount: number, currency: "USD" | "CDF"): string {
+  const formatted = new Intl.NumberFormat("fr-FR", {
+    maximumFractionDigits: 0,
+  }).format(amount);
+  return currency === "USD" ? `${formatted} $` : `${formatted} FC`;
 }
 
 // Formate une date au format français court (ex. « 20 sept. 2026 »).
 function formatDate(value: Date | string | null): string {
-  if (!value) return '—'
-  return new Date(value).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
+  if (!value) return "—";
+  return new Date(value).toLocaleDateString("fr-FR", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 // Formate une heure au format français (ex. « 18:00 »).
 function formatTime(value: Date | string | null): string {
-  if (!value) return ''
-  return new Date(value).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+  if (!value) return "";
+  return new Date(value).toLocaleTimeString("fr-FR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 // Libellé et variante de badge pour chaque statut d'événement.
-const STATUS_META: Record<EventWithStats['status'], { label: string; badge: 'secondary' | 'success' | 'default' }> = {
-  draft: { label: 'Brouillon', badge: 'secondary' },
-  published: { label: 'Publié', badge: 'success' },
-  finished: { label: 'Terminé', badge: 'default' },
-}
+const STATUS_META: Record<
+  EventWithStats["status"],
+  { label: string; badge: "secondary" | "success" | "default" }
+> = {
+  draft: { label: "Brouillon", badge: "secondary" },
+  published: { label: "Publié", badge: "success" },
+  finished: { label: "Terminé", badge: "default" },
+};
 
-export function OrganizerDashboard({ onCreateEvent, onEditEvent }: DashboardProps) {
-  const [events, setEvents] = useState<EventWithStats[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+export function OrganizerDashboard({
+  onCreateEvent,
+  onEditEvent,
+}: DashboardProps) {
+  const [events, setEvents] = useState<EventWithStats[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   // Identifiants d'événements en cours d'action (spinner sur le bouton).
-  const [pendingPublishId, setPendingPublishId] = useState<string | null>(null)
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [pendingPublishId, setPendingPublishId] = useState<string | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   // Charge (ou recharge) la liste des événements depuis la base.
   const load = useCallback(async () => {
-    setLoading(true)
-    setError('')
-    const result = await getOrganizerEvents()
+    setLoading(true);
+    setError("");
+    const result = await getOrganizerEvents();
     if (result.success) {
-      setEvents(result.data)
+      setEvents(result.data);
     } else {
-      setError(result.error)
+      setError(result.error);
     }
-    setLoading(false)
-  }, [])
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
-    load()
-  }, [load])
+    load();
+  }, [load]);
 
   // Publication d'un événement (brouillon → publié).
   const handlePublish = async (event: EventWithStats) => {
-    setPendingPublishId(event.id)
-    const result = await publishEvent(event.id)
-    setPendingPublishId(null)
+    setPendingPublishId(event.id);
+    const result = await publishEvent(event.id);
+    setPendingPublishId(null);
     if (!result.success) {
-      setError(result.error)
-      return
+      setError(result.error);
+      return;
     }
     // Mise à jour locale du statut sans recharger toute la liste.
-    setEvents((prev) => prev.map((e) => (e.id === event.id ? { ...e, status: 'published' } : e)))
-  }
+    setEvents((prev) =>
+      prev.map((e) => (e.id === event.id ? { ...e, status: "published" } : e)),
+    );
+  };
 
   // Suppression avec confirmation (MVP : window.confirm).
   const handleDelete = async (event: EventWithStats) => {
     const confirmed = window.confirm(
       `Supprimer « ${event.title} » ? Cette action est irréversible (billets et scans inclus).`,
-    )
-    if (!confirmed) return
+    );
+    if (!confirmed) return;
 
-    setPendingDeleteId(event.id)
-    const result = await deleteEvent(event.id)
-    setPendingDeleteId(null)
+    setPendingDeleteId(event.id);
+    const result = await deleteEvent(event.id);
+    setPendingDeleteId(null);
     if (!result.success) {
-      setError(result.error)
-      return
+      setError(result.error);
+      return;
     }
-    setEvents((prev) => prev.filter((e) => e.id !== event.id))
-  }
+    setEvents((prev) => prev.filter((e) => e.id !== event.id));
+  };
 
   // KPIs agrégés sur l'ensemble des événements de l'organisateur.
   const kpis = useMemo(() => {
-    const revenueUSD = events.reduce((sum, e) => sum + e.revenueUSD, 0)
-    const revenueCDF = events.reduce((sum, e) => sum + e.revenueCDF, 0)
-    const soldCount = events.reduce((sum, e) => sum + e.soldCount, 0)
-    const capacity = events.reduce((sum, e) => sum + (e.capacity ?? 0), 0)
-    const scannedCount = events.reduce((sum, e) => sum + e.scannedCount, 0)
+    const revenueUSD = events.reduce((sum, e) => sum + e.revenueUSD, 0);
+    const revenueCDF = events.reduce((sum, e) => sum + e.revenueCDF, 0);
+    const soldCount = events.reduce((sum, e) => sum + e.soldCount, 0);
+    const capacity = events.reduce((sum, e) => sum + (e.capacity ?? 0), 0);
+    const scannedCount = events.reduce((sum, e) => sum + e.scannedCount, 0);
     return {
       revenueUSD,
       revenueCDF,
       soldCount,
       capacity,
-      fillRate: capacity > 0 ? Math.min(100, Math.round((soldCount / capacity) * 100)) : 0,
+      fillRate:
+        capacity > 0
+          ? Math.min(100, Math.round((soldCount / capacity) * 100))
+          : 0,
       scannedCount,
-      scannedRate: soldCount > 0 ? Math.round((scannedCount / soldCount) * 100) : 0,
-    }
-  }, [events])
+      scannedRate:
+        soldCount > 0 ? Math.round((scannedCount / soldCount) * 100) : 0,
+    };
+  }, [events]);
 
   return (
     <main className="min-h-screen bg-background px-4 py-8 sm:px-8">
@@ -146,12 +172,23 @@ export function OrganizerDashboard({ onCreateEvent, onEditEvent }: DashboardProp
         {/* En-tête + bouton de création */}
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
-            <p className="text-sm font-medium text-primary">ESPACE ORGANISATEUR</p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-tight">Tableau de bord</h1>
-            <p className="mt-1 text-muted-foreground">Suivez vos événements et vos ventes en temps réel.</p>
+            <p className="text-sm font-medium text-primary">
+              ESPACE ORGANISATEUR
+            </p>
+            <h1 className="mt-1 text-3xl font-semibold tracking-tight">
+              Tableau de bord
+            </h1>
+            <p className="mt-1 text-muted-foreground">
+              Suivez vos événements et vos ventes en temps réel.
+            </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={load} aria-label="Actualiser la liste">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={load}
+              aria-label="Actualiser la liste"
+            >
               <Refresh className="h-4 w-4" />
               Actualiser
             </Button>
@@ -177,26 +214,42 @@ export function OrganizerDashboard({ onCreateEvent, onEditEvent }: DashboardProp
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Stat
             icon={CardWallet}
+            testId="kpi-revenue"
             label="Revenus totaux"
-            value={formatMoney(kpis.revenueUSD, 'USD')}
-            detail={kpis.revenueCDF > 0 ? `+ ${formatMoney(kpis.revenueCDF, 'CDF')} en FC` : 'Aucune vente en FC'}
+            value={formatMoney(kpis.revenueUSD, "USD")}
+            detail={
+              kpis.revenueCDF > 0
+                ? `+ ${formatMoney(kpis.revenueCDF, "CDF")} en FC`
+                : "Aucune vente en FC"
+            }
           />
           <Stat
             icon={Barcode}
+            testId="kpi-sold"
             label="Billets vendus"
-            value={new Intl.NumberFormat('fr-FR').format(kpis.soldCount)}
-            detail={kpis.capacity > 0 ? `sur ${new Intl.NumberFormat('fr-FR').format(kpis.capacity)} disponibles` : 'capacité non définie'}
+            value={new Intl.NumberFormat("fr-FR").format(kpis.soldCount)}
+            detail={
+              kpis.capacity > 0
+                ? `sur ${new Intl.NumberFormat("fr-FR").format(kpis.capacity)} disponibles`
+                : "capacité non définie"
+            }
           />
           <Stat
             icon={StatsReport}
+            testId="kpi-fill-rate"
             label="Taux de remplissage"
             value={`${kpis.fillRate} %`}
-            detail={kpis.capacity > 0 ? `${new Intl.NumberFormat('fr-FR').format(kpis.soldCount)} / ${new Intl.NumberFormat('fr-FR').format(kpis.capacity)} places` : 'capacité non définie'}
+            detail={
+              kpis.capacity > 0
+                ? `${new Intl.NumberFormat("fr-FR").format(kpis.soldCount)} / ${new Intl.NumberFormat("fr-FR").format(kpis.capacity)} places`
+                : "capacité non définie"
+            }
           />
           <Stat
             icon={Scanning}
+            testId="kpi-scanned"
             label="Personnes entrées"
-            value={new Intl.NumberFormat('fr-FR').format(kpis.scannedCount)}
+            value={new Intl.NumberFormat("fr-FR").format(kpis.scannedCount)}
             detail={`${kpis.scannedRate} % des ventes`}
           />
         </div>
@@ -205,7 +258,9 @@ export function OrganizerDashboard({ onCreateEvent, onEditEvent }: DashboardProp
         <div className="mt-10 flex items-center justify-between">
           <div>
             <h2 className="text-xl font-semibold">Vos événements</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Gérez vos événements actifs et à venir.</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Gérez vos événements actifs et à venir.
+            </p>
           </div>
         </div>
 
@@ -224,7 +279,8 @@ export function OrganizerDashboard({ onCreateEvent, onEditEvent }: DashboardProp
                 <Barcode className="h-8 w-8 text-muted-foreground" />
                 <p className="font-medium">Aucun événement pour le moment</p>
                 <p className="max-w-sm text-sm text-muted-foreground">
-                  Créez votre premier événement pour commencer à vendre vos billets.
+                  Créez votre premier événement pour commencer à vendre vos
+                  billets.
                 </p>
                 <Button onClick={onCreateEvent} className="mt-2">
                   <Plus className="h-4 w-4" />
@@ -234,10 +290,10 @@ export function OrganizerDashboard({ onCreateEvent, onEditEvent }: DashboardProp
             </Card>
           ) : (
             events.map((event) => {
-              const status = STATUS_META[event.status]
-              const progressWidth = Math.min(100, event.fillRate)
+              const status = STATUS_META[event.status];
+              const progressWidth = Math.min(100, event.fillRate);
               return (
-                <Card key={event.id}>
+                <Card key={event.id} data-testid="event-card">
                   <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
                     {/* Informations principales */}
                     <div className="min-w-0 flex-1">
@@ -260,7 +316,7 @@ export function OrganizerDashboard({ onCreateEvent, onEditEvent }: DashboardProp
                         )}
                         <span className="flex items-center gap-1.5">
                           <MapPin className="h-4 w-4" />
-                          {event.venue || event.location || 'Lieu à définir'}
+                          {event.venue || event.location || "Lieu à définir"}
                         </span>
                       </div>
                     </div>
@@ -270,12 +326,19 @@ export function OrganizerDashboard({ onCreateEvent, onEditEvent }: DashboardProp
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <span>{event.soldCount} vendus</span>
                         <span>
-                          {event.capacity != null ? `sur ${event.capacity}` : 'capacité non définie'}
+                          {event.capacity != null
+                            ? `sur ${event.capacity}`
+                            : "capacité non définie"}
                         </span>
                       </div>
                       <div className="mt-1.5 h-2 w-full rounded-full bg-muted">
                         <div
-                          className={cn('h-2 rounded-full', event.fillRate >= 100 ? 'bg-emerald-500' : 'bg-primary')}
+                          className={cn(
+                            "h-2 rounded-full",
+                            event.fillRate >= 100
+                              ? "bg-emerald-500"
+                              : "bg-primary",
+                          )}
                           style={{ width: `${progressWidth}%` }}
                         />
                       </div>
@@ -283,7 +346,7 @@ export function OrganizerDashboard({ onCreateEvent, onEditEvent }: DashboardProp
 
                     {/* Actions : publier / éditer / supprimer */}
                     <div className="flex items-center gap-2">
-                      {event.status === 'draft' && (
+                      {event.status === "draft" && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -322,29 +385,32 @@ export function OrganizerDashboard({ onCreateEvent, onEditEvent }: DashboardProp
                     </div>
                   </CardContent>
                 </Card>
-              )
+              );
             })
           )}
         </div>
       </div>
     </main>
-  )
+  );
 }
 
 // Carte KPI : icône Iconoir, libellé, valeur principale et détail.
+// `testId` expose un identifiant stable pour les tests end-to-end (Playwright).
 function Stat({
   icon: Icon,
   label,
   value,
   detail,
+  testId,
 }: {
-  icon: typeof CardWallet
-  label: string
-  value: string
-  detail: string
+  icon: typeof CardWallet;
+  label: string;
+  value: string;
+  detail: string;
+  testId?: string;
 }) {
   return (
-    <Card>
+    <Card data-testid={testId}>
       <CardContent className="p-5">
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">{label}</span>
@@ -354,5 +420,5 @@ function Stat({
         <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
       </CardContent>
     </Card>
-  )
+  );
 }

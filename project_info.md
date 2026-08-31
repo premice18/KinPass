@@ -35,7 +35,7 @@
 ### 1.2 Mode sombre / clair
 
 - Basé sur `next-themes` (`attribute="class"`, `defaultTheme="system"`, `enableSystem`).
-- Le toggle est exposé dans le header (`components/ThemeToggle.tsx`, icônes Iconoir `HalfMoon` / `SunLight`).
+- Le toggle est exposé dans le header (`components/layout/ThemeToggle.tsx`, icônes Iconoir `HalfMoon` / `SunLight`).
 - Les tokens CSS sont définis dans `app/globals.css` (`:root` = clair, `.dark` = sombre, `@theme inline`). Ne jamais coder d'hex en dur dans les composants : utiliser les tokens sémantiques (`bg-background`, `text-foreground`, `text-primary`, `bg-destructive`, …).
 
 ### 1.3 Typographie & espacements
@@ -50,7 +50,7 @@
 
 ### 1.4 Logo « ticket premium »
 
-- Composant `components/Logo.tsx` : billet SVG avec encoches latérales (perforation), dégradé `Electric Blue → Flash Cyan`, reflet supérieur, ligne de perforation verticale et coche blanche (validation d'accès).
+- Composant `components/layout/Logo.tsx` : billet SVG avec encoches latérales (perforation), dégradé `Electric Blue → Flash Cyan`, reflet supérieur, ligne de perforation verticale et coche blanche (validation d'accès).
 - Taille pilotée par `className` (ex. `h-8 w-8` dans le header). Identifiants de dégradés uniques via `useId` (pas de collision si réutilisé).
 
 ---
@@ -84,7 +84,7 @@
 
 - **KPIs temps réel** : chiffre d'affaires (USD/CDF), billets vendus, taux de remplissage, personnes entrées (scannées).
 - **Liste des événements** : cartes avec statut (Brouillon / Publié / Terminé), progression des ventes, accès à la gestion.
-- **État** : ✅ fait (`components/views/OrganizerDashboard.tsx`, branché sur les données réelles via `getOrganizerEvents()` — KPIs agrégés en base, actions Publier/Éditer/Supprimer).
+- **État** : ✅ fait (`components/features/dashboard/OrganizerDashboard.tsx`, branché sur les données réelles via `getOrganizerEvents()` — KPIs agrégés en base, actions Publier/Éditer/Supprimer).
 
 ### 📄 Création d'événement — Route `/events/new` (À VENIR, protégée)
 
@@ -93,7 +93,7 @@
 - Visuel : upload de l'affiche (Supabase Storage / Vercel Blob) — **MVP : champ URL** (`poster_url`).
 - **Paramétrage des billets** : plusieurs types (Standard/VIP/Invitation), prix, devise, capacité par type.
 - Slug unique `/e/[slug]` généré depuis le titre.
-- **État** : ✅ fait (`components/views/EventCreationForm.tsx` — persistance réelle via Server Actions, multi-types de billets dynamiques, validation Zod + client, mode édition pré-rempli ; navigation par état SPA, la vraie route `/events/new` viendra avec le routing Phase 6).
+- **État** : ✅ fait (`components/features/event-creation/EventCreationForm.tsx` — persistance réelle via Server Actions, multi-types de billets dynamiques, validation Zod + client, mode édition pré-rempli ; navigation par état SPA, la vraie route `/events/new` viendra avec le routing Phase 6).
 
 ### 📄 Page publique événement — Route `/e/[slug]` (À VENIR, publique)
 
@@ -104,14 +104,14 @@
 - Sélection quantité + type de billet ; coordonnées acheteur (nom, téléphone Mobile Money, email optionnel).
 - **Paiement Mobile Money** : M-Pesa / Orange Money / Airtel Money (agrégateur ou flux simulé pour MVP) + webhook de confirmation.
 - **Billet numérique** : confirmation + envoi SMS/WhatsApp. Contenu : nom, type, événement, **QR Code dynamique** + **code alphanumérique unique de 6 caractères** (ex. `K9M-4X2`), affiché en gros.
-- **État** : 🚧 maquette (`components/views/TicketCheckout.tsx` — prix codé en dur 38 $, paiement factice, code codé en dur `A4B-8K9`).
+- **État** : 🚧 maquette (`components/features/checkout/TicketCheckout.tsx` — prix codé en dur 38 $, paiement factice, code codé en dur `A4B-8K9`).
 
 ### 📄 Contrôle d'accès — Route `/scan/[slug]` (À VENIR)
 
 - **Accès agent** : URL dédiée + **code PIN** fourni par l'organisateur.
 - **Double interface** : (1) caméra QR ; (2) champ de saisie manuelle du code 6 caractères (majuscules auto, tirets ignorés).
 - **Retours visuels + sonores** : VERT (valide, nom + type), ORANGE (déjà scanné, heure du 1er passage), ROUGE (invalide/étranger).
-- **État** : 🚧 maquette (`components/views/ScannerView.tsx` — saisie manuelle + normalisation + 3 états visuels, mais codes codés en dur `A4B8K9`/`X7PM3R`, pas de caméra, pas de PIN, pas de DB).
+- **État** : 🚧 maquette (`components/features/scanner/Scanner.tsx` — saisie manuelle + normalisation + 3 états visuels, mais codes codés en dur `A4B8K9`/`X7PM3R`, pas de caméra, pas de PIN, pas de DB).
 
 ---
 
@@ -200,7 +200,7 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 - [x] `OrganizerDashboard` (KPIs + liste d'événements, données statiques).
 - [x] `EventCreationForm` (formulaire, validation du titre).
 - [x] `TicketCheckout` (sélection quantité, coordonnées, paiement factice, confirmation).
-- [x] `ScannerView` (saisie manuelle + normalisation + 3 états visuels).
+- [x] `Scanner` (saisie manuelle + normalisation + 3 états visuels).
 
 ### ✅ Phase 2 — Base de données (FAITE)
 
@@ -212,8 +212,8 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 
 ### ✅ Phase 3 — Identité & thème (FAITE)
 
-- [x] Logo « ticket premium » (`components/Logo.tsx`).
-- [x] Toggle clair/sombre (`next-themes` + `components/ThemeToggle.tsx`).
+- [x] Logo « ticket premium » (`components/layout/Logo.tsx`).
+- [x] Toggle clair/sombre (`next-themes` + `components/layout/ThemeToggle.tsx`).
 - [x] Menu mobile responsive (hamburger + dropdown).
 
 ### ❌ Phase 4 — Authentification (À VENIR)
@@ -288,11 +288,17 @@ app/
   layout.tsx          # Layout racine + ThemeProvider + métadonnées
   globals.css         # Tokens Tailwind v4 (clair/sombre)
 components/
-  Logo.tsx            # Logo « ticket premium »
-  ThemeToggle.tsx     # Bascule clair/sombre
-  KinPassApp.tsx      # Navigation par état (SPA)
-  views/              # LandingPage, OrganizerDashboard, EventCreationForm, TicketCheckout, ScannerView
-  ui/                 # button, card, input, badge, tabs
+  KinPassApp.tsx      # Coquille SPA — navigation par état
+  layout/             # Composants de coquille (header)
+    Logo.tsx          # Logo « ticket premium »
+    ThemeToggle.tsx   # Bascule clair/sombre
+  ui/                 # Primitives atomiques (button, card, input, badge, tabs)
+  features/           # Vues regroupées par domaine (1 dossier = 1 future route)
+    landing/          # LandingPage
+    dashboard/        # OrganizerDashboard
+    event-creation/   # EventCreationForm
+    checkout/         # TicketCheckout
+    scanner/          # Scanner
 lib/
   actions/events.ts   # Server Actions CRUD événements (+ stats agrégées)
   validators/events.ts# Schémas Zod (messages français) — séparés des actions

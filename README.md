@@ -16,6 +16,7 @@ Kin Pass digitalise l'ensemble du cycle de vie d'un événement : création et v
 | Tunnel d'achat / billetterie | 🚧 En cours (UI, paiement factice) |
 | Contrôle d'accès (scanner) | 🚧 En cours (saisie manuelle, scan caméra absent) |
 | Base de données (Neon + Drizzle) | ✅ Fait (schéma + tables créées) |
+| Tests end-to-end (Playwright) | ✅ Fait (landing, dashboard, événements, checkout, scanner) |
 | Authentification | ❌ À venir |
 | Paiement Mobile Money | ❌ À venir |
 
@@ -63,19 +64,39 @@ pnpm typecheck    # vérification TypeScript
 pnpm db:push      # pousse le schéma vers la base
 pnpm db:generate  # génère les migrations SQL
 pnpm db:studio    # ouvre Drizzle Studio
+pnpm test:e2e     # tests end-to-end Playwright (démarre le serveur automatiquement)
 node scripts/seed-demo.mts   # seed données de démo (--reset pour repartir de zéro)
 ```
+
+## Tests
+
+Les tests end-to-end utilisent **Playwright** et sont exécutés dans Chromium
+contre une base de démonstration réinitialisée avant chaque lancement.
+
+```bash
+corepack pnpm exec playwright install chromium   # une seule fois
+pnpm test:e2e                                    # lance la suite complète
+pnpm test:e2e:headed                             # navigateur visible
+pnpm test:e2e:ui                                 # mode interactif
+```
+
+Le détail (conventions, `data-testid`, comment ajouter un test) est documenté
+dans [`tests/README.md`](./tests/README.md).
 
 ## Structure du projet
 
 ```
 app/                   # Routes App Router (page + layout)
 components/
-  Logo.tsx             # Logo « ticket premium »
-  ThemeToggle.tsx      # Bascule clair/sombre
-  KinPassApp.tsx       # Navigation par état (SPA)
-  views/               # Landing, Dashboard, Création, Checkout, Scanner
-  ui/                  # Composants shadcn/ui
+  KinPassApp.tsx       # Coquille SPA — navigation par état
+  layout/              # Composants de coquille (Logo, ThemeToggle)
+  ui/                  # Primitives atomiques (button, card, input, badge, tabs)
+  features/            # Vues par domaine (1 dossier = 1 future route)
+    landing/           # LandingPage
+    dashboard/         # OrganizerDashboard
+    event-creation/    # EventCreationForm
+    checkout/          # TicketCheckout
+    scanner/           # Scanner
 lib/
   actions/events.ts    # Server Actions CRUD événements (+ stats agrégées)
   validators/events.ts # Schémas Zod (messages en français)
@@ -86,6 +107,9 @@ lib/
   utils.ts             # cn()
 scripts/
   seed-demo.mts        # Seed organisateur de test + données de démo
+tests/
+  e2e/                 # Tests Playwright (landing, dashboard, événements, checkout, scanner)
+playwright.config.ts   # Configuration Playwright
 drizzle.config.ts
 ```
 
