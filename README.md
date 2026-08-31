@@ -1,33 +1,104 @@
-# kin-pass
+# Kin Pass
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [v0](https://v0.app).
+**Plateforme SaaS de billetterie et de contrôle d'accès pour les événements en RDC (Kinshasa).**
 
-## Built with v0
+Kin Pass digitalise l'ensemble du cycle de vie d'un événement : création et vente de billets sécurisés, paiement via Mobile Money (M-Pesa, Orange Money, Airtel Money) et contrôle d'accès à la porte (scan QR + code alphanumérique de secours à 6 caractères).
 
-This repository is linked to a [v0](https://v0.app) project. You can continue developing by visiting the link below -- start new chats to make changes, and v0 will push commits directly to this repo. Every merge to `main` will automatically deploy.
+> **Statut actuel** : prototype front-end (UI) + fondations base de données posées. La logique métier (auth, API, paiement, scanner) reste à implémenter. Voir [`project_info.md`](./project_info.md) pour le détail.
 
-[Continue working on v0 →](https://v0.app/chat/projects/prj_EIIwaVB6XL6xJR04qDMRTJk43sJz)
+## Statut du développement
 
-## Getting Started
+| Module | Statut |
+|---|---|
+| Landing page | ✅ Fait (maquette) |
+| Dashboard organisateur | ✅ Fait (maquette, données factices) |
+| Création d'événement | 🚧 En cours (formulaire UI, sans persistance) |
+| Tunnel d'achat / billetterie | 🚧 En cours (UI, paiement factice) |
+| Contrôle d'accès (scanner) | 🚧 En cours (saisie manuelle, scan caméra absent) |
+| Base de données (Neon + Drizzle) | ✅ Fait (schéma + tables créées) |
+| Authentification | ❌ À venir |
+| Paiement Mobile Money | ❌ À venir |
 
-First, run the development server:
+## Stack technique
+
+- **Framework** : Next.js 16 (App Router), React 19
+- **Style** : Tailwind CSS v4 + shadcn/ui (`base-nova`)
+- **Icônes** : `iconoir-react`
+- **Base de données** : Neon PostgreSQL + `drizzle-orm` + `postgres` (postgres.js)
+- **Thème** : `next-themes` (clair/sombre)
+- **Analytics** : `@vercel/analytics`
+- **Gestionnaire de paquets** : pnpm
+
+## Prérequis
+
+- Node.js 20+
+- pnpm (via Corepack)
+- Un compte [Neon](https://neon.tech) (PostgreSQL)
+
+## Installation
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
+cp .env.local.example .env.local   # puis renseigner DATABASE_URL
+pnpm db:push                        # crée les tables
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Ouvrir [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Variables d'environnement
 
-## Learn More
+| Variable | Description |
+|---|---|
+| `DATABASE_URL` | URL de connexion Neon (poolée), ex. `postgresql://...` |
 
-To learn more, take a look at the following resources:
+## Commandes disponibles
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-- [v0 Documentation](https://v0.app/docs) - learn about v0 and how to use it.
+```bash
+pnpm dev          # serveur de développement
+pnpm build        # build de production
+pnpm start        # démarrage production
+pnpm typecheck    # vérification TypeScript
+pnpm db:push      # pousse le schéma vers la base
+pnpm db:generate  # génère les migrations SQL
+pnpm db:studio    # ouvre Drizzle Studio
+```
+
+## Structure du projet
+
+```
+app/                   # Routes App Router (page + layout)
+components/
+  Logo.tsx             # Logo « ticket premium »
+  ThemeToggle.tsx      # Bascule clair/sombre
+  KinPassApp.tsx       # Navigation par état (SPA)
+  views/               # Landing, Dashboard, Création, Checkout, Scanner
+  ui/                  # Composants shadcn/ui
+lib/
+  db/schema.ts         # Schéma Drizzle (users, events, ticket_types, tickets, scans)
+  db/index.ts          # Client Drizzle
+  utils.ts             # cn()
+drizzle.config.ts
+```
+
+## Fonctionnalités disponibles (démo)
+
+- Landing page marketing
+- Dashboard organisateur (KPIs + liste d'événements factices)
+- Formulaire de création d'événement (validation du titre)
+- Tunnel de réservation (quantité, coordonnées, bouton Mobile Money factice)
+- Scanner (saisie manuelle + retours VERT / ORANGE / ROUGE)
+- Thème clair / sombre (toggle header)
+- Menu mobile responsive
+
+## Prochaines étapes
+
+1. Authentification organisateur (email + bcrypt, sessions).
+2. API/Server Actions + création d'événement persistée (multi-types de billets, upload affiche).
+3. Routing par URL (`/e/[slug]`, `/scan/[slug]`, `/dashboard`).
+4. Billetterie publique : génération code 6 caractères + QR + paiement Mobile Money.
+5. Scanner caméra + code PIN agent + validation en base (< 500 ms).
+
+## Liens utiles
+
+- Déploiement : automatique via Vercel (projet v0) — [v0](https://v0.app/chat/projects/prj_EIIwaVB6XL6xJR04qDMRTJk43sJz)
