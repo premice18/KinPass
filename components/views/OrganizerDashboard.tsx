@@ -1,9 +1,358 @@
 'use client'
-import { Calendar, CardWallet, MapPin, NavArrowRight, Plus, Scanning, SecurityPass, StatsReport } from 'iconoir-react'
+
+// ────────────────────────────────────────────────────────────────────────────
+// Tableau de bord organisateur (Phase 5) — branché sur les données réelles
+//
+// - Charge les événements via la Server Action `getOrganizerEvents()` dans un
+//   `useEffect` (la vue est un composant client à cause de la navigation par
+//   état dans KinPassApp ; un futur composant serveur pourra fournir les
+//   données en props).
+// - KPIs calculés depuis les agrégations serveur : revenus (USD/CDF), billets
+//   vendus, taux de remplissage, personnes entrées (scans).
+// - Liste des événements : statut (Brouillon/Publié/Terminé), progression des
+//   ventes, actions Publier / Éditer / Supprimer (avec confirmation).
+// ────────────────────────────────────────────────────────────────────────────
+
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  Barcode,
+  Calendar,
+  CardWallet,
+  Clock,
+  EditPencil,
+  MapPin,
+  Plus,
+  Refresh,
+  Scanning,
+  Send,
+  StatsReport,
+  Trash,
+  WarningCircle,
+} from 'iconoir-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-interface DashboardProps { onCreateEvent: () => void }
-const events = [{ name: 'Kin House : Open Studio', date: '20 sept. 2026', location: 'Galerie d’art moderne', sold: 487, total: 500, status: 'En vente' }, { name: 'Conférence Tech RDC', date: '3 oct. 2026', location: 'Pullman Kinshasa', sold: 298, total: 300, status: 'Complet' }, { name: 'Gala des créateurs', date: '12 nov. 2026', location: 'Lola ya Bonobo', sold: 45, total: 200, status: 'Brouillon' }]
-export function OrganizerDashboard({ onCreateEvent }: DashboardProps) { return <main className="min-h-screen bg-background px-4 py-8 sm:px-8"><div className="mx-auto max-w-6xl"><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center"><div><p className="text-sm font-medium text-primary">ESPACE ORGANISATEUR</p><h1 className="mt-1 text-3xl font-semibold tracking-tight">Tableau de bord</h1><p className="mt-1 text-muted-foreground">Suivez vos événements et vos ventes en temps réel.</p></div><Button onClick={onCreateEvent}><Plus className="h-4 w-4" />Créer un événement</Button></div><div className="mt-8 grid gap-4 sm:grid-cols-3"><Stat icon={CardWallet} label="Revenus totaux" value="18 705 $" detail="+12,5 % ce mois" /><Stat icon={SecurityPass} label="Billets vendus" value="1 247" detail="sur 1 500 disponibles" /><Stat icon={Scanning} label="Billets scannés" value="892" detail="71,5 % des ventes" /></div><div className="mt-10 flex items-center justify-between"><div><h2 className="text-xl font-semibold">Vos événements</h2><p className="mt-1 text-sm text-muted-foreground">Gérez vos événements actifs et à venir.</p></div><Button variant="outline" size="sm">Voir les participants</Button></div><div className="mt-5 space-y-3">{events.map((event) => <Card key={event.name}><CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{event.name}</h3><Badge variant={event.status === 'En vente' ? 'success' : event.status === 'Complet' ? 'warning' : 'secondary'}>{event.status}</Badge></div><div className="mt-2 flex flex-wrap gap-4 text-sm text-muted-foreground"><span className="flex items-center gap-1.5"><Calendar className="h-4 w-4" />{event.date}</span><span className="flex items-center gap-1.5"><MapPin className="h-4 w-4" />{event.location}</span></div></div><div className="flex items-center justify-between gap-6 sm:justify-end"><div className="min-w-32"><div className="flex justify-between text-sm"><span className="text-muted-foreground">Ventes</span><span className="font-medium">{event.sold}/{event.total}</span></div><div className="mt-2 h-1.5 rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${event.sold / event.total * 100}%` }} /></div></div><Button variant="ghost" size="icon" aria-label={`Ouvrir ${event.name}`}><NavArrowRight className="h-4 w-4" /></Button></div></CardContent></Card>)}</div><div className="mt-8 flex items-center gap-3 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground"><StatsReport className="h-5 w-5 text-primary" />Les ventes progressent de 18 % sur les 7 derniers jours.</div></div></main>}
-function Stat({ icon: Icon, label, value, detail }: { icon: typeof SecurityPass; label: string; value: string; detail: string }) { return <Card><CardContent className="p-5"><div className="flex items-center justify-between"><span className="text-sm text-muted-foreground">{label}</span><Icon className="h-5 w-5 text-primary" /></div><p className="mt-4 text-3xl font-semibold tracking-tight">{value}</p><p className="mt-1 text-xs text-muted-foreground">{detail}</p></CardContent></Card> }
+import { cn } from '@/lib/utils'
+import { deleteEvent, getOrganizerEvents, publishEvent, type EventWithStats } from '@/lib/actions/events'
+
+interface DashboardProps {
+  // Navigation par état : ouvre le formulaire en mode création.
+  onCreateEvent: () => void
+  // Navigation par état : ouvre le formulaire en mode édition (id).
+  onEditEvent: (eventId: string) => void
+}
+
+// Formate un montant avec des milliers à la française et la devise RDC.
+function formatMoney(amount: number, currency: 'USD' | 'CDF'): string {
+  const formatted = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(amount)
+  return currency === 'USD' ? `${formatted} $` : `${formatted} FC`
+}
+
+// Formate une date au format français court (ex. « 20 sept. 2026 »).
+function formatDate(value: Date | string | null): string {
+  if (!value) return '—'
+  return new Date(value).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+// Formate une heure au format français (ex. « 18:00 »).
+function formatTime(value: Date | string | null): string {
+  if (!value) return ''
+  return new Date(value).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+}
+
+// Libellé et variante de badge pour chaque statut d'événement.
+const STATUS_META: Record<EventWithStats['status'], { label: string; badge: 'secondary' | 'success' | 'default' }> = {
+  draft: { label: 'Brouillon', badge: 'secondary' },
+  published: { label: 'Publié', badge: 'success' },
+  finished: { label: 'Terminé', badge: 'default' },
+}
+
+export function OrganizerDashboard({ onCreateEvent, onEditEvent }: DashboardProps) {
+  const [events, setEvents] = useState<EventWithStats[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  // Identifiants d'événements en cours d'action (spinner sur le bouton).
+  const [pendingPublishId, setPendingPublishId] = useState<string | null>(null)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+
+  // Charge (ou recharge) la liste des événements depuis la base.
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    const result = await getOrganizerEvents()
+    if (result.success) {
+      setEvents(result.data)
+    } else {
+      setError(result.error)
+    }
+    setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  // Publication d'un événement (brouillon → publié).
+  const handlePublish = async (event: EventWithStats) => {
+    setPendingPublishId(event.id)
+    const result = await publishEvent(event.id)
+    setPendingPublishId(null)
+    if (!result.success) {
+      setError(result.error)
+      return
+    }
+    // Mise à jour locale du statut sans recharger toute la liste.
+    setEvents((prev) => prev.map((e) => (e.id === event.id ? { ...e, status: 'published' } : e)))
+  }
+
+  // Suppression avec confirmation (MVP : window.confirm).
+  const handleDelete = async (event: EventWithStats) => {
+    const confirmed = window.confirm(
+      `Supprimer « ${event.title} » ? Cette action est irréversible (billets et scans inclus).`,
+    )
+    if (!confirmed) return
+
+    setPendingDeleteId(event.id)
+    const result = await deleteEvent(event.id)
+    setPendingDeleteId(null)
+    if (!result.success) {
+      setError(result.error)
+      return
+    }
+    setEvents((prev) => prev.filter((e) => e.id !== event.id))
+  }
+
+  // KPIs agrégés sur l'ensemble des événements de l'organisateur.
+  const kpis = useMemo(() => {
+    const revenueUSD = events.reduce((sum, e) => sum + e.revenueUSD, 0)
+    const revenueCDF = events.reduce((sum, e) => sum + e.revenueCDF, 0)
+    const soldCount = events.reduce((sum, e) => sum + e.soldCount, 0)
+    const capacity = events.reduce((sum, e) => sum + (e.capacity ?? 0), 0)
+    const scannedCount = events.reduce((sum, e) => sum + e.scannedCount, 0)
+    return {
+      revenueUSD,
+      revenueCDF,
+      soldCount,
+      capacity,
+      fillRate: capacity > 0 ? Math.min(100, Math.round((soldCount / capacity) * 100)) : 0,
+      scannedCount,
+      scannedRate: soldCount > 0 ? Math.round((scannedCount / soldCount) * 100) : 0,
+    }
+  }, [events])
+
+  return (
+    <main className="min-h-screen bg-background px-4 py-8 sm:px-8">
+      <div className="mx-auto max-w-6xl">
+        {/* En-tête + bouton de création */}
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+          <div>
+            <p className="text-sm font-medium text-primary">ESPACE ORGANISATEUR</p>
+            <h1 className="mt-1 text-3xl font-semibold tracking-tight">Tableau de bord</h1>
+            <p className="mt-1 text-muted-foreground">Suivez vos événements et vos ventes en temps réel.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={load} aria-label="Actualiser la liste">
+              <Refresh className="h-4 w-4" />
+              Actualiser
+            </Button>
+            <Button onClick={onCreateEvent}>
+              <Plus className="h-4 w-4" />
+              Créer un événement
+            </Button>
+          </div>
+        </div>
+
+        {/* Message d'erreur global */}
+        {error && (
+          <div
+            role="alert"
+            className="mt-6 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          >
+            <WarningCircle className="h-4 w-4 shrink-0" />
+            {error}
+          </div>
+        )}
+
+        {/* KPIs calculés sur les données réelles */}
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Stat
+            icon={CardWallet}
+            label="Revenus totaux"
+            value={formatMoney(kpis.revenueUSD, 'USD')}
+            detail={kpis.revenueCDF > 0 ? `+ ${formatMoney(kpis.revenueCDF, 'CDF')} en FC` : 'Aucune vente en FC'}
+          />
+          <Stat
+            icon={Barcode}
+            label="Billets vendus"
+            value={new Intl.NumberFormat('fr-FR').format(kpis.soldCount)}
+            detail={kpis.capacity > 0 ? `sur ${new Intl.NumberFormat('fr-FR').format(kpis.capacity)} disponibles` : 'capacité non définie'}
+          />
+          <Stat
+            icon={StatsReport}
+            label="Taux de remplissage"
+            value={`${kpis.fillRate} %`}
+            detail={kpis.capacity > 0 ? `${new Intl.NumberFormat('fr-FR').format(kpis.soldCount)} / ${new Intl.NumberFormat('fr-FR').format(kpis.capacity)} places` : 'capacité non définie'}
+          />
+          <Stat
+            icon={Scanning}
+            label="Personnes entrées"
+            value={new Intl.NumberFormat('fr-FR').format(kpis.scannedCount)}
+            detail={`${kpis.scannedRate} % des ventes`}
+          />
+        </div>
+
+        {/* Liste des événements */}
+        <div className="mt-10 flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold">Vos événements</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Gérez vos événements actifs et à venir.</p>
+          </div>
+        </div>
+
+        <div className="mt-5 space-y-3">
+          {loading ? (
+            <Card>
+              <CardContent className="flex items-center justify-center gap-2 p-8 text-sm text-muted-foreground">
+                <Refresh className="h-5 w-5 animate-spin" />
+                Chargement de vos événements…
+              </CardContent>
+            </Card>
+          ) : events.length === 0 ? (
+            /* État vide : premier événement à créer */
+            <Card>
+              <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
+                <Barcode className="h-8 w-8 text-muted-foreground" />
+                <p className="font-medium">Aucun événement pour le moment</p>
+                <p className="max-w-sm text-sm text-muted-foreground">
+                  Créez votre premier événement pour commencer à vendre vos billets.
+                </p>
+                <Button onClick={onCreateEvent} className="mt-2">
+                  <Plus className="h-4 w-4" />
+                  Créer un événement
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            events.map((event) => {
+              const status = STATUS_META[event.status]
+              const progressWidth = Math.min(100, event.fillRate)
+              return (
+                <Card key={event.id}>
+                  <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
+                    {/* Informations principales */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-semibold">{event.title}</h3>
+                        <Badge variant={status.badge}>{status.label}</Badge>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-4 text-sm text-muted-foreground">
+                        {event.startAt && (
+                          <span className="flex items-center gap-1.5">
+                            <Calendar className="h-4 w-4" />
+                            {formatDate(event.startAt)}
+                          </span>
+                        )}
+                        {event.startAt && (
+                          <span className="flex items-center gap-1.5">
+                            <Clock className="h-4 w-4" />
+                            {formatTime(event.startAt)}
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1.5">
+                          <MapPin className="h-4 w-4" />
+                          {event.venue || event.location || 'Lieu à définir'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Progression des ventes */}
+                    <div className="w-full lg:w-56">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>{event.soldCount} vendus</span>
+                        <span>
+                          {event.capacity != null ? `sur ${event.capacity}` : 'capacité non définie'}
+                        </span>
+                      </div>
+                      <div className="mt-1.5 h-2 w-full rounded-full bg-muted">
+                        <div
+                          className={cn('h-2 rounded-full', event.fillRate >= 100 ? 'bg-emerald-500' : 'bg-primary')}
+                          style={{ width: `${progressWidth}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Actions : publier / éditer / supprimer */}
+                    <div className="flex items-center gap-2">
+                      {event.status === 'draft' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handlePublish(event)}
+                          disabled={pendingPublishId === event.id}
+                        >
+                          {pendingPublishId === event.id ? (
+                            <Refresh className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Send className="h-4 w-4" />
+                          )}
+                          Publier
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="icon-sm"
+                        onClick={() => onEditEvent(event.id)}
+                        aria-label={`Modifier ${event.title}`}
+                      >
+                        <EditPencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="icon-sm"
+                        onClick={() => handleDelete(event)}
+                        disabled={pendingDeleteId === event.id}
+                        aria-label={`Supprimer ${event.title}`}
+                      >
+                        {pendingDeleteId === event.id ? (
+                          <Refresh className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })
+          )}
+        </div>
+      </div>
+    </main>
+  )
+}
+
+// Carte KPI : icône Iconoir, libellé, valeur principale et détail.
+function Stat({
+  icon: Icon,
+  label,
+  value,
+  detail,
+}: {
+  icon: typeof CardWallet
+  label: string
+  value: string
+  detail: string
+}) {
+  return (
+    <Card>
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">{label}</span>
+          <Icon className="h-5 w-5 text-primary" />
+        </div>
+        <p className="mt-4 text-3xl font-semibold tracking-tight">{value}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
+      </CardContent>
+    </Card>
+  )
+}
