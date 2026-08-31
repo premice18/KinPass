@@ -1,0 +1,95 @@
+# Tests end-to-end (Playwright)
+
+Ce dossier contient la suite de tests end-to-end de **Kin Pass**, écrite avec
+[Playwright](https://playwright.dev). Les tests vérifient le comportement réel
+de l'interface dans un navigateur Chromium (sans mock), contre une base de
+données de démonstration réinitialisée avant chaque exécution.
+
+## Lancer les tests
+
+```bash
+# Installation des navigateurs (une seule fois)
+corepack pnpm exec playwright install chromium
+
+# Exécuter la suite (démarre le serveur Next.js automatiquement)
+pnpm test:e2e
+
+# Mode interactif (inspecteur visuel)
+pnpm test:e2e:ui
+
+# Mode headed (navigateur visible)
+pnpm test:e2e:headed
+```
+
+Le serveur de développement est démarré automatiquement par `playwright.config.ts`
+(`webServer`) : **inutile de lancer `pnpm dev` séparément**. La base est
+réinitialisée par `tests/global-setup.ts` (seed `--reset`), qui requiert
+`DATABASE_URL` dans `.env.local`.
+
+## Structure
+
+```
+tests/
+  global-setup.ts        # Réinitialise la base de démo avant la suite
+  e2e/
+    helpers.ts           # Utilitaires de navigation (non collecté comme test)
+    landing.spec.ts      # Page d'accueil + navigation
+    dashboard.spec.ts    # KPIs, liste, publication
+    event-creation.spec.ts # Création / édition / suppression / validation
+    checkout.spec.ts     # Tunnel de réservation (maquette)
+    scanner.spec.ts      # Contrôle d'accès (maquette, 3 états)
+```
+
+## Conventions
+
+- **Noms de tests et `describe` en français**, code et sélecteurs en anglais
+  (convention retenue pour ce projet).
+- Un fichier `.spec.ts` par **domaine fonctionnel** (même découpage que
+  `components/features/*`).
+- **Sélecteurs robustes** dans l'ordre de préférence :
+  1. `data-testid` (le plus stable) ;
+  2. rôles accessibles `getByRole` / `getByLabel` ;
+  3. texte visible `getByText` en dernier recours.
+- **Attentes automatiques** : utiliser `await expect(locator).toBeVisible()` /
+  `toContainText()` plutôt que des `waitForTimeout` fixes.
+- Les tests qui écrivent en base **nettoient leurs données** (création puis
+  suppression) pour rester indépendants.
+
+## data-testid
+
+Les attributs `data-testid` sont ajoutés dans les composants uniquement lorsque
+le sélecteur accessible n'est pas fiable (boutons dynamiques, cartes, états).
+Convention de nommage : **kebab-case en anglais**, préfixé par le domaine.
+
+| `data-testid` | Composant | Rôle |
+|---|---|---|
+| `kpi-revenue`, `kpi-sold`, `kpi-fill-rate`, `kpi-scanned` | `dashboard/OrganizerDashboard.tsx` | Cartes KPI |
+| `event-card` | `dashboard/OrganizerDashboard.tsx` | Carte d'un événement |
+| `event-title-input` | `event-creation/EventCreationForm.tsx` | Champ titre |
+| `submit-event-button` | `event-creation/EventCreationForm.tsx` | Bouton de soumission |
+| `add-ticket-type` | `event-creation/EventCreationForm.tsx` | Ajouter un type de billet |
+| `ticket-type-row` / `remove-ticket-type` | `event-creation/EventCreationForm.tsx` | Ligne de billet |
+| `form-error` / `form-success` | `event-creation/EventCreationForm.tsx` | Messages de formulaire |
+| `checkout-total`, `checkout-quantity`, `checkout-confirm-code` | `checkout/TicketCheckout.tsx` | Total / quantité / code |
+| `scanner-code-input`, `scan-result` | `scanner/Scanner.tsx` | Champ code / résultat |
+
+## Ajouter un test
+
+1. Créer `tests/e2e/<domaine>.spec.ts` (ou compléter un fichier existant).
+2. Utiliser `goTo(page, 'NomDeLaVue')` depuis `helpers.ts` pour naviguer.
+3. Si un élément est difficile à cibler, ajouter un `data-testid` dans le
+   composant (en le documentant dans le tableau ci-dessus).
+4. Si le test écrit en base, penser à nettoyer (création puis suppression).
+5. Lancer `pnpm test:e2e` et vérifier que tout passe.
+
+## Choix techniques
+
+- **`workers: 1` (séries)** : les tests partagent une vraie base PostgreSQL ;
+  l'exécution en série garantit la déterminisme (aucune interférence d'état).
+- **Seed en `globalSetup`** : `scripts/seed-demo.mts --reset` redonne un état
+  connu (2 événements, 12 billets, 10 scans) à chaque lancement.
+- **Chromium uniquement** pour l'instant : Firefox et WebKit sont disponibles
+  (déjà installés), décommenter les projets dans `playwright.config.ts` pour
+  élargir la matrice.
+- **`corepack pnpm dev`** dans `webServer` : résout `pnpm` via Corepack (fourni
+  avec Node.js 20+) quel que soit l'environnement.
