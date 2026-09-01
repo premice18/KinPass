@@ -1,19 +1,19 @@
-# Kin Pass
+<h1 align="center">Kin Pass</h1>
 
----
+<p align="center">
+  <img src="https://img.shields.io/badge/Next.js-000000.svg?style=for-the-badge&logo=nextdotjs&logoColor=white" alt="Next.js" />
+  <img src="https://img.shields.io/badge/React-20232A.svg?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React" />
+  <img src="https://img.shields.io/badge/TypeScript-3178C6.svg?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Tailwind_CSS-06B6D4.svg?style=for-the-badge&logo=tailwindcss&logoColor=white" alt="Tailwind CSS" />
+  <img src="https://img.shields.io/badge/PostgreSQL-4169E1.svg?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
+  <img src="https://img.shields.io/badge/Drizzle-C5F74F.svg?style=for-the-badge&logoColor=black" alt="Drizzle" />
+  <img src="https://img.shields.io/badge/Zod-3E67B1.svg?style=for-the-badge&logo=zod&logoColor=white" alt="Zod" />
+  <img src="https://img.shields.io/badge/Playwright-2EAD33.svg?style=for-the-badge&logo=playwright&logoColor=white" alt="Playwright" />
+  <img src="https://img.shields.io/badge/pnpm-F69220.svg?style=for-the-badge&logo=pnpm&logoColor=white" alt="pnpm" />
+  <img src="https://img.shields.io/badge/Vercel-000000.svg?style=for-the-badge&logo=vercel&logoColor=white" alt="Vercel" />
+</p>
 
-![Next.js](https://img.shields.io/badge/Next.js-000000.svg?style=flat-square&logo=nextdotjs&logoColor=white)
-![React](https://img.shields.io/badge/React-20232A.svg?style=flat-square&logo=react&logoColor=61DAFB)
-![TypeScript](https://img.shields.io/badge/TypeScript-3178C6.svg?style=flat-square&logo=typescript&logoColor=white)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-06B6D4.svg?style=flat-square&logo=tailwindcss&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1.svg?style=flat-square&logo=postgresql&logoColor=white)
-![Drizzle](https://img.shields.io/badge/Drizzle-C5F74F.svg?style=flat-square&logoColor=black)
-![Zod](https://img.shields.io/badge/Zod-3E67B1.svg?style=flat-square&logo=zod&logoColor=white)
-![Playwright](https://img.shields.io/badge/Playwright-2EAD33.svg?style=flat-square&logo=playwright&logoColor=white)
-![pnpm](https://img.shields.io/badge/pnpm-F69220.svg?style=flat-square&logo=pnpm&logoColor=white)
-![Vercel](https://img.shields.io/badge/Vercel-000000.svg?style=flat-square&logo=vercel&logoColor=white)
-
-**Plateforme SaaS de billetterie et de contrôle d'accès pour les événements en République démocratique du Congo.**
+<p align="center"><strong>Plateforme SaaS de billetterie et de contrôle d'accès pour les événements en République démocratique du Congo.</strong></p>
 
 Kin Pass digitalise l'ensemble du cycle de vie d'un événement : création de l'événement, vente de billets numériques sécurisés, paiement via Mobile Money (M-Pesa, Orange Money, Airtel Money) et contrôle d'accès à la porte (scan de QR code + code alphanumérique de secours à 6 caractères).
 
@@ -169,13 +169,9 @@ Le plan détaillé (avec spécifications par phase) est dans [`project_info.md`]
 
 1. **Authentification & compte organisateur** : inscription/connexion, profil (photo, WhatsApp, compte de reversement), sécurisation des Server Actions.
 2. **Billetterie publique** : page événement, galerie de 1 à 3 photos, commandes, remise du billet (email ou téléchargement PDF/PNG/JPG), paiement Mobile Money et pages de confirmation.
-3. **Scanner** : caméra QR, code PIN agent, validation en base.
+3. **Scanner** : caméra QR, comptes scanneurs gérés par l'organisateur (accès restreint aux seuls événements assignés), validation en base.
 4. **Vitrine publique** : événements publiés affichés sur la landing et sur une page de listing.
 5. **Monétisation & reversement** : commission Kin Pass, retrait à la demande vers le compte de l'organisateur.
 6. **Confiance & conformité** : conditions générales, politique de confidentialité, contrat de prestation.
 7. **Vérification de billet publique** : page `/verify` pour vérifier et re-télécharger un billet.
 8. **Export & reporting** : rapport PDF et export CSV des participants.
-
-## Liens utiles
-
-- Déploiement : automatique via Vercel — [v0](https://v0.app/chat/projects/prj_EIIwaVB6XL6xJR04qDMRTJk43sJz)
