@@ -6,12 +6,12 @@ import {
   MapPin,
   Minus,
   Plus,
-  SecurityPass,
   SmartphoneDevice,
 } from "iconoir-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Eyebrow } from "@/components/ui/eyebrow";
 export function TicketCheckout() {
   const [quantity, setQuantity] = useState(1);
   const [paid, setPaid] = useState(false);
@@ -45,9 +45,8 @@ export function TicketCheckout() {
     <main className="min-h-screen bg-background px-4 py-8 sm:px-8">
       <div className="mx-auto grid max-w-5xl gap-8 lg:grid-cols-[1.1fr_.9fr] lg:items-start">
         <section>
-          <div className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-primary">
-            <SecurityPass className="h-4 w-4" />
-            Billet numérique
+          <div className="mb-4">
+            <Eyebrow>Billet numérique</Eyebrow>
           </div>
           <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
             Kin House : Open Studio

@@ -8,6 +8,11 @@ import { test, expect } from '@playwright/test'
 import { goTo } from './helpers'
 
 test.describe('Création / édition d’événement', () => {
+  // Chaque test démarre sur l'accueil, puis navigue via le menu (goTo).
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/')
+  })
+
   test('affiche une erreur de validation si le titre est trop court', async ({ page }) => {
     await goTo(page, 'Créer')
 

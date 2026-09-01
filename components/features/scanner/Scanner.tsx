@@ -23,7 +23,7 @@ export function Scanner() {
       <div className="mx-auto max-w-lg">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-sm font-medium text-blue-300">
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-400">
               KIN PASS · MODE CONTRÔLE
             </p>
             <h1 className="mt-2 text-3xl font-semibold">Scanner un billet</h1>
@@ -31,11 +31,11 @@ export function Scanner() {
               Kin House : Open Studio
             </p>
           </div>
-          <Scanning className="h-7 w-7 text-blue-300" />
+          <Scanning className="h-7 w-7 text-cyan-400" />
         </div>
         <div className="relative mt-7 flex aspect-square items-center justify-center overflow-hidden rounded-3xl border border-slate-700 bg-slate-900">
-          <div className="absolute inset-8 rounded-2xl border-2 border-blue-400" />
-          <div className="absolute left-12 right-12 top-1/2 h-px bg-blue-400/70" />
+          <div className="absolute inset-8 rounded-2xl border-2 border-cyan-500" />
+          <div className="absolute left-12 right-12 top-1/2 h-px bg-cyan-500/70" />
           <Camera className="h-12 w-12 text-slate-500" />
           <p className="absolute bottom-5 text-sm text-slate-400">
             Placez le QR code dans le cadre
