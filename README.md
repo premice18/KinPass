@@ -1,4 +1,4 @@
-<h1 align="center">Kin Pass</h1>
+<h1 align="center">kinPass</h1>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Next.js-000000.svg?style=for-the-badge&logo=nextdotjs&logoColor=white" alt="Next.js" />
@@ -15,13 +15,13 @@
 
 <p align="center"><strong>Plateforme SaaS de billetterie et de contrôle d'accès pour les événements en République démocratique du Congo.</strong></p>
 
-Kin Pass digitalise l'ensemble du cycle de vie d'un événement : création de l'événement, vente de billets numériques sécurisés, paiement via Mobile Money (M-Pesa, Orange Money, Airtel Money) et contrôle d'accès à la porte (scan de QR code + code alphanumérique de secours à 6 caractères).
+kinPass digitalise l'ensemble du cycle de vie d'un événement : création de l'événement, vente de billets numériques sécurisés, paiement via Mobile Money (M-Pesa, Orange Money, Airtel Money) et contrôle d'accès à la porte (scan de QR code + code alphanumérique de secours à 6 caractères).
 
 ---
 
 ## À propos
 
-Kin Pass répond à un besoin concret du marché congolais : la plupart des événements (concerts, conférences, mariages, soirées privées) sont encore gérés avec des billets papier, des listes Excel et des encaissements manuels. Kin Pass remplace tout cela par une plateforme unique et simple, adaptée aux moyens de paiement locaux.
+kinPass répond à un besoin concret du marché congolais : la plupart des événements (concerts, conférences, festivals, soirées privées) sont encore gérés avec des billets papier, des listes Excel et des encaissements manuels. kinPass remplace tout cela par une plateforme unique et simple, adaptée aux moyens de paiement locaux.
 
 Trois profils utilisent la plateforme :
 
@@ -52,12 +52,22 @@ Trois profils utilisent la plateforme :
 
 Le design s'appuie sur l'univers du **billet** (talons, perforations pointillées, codes, chiffres tabulaires), avec l'accent **cyan** de la charte. L'objectif est un rendu original et premium, éloigné des gabarits génériques. Le détail de la charte (palette, typographie, langage visuel) est décrit dans [`project_info.md`](./project_info.md).
 
+L'interface intègre également :
+- des **photos libres de droits (Pexels)** pour le fond du hero et les couvertures d'événements — la clé API reste côté serveur (proxy `/api/pexels`) ;
+- des **animations Framer Motion** (apparitions au scroll, survols, transitions d'états), respectueuses de `prefers-reduced-motion` ;
+- un **menu mobile en overlay** (panneau superposé + backdrop flouté) avec une **icône animée hamburger ⇄ flèche vers le haut** ;
+- des **illustrations SVG de marque** (`public/illustrations/`) pour les états vides ;
+- des **animations Lottie** (`public/lottie/`) pour le paiement, la confirmation d'achat et le scan valide.
+
 | Domaine         | Technologie                                                    | Rôle                                                  |
 | --------------- | -------------------------------------------------------------- | ----------------------------------------------------- |
 | Framework       | **Next.js 16** (App Router), **React 19**                      | Rendu serveur, routing, composants                    |
 | Langage         | **TypeScript 5.7** (mode strict)                               | Typage, sûreté du code                                |
 | Style           | **Tailwind CSS v4** + **shadcn/ui** (`base-nova`)              | Design system, tokens sémantiques, thème clair/sombre |
 | Icônes          | **iconoir-react**                                              | Icônes SVG cohérentes                                 |
+| Animations      | **Framer Motion**                                              | Apparitions au scroll, micro-interactions, transitions |
+| Feedback        | **lottie-react**                                               | Animations Lottie (paiement, succès, scan)            |
+| Photos          | **Pexels API** (via proxy serveur)                             | Photos libres de droits (fonds, couvertures)          |
 | Base de données | **Neon** (PostgreSQL serverless)                               | Stockage des données                                  |
 | ORM             | **Drizzle ORM** + **postgres** (postgres.js) + **drizzle-kit** | Requêtes typées, schéma, migrations                   |
 | Validation      | **Zod 4**                                                      | Validation côté serveur (messages en français)        |
@@ -96,6 +106,7 @@ Ouvrir [http://localhost:3000](http://localhost:3000).
 | Variable       | Description                                            |
 | -------------- | ------------------------------------------------------ |
 | `DATABASE_URL` | URL de connexion Neon (poolée), ex. `postgresql://...` |
+| `PEXELS_API_KEY` | Clé API [Pexels](https://www.pexels.com/api/) (optionnelle) — photos libres de droits pour les fonds et couvertures. Sans clé, les composants affichent des fallbacks de marque. |
 
 ## Commandes
 
@@ -171,7 +182,7 @@ Le plan détaillé (avec spécifications par phase) est dans [`project_info.md`]
 2. **Billetterie publique** : page événement, galerie de 1 à 3 photos, commandes, remise du billet (email ou téléchargement PDF/PNG/JPG), paiement Mobile Money et pages de confirmation.
 3. **Scanner** : caméra QR, comptes scanneurs gérés par l'organisateur (accès restreint aux seuls événements assignés), validation en base.
 4. **Vitrine publique** : événements publiés affichés sur la landing et sur une page de listing.
-5. **Monétisation & reversement** : commission Kin Pass, retrait à la demande vers le compte de l'organisateur.
+5. **Monétisation & reversement** : commission kinPass, retrait à la demande vers le compte de l'organisateur.
 6. **Confiance & conformité** : conditions générales, politique de confidentialité, contrat de prestation.
 7. **Vérification de billet publique** : page `/verify` pour vérifier et re-télécharger un billet.
 8. **Export & reporting** : rapport PDF et export CSV des participants.

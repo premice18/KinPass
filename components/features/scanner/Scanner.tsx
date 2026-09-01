@@ -1,8 +1,10 @@
 "use client";
 import { useState } from "react";
-import { Camera, Check, Clock, Scanning, X } from "iconoir-react";
+import { Lottie } from "lottie-react";
+import { Camera, Clock, Scanning, X } from "iconoir-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import scanValid from "@/public/lottie/scan-valid.json";
 export function Scanner() {
   const [code, setCode] = useState("");
   const [result, setResult] = useState<"valid" | "invalid" | "used" | null>(
@@ -24,7 +26,7 @@ export function Scanner() {
         <div className="flex items-start justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-400">
-              KIN PASS · MODE CONTRÔLE
+              KINPASS · MODE CONTRÔLE
             </p>
             <h1 className="mt-2 text-3xl font-semibold">Scanner un billet</h1>
             <p className="mt-1 text-sm text-slate-400">
@@ -75,7 +77,12 @@ export function Scanner() {
           >
             <div className="flex items-center gap-3">
               {result === "valid" ? (
-                <Check />
+                // Animation Lottie de validation (anneau vert + coche)
+                <Lottie
+                  src={scanValid}
+                  loop={false}
+                  className="h-12 w-12"
+                />
               ) : result === "used" ? (
                 <Clock />
               ) : (
