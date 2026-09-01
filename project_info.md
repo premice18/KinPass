@@ -74,7 +74,7 @@ Anti-patterns bannis : badges-pilules arrondis teintés, cartes `rounded-xl` + `
 
 - **Organisateur** : crée/configure les événements, fixe les tarifs, suit les ventes, exporte les invités, génère des accès équipe.
 - **Participant / Acheteur** : découvre l'événement via un lien, réserve, paie en Mobile Money, reçoit son billet numérique (QR + code 6 caractères).
-- **Agent de contrôle** : accède à une interface dédiée (code PIN) pour scanner ou saisir les codes à la porte.
+- **Agent de contrôle (scanneur)** : dispose d'un **compte dédié créé par l'organisateur** (email + mot de passe), restreint à la seule interface de scan des événements qui lui sont assignés — sans accès aux ventes, revenus, contrats ni réglages.
 
 ### 📄 Landing — Route `/`
 
@@ -91,7 +91,7 @@ Anti-patterns bannis : badges-pilules arrondis teintés, cartes `rounded-xl` + `
 - Email + mot de passe (bcrypt), formulaire login et register séparés.
 - Validation (Zod) : email requis/format ; mot de passe min 8, une majuscule, une minuscule, un chiffre.
 - Icônes Iconoir `Mail` / `Lock`.
-- Comportement : `login` → session cookie → `/dashboard` ; `register` → création utilisateur (rôle `organizer`) → `/dashboard`.
+- Comportement : **une seule page `/auth/login`** commune à tous les rôles → session cookie → **redirection selon le rôle** (`organizer` → `/dashboard`, `agent` → `/scan`) ; `register` → création utilisateur (rôle `organizer`) → `/dashboard`.
 
 ### 📄 Tableau de bord organisateur — Route `/dashboard` (À VENIR, protégée)
 
@@ -124,14 +124,23 @@ Anti-patterns bannis : badges-pilules arrondis teintés, cartes `rounded-xl` + `
 
 ### 📄 Contrôle d'accès — Route `/scan/[slug]` (À VENIR)
 
-- **Accès agent** : URL dédiée + **code PIN** fourni par l'organisateur.
+- **Accès agent** : l'organisateur crée des **comptes scanneurs** (email + mot de passe) depuis ses paramètres, et les assigne à un ou plusieurs événements. L'agent se connecte puis accède à l'interface de scan des événements assignés.
+- **Restrictions strictes (RBAC)** : un scanneur ne voit que ses événements assignés ; il n'a **aucun accès** au dashboard, aux ventes/revenus, aux reversements, aux contrats ni aux réglages de l'organisateur.
 - **Double interface** : (1) caméra QR ; (2) champ de saisie manuelle du code 6 caractères (majuscules auto, tirets ignorés).
 - **Retours visuels + sonores** : VERT (valide, nom + type), ORANGE (déjà scanné, heure du 1er passage), ROUGE (invalide/étranger).
-- **État** : 🚧 maquette (`components/features/scanner/Scanner.tsx` — saisie manuelle + normalisation + 3 états visuels, mais codes codés en dur `A4B8K9`/`X7PM3R`, pas de caméra, pas de PIN, pas de DB).
+- **État** : 🚧 maquette (`components/features/scanner/Scanner.tsx` — saisie manuelle + normalisation + 3 états visuels, mais codes codés en dur `A4B8K9`/`X7PM3R`, pas de caméra, pas de compte, pas de DB).
+
+### 📄 Gestion des scanneurs — section de `/settings` (À VENIR, protégée)
+
+- Rubrique « Équipe / Scanneurs » dans les paramètres de l'organisateur : créer, lister, désactiver des comptes scanneurs, et les assigner à des événements.
+- Chaque scanneur reçoit un **email synthétique unique auto-généré** (`{slug}-{n}@kinpass.com`) — l'organisateur ne choisit que le nom et le mot de passe ; les identifiants sont transmis à l'agent de contrôle.
+- Connexion via la **page unique `/auth/login`**, redirection automatique vers l'interface de scan selon le rôle.
+- Permissions limitées : **scan uniquement**, aucun accès aux données sensibles (cf. §4 Phase 7).
 
 ### 📄 Profil organisateur — Route `/settings` (À VENIR, protégée)
 
 - **Rubriques à compléter avant de créer un événement** : photo de profil, numéro WhatsApp, adresse, **comptes de reversement** (M-Pesa / Airtel Money / Orange Money / virement).
+- **Équipe / Scanneurs** : création et gestion des comptes de contrôle (cf. §4 Phase 7).
 - Blocage de la publication d'un événement si aucun compte de reversement n'est renseigné. Détail : §4.2.
 
 ### 📄 Vitrine publique & listing — Landing + Route `/events` (À VENIR)
@@ -264,12 +273,13 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 #### 4.1 Inscription / connexion
 
 - [ ] `lib/auth.ts` : inscription + connexion, hash `bcrypt`, sessions par cookies (`jose`/`iron-session`), rôle `organizer` par défaut, cookie `httpOnly` + `secure` + `sameSite=lax`.
+- [ ] **Deux rôles** : `organizer` (auto-inscription) et `agent`/scanneur (créé uniquement par un organisateur, jamais en auto-inscription — cf. Phase 7).
 - [ ] Routes App Router `/auth/register` et `/auth/login` (formulaires séparés, icônes Iconoir `Mail` / `Lock`).
 - [ ] Validation Zod (messages français) : email valide + unique ; mot de passe ≥ 8 caractères, une majuscule, une minuscule, un chiffre ; nom complet requis.
 - [ ] Écran register : email, mot de passe, confirmation, nom complet, **case « J'accepte les Conditions Générales d'Utilisation et les règles de reversement » obligatoire** (lien vers le contrat — cf. Phase 11).
 - [ ] Écran login : email + mot de passe, lien « Mot de passe oublié » (reset par email — cf. Phase 11), gestion des erreurs (« identifiants invalides »).
 - [ ] Après login → redirection `/dashboard` ; après register → redirection vers la complétion du profil.
-- [ ] Middleware/proxy protégeant `/dashboard`, `/events/*`, `/scan/*` (redirection vers `/auth/login` si non authentifié).
+- [ ] Middleware/proxy protégeant `/dashboard`, `/events/*`, `/scan/*` (redirection vers `/auth/login` si non authentifié) ; **RBAC par rôle** : `agent` limité à `/scan/*` (aucun accès `/dashboard`, `/settings`, `/events/*`).
 - [ ] Remplacement de `DEFAULT_ORGANIZER_ID` (`lib/constants.ts`) par l'ID de session dans **toutes** les Server Actions de `lib/actions/events.ts` (fin du mode « organisateur de test »).
 - [ ] Tests E2E : register → login → accès `/dashboard` ; accès refusé sans session ; logout.
 
@@ -282,6 +292,7 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
   - **Numéro WhatsApp** : `users.phone_whatsapp` (format international `+243…`), utilisé pour les notifications et le contact acheteurs.
   - **Adresse / ville / commune** : `users.address`.
   - **Comptes de reversement** : 1 à N méthodes (M-Pesa / Airtel Money / Orange Money / virement bancaire) — table `payout_methods` (id, user_id, provider, libellé, numéro/téléphone, titulaire, is_default).
+  - **Équipe / Scanneurs** : création et gestion des comptes de contrôle (détail complet en Phase 7.2).
 - [ ] Server Action `updateProfile` (validation Zod, upload avatar, upsert des comptes de reversement).
 - [ ] Badge « Profil incomplet » affiché sur le dashboard tant que les champs obligatoires manquent ; **blocage de la publication d'un événement si aucun compte de reversement n'est renseigné** (message explicite : « Ajoutez un compte de reversement pour publier »).
 - [ ] Tests : complétion du profil, upload photo, ajout/suppression/choix du compte de reversement par défaut.
@@ -342,11 +353,55 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 
 - Tables `event_images`, `orders`, `order_items` (cf. ci-dessus) ; `tickets.order_id` FK nullable.
 
-### ❌ Phase 7 — Contrôle d'accès (À VENIR)
+### ❌ Phase 7 — Contrôle d'accès & comptes scanneurs (À VENIR)
 
-- [ ] Route `/scan/[slug]` + code PIN agent.
-- [ ] Scan caméra (`html5-qrcode`) + validation en base (< 500 ms).
-- [ ] États VERT/ORANGE/ROUGE branchés sur `tickets` + `scans` + retour sonore.
+**Dépend de** : Phase 4 (authentification), Phase 5 (événements), Phase 6 (billets émis).
+
+**Décision (validée)** : les agents de contrôle disposent de **comptes dédiés créés par l'organisateur**, avec un **RBAC strict** (accès au seul scan des événements assignés, jamais aux ventes/contrats/réglages). **Option A retenue : emails synthétiques uniques auto-générés** (ex. `event1-01@kinpass.com`, `event1-02@kinpass.com`), un compte = un email unique, un mot de passe par scanneur.
+
+#### 7.1 Comptes scanneurs & restrictions (RBAC)
+
+- [ ] Réutiliser `users.role` (`organizer` | `agent`) ; ajouter `users.organizer_id` (uuid nullable, FK `users` ON DELETE SET NULL) pour rattacher un agent à son organisateur.
+- [ ] **Emails synthétiques uniques auto-générés** : au moment de créer un scanneur, l'UI génère `{slug}-{n}@kinpass.com` (n incrémental par événement) ; l'organisateur **ne saisit pas** l'email, il choisit uniquement le nom et le mot de passe. Le domaine `@kinpass.com` marque visuellement un compte interne.
+- [ ] Nouvelle table `agent_event_access` (id, agent_id FK `users` CASCADE, event_id FK `events` CASCADE, created_at) — index sur `agent_id` et `event_id` — pour définir **quels événements** un agent peut scanner.
+- [ ] Section « Équipe / Scanneurs » dans `/settings` : lister les agents (nom, email généré, événements assignés), bouton « Ajouter un scanneur » (nom + mot de passe + sélection des événements), désactivation/réactivation, suppression, réinitialisation du mot de passe.
+- [ ] Server Actions `createAgent`, `updateAgent`, `deactivateAgent`, `assignAgentToEvent`, `unassignAgentToEvent`, `resetAgentPassword` — toutes protégées par `role === 'organizer'` **et** `organizer_id === session.id` (défense en profondeur).
+- [ ] Pas de « mot de passe oublié » pour un agent (email factice) : c'est l'organisateur qui réinitialise via `resetAgentPassword`.
+- [ ] `scans.agent_id` renseigné automatiquement avec l'agent connecté à chaque scan (traçabilité).
+
+#### 7.2 Flux de connexion (page unique + redirection par rôle)
+
+**Objectif** : une seule page de connexion, aucune page séparée admin/scan ; la redirection se fait **en arrière-plan selon le rôle** stocké en base (jamais selon le format de l'email).
+
+1. [ ] **Une seule page** `/auth/login` (email + mot de passe), commune à tous les rôles.
+2. [ ] Server Action `login(email, password)` :
+   - Recherche `users` par `email` (index UNIQUE `users_email_idx`).
+   - Introuvable → erreur générique « Identifiants invalides » (pas d'énumération de compte).
+   - `bcrypt.compare(password, passwordHash)` ; échec → erreur générique + **rate-limit** (par email **et** par IP).
+   - `users.active === false` → « Compte désactivé ».
+3. [ ] Création de la session (cookie `httpOnly` + `secure` + `sameSite=lax`) avec `{ userId, role }`.
+4. [ ] **Redirection par rôle** (depuis `users.role`, PAS depuis le texte de l'email) :
+   - `organizer` → `/dashboard` ;
+   - `agent` → `/scan` (accueil scanneur : liste des événements assignés via `agent_event_access`, puis `/scan/[slug]`).
+5. [ ] **Middleware (double protection)** : `/dashboard`, `/settings`, `/events/*`, `/payouts` exigent `role === 'organizer'` ; `/scan/*` exige `role === 'agent'` (ou `organizer`) ; écart → redirection par rôle.
+6. [ ] Vérification serveur du rôle dans **chaque** Server Action d'organisation (revenus, contrats, exports, billets, gestion des scanneurs) : refuser tout accès `agent`.
+
+#### 7.3 Interface de scan
+
+- [ ] Route `/scan/[slug]` : caméra QR (`html5-qrcode`) + champ de saisie manuelle (majuscules auto, tirets ignorés).
+- [ ] Validation en base < 500 ms (index UNIQUE `tickets.code`).
+- [ ] États VERT (valide, nom + type) / ORANGE (déjà scanné, heure du 1er passage) / ROUGE (invalide/étranger) + retour sonore.
+- [ ] Écriture dans `scans` + mise à jour `tickets.status` (`valid` → `used`) + `scanned_at`.
+
+#### 7.4 Modèle de données (ajouts)
+
+- `users` : `organizer_id` (uuid nullable, FK self), `active` (boolean default true — désactivation douce des agents).
+- Nouvelle table `agent_event_access`.
+
+#### 7.5 Tests
+
+- [ ] E2E : l'organisateur crée un scanneur (email auto-généré affiché) et l'assigne à un événement ; le scanneur se connecte sur `/auth/login` et est **redirigé vers `/scan`** (uniquement son événement) ; il est **bloqué** sur `/dashboard` et `/settings` ; un organisateur est redirigé vers `/dashboard`.
+- [ ] Unitaire : `login` redirige selon `role` ; un `agent` ne peut pas appeler les actions organisateur ; génération d'email synthétique unique sans collision.
 
 ### 🟡 Phase 8 — Polish & robustesse (EN COURS — E2E fait, reste à faire)
 
@@ -452,7 +507,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - **Phase 4 (auth + compte organisateur)** : ❌ À VENIR — inscription/connexion, profil (photo, WhatsApp, compte de reversement), remplacement de l'organisateur de test.
 - **Phase 5 (événements)** : ✅ TERMINÉE — CRUD complet + publication, organisateur de test fixe (`lib/constants.ts`), à sécuriser par la session dès la Phase 4.
 - **Phase 6 (billetterie + paiement)** : ❌ À VENIR — page publique, commandes, remise du billet (email/PDF/PNG/JPG), galerie 1-3 photos, pages de confirmation, webhook Mobile Money.
-- **Phase 7 (scanner)** : ❌ À VENIR.
+- **Phase 7 (scanner)** : ❌ À VENIR — interface de scan (caméra + saisie), **comptes scanneurs gérés par l'organisateur avec RBAC strict** (assignation par événement, aucun accès aux ventes/contrats).
 - **Phase 8 (polish)** : 🟡 EN COURS — tests E2E faits (15 scénarios) ; unitaires, PWA et export restent.
 - **Phase 9 (vitrine publique)** : ❌ À VENIR — événements à venir sur la landing + listing.
 - **Phase 10 (monétisation & reversement)** : ❌ À VENIR — commission Kin Pass, retrait à la demande, table `payouts`.
