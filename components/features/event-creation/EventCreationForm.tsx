@@ -20,6 +20,7 @@ import { ArrowLeft, CheckCircle, Plus, Refresh, Trash, WarningCircle } from 'ico
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Eyebrow } from '@/components/ui/eyebrow'
 import { createEvent, updateEvent, type EditableEvent } from '@/lib/actions/events'
 import { EVENT_CATEGORIES, TICKET_CURRENCIES, type EventCategory, type TicketCurrency } from '@/lib/constants'
 
@@ -184,9 +185,7 @@ export function EventCreationForm({ onNavigateBack, initialData }: EventCreation
 
         <Card>
           <CardHeader>
-            <p className="text-sm font-medium text-primary">
-              {isEditing ? 'MODIFIER L’ÉVÉNEMENT' : 'NOUVEL ÉVÉNEMENT'}
-            </p>
+            <Eyebrow>{isEditing ? 'MODIFIER L’ÉVÉNEMENT' : 'NOUVEL ÉVÉNEMENT'}</Eyebrow>
             <CardTitle className="text-2xl">
               {isEditing ? 'Modifier l’événement' : 'Créer un événement'}
             </CardTitle>

@@ -8,6 +8,11 @@ import { test, expect } from '@playwright/test'
 import { goTo } from './helpers'
 
 test.describe('Tableau de bord organisateur', () => {
+  // Chaque test démarre sur l'accueil, puis navigue via le menu (goTo).
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/')
+  })
+
   test('affiche les KPIs agrégés et la liste des événements', async ({ page }) => {
     await goTo(page, 'Tableau de bord')
 

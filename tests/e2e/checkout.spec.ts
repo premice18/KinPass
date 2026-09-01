@@ -8,6 +8,11 @@ import { test, expect } from '@playwright/test'
 import { goTo } from './helpers'
 
 test.describe('Tunnel de réservation (maquette)', () => {
+  // Chaque test démarre sur l'accueil, puis navigue via le menu (goTo).
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/')
+  })
+
   test('affiche l’événement et le total initial', async ({ page }) => {
     await goTo(page, 'Billetterie')
 
