@@ -8,6 +8,11 @@ import { test, expect } from '@playwright/test'
 import { goTo } from './helpers'
 
 test.describe('Contrôle d’accès (maquette scanner)', () => {
+  // Chaque test démarre sur l'accueil, puis navigue via le menu (goTo).
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/')
+  })
+
   test('affiche VALIDE pour un code reconnu', async ({ page }) => {
     await goTo(page, 'Scanner')
 

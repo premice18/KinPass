@@ -32,6 +32,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Eyebrow } from "@/components/ui/eyebrow";
 import { cn } from "@/lib/utils";
 import {
   deleteEvent,
@@ -172,10 +173,8 @@ export function OrganizerDashboard({
         {/* En-tête + bouton de création */}
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
-            <p className="text-sm font-medium text-primary">
-              ESPACE ORGANISATEUR
-            </p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-tight">
+            <Eyebrow>ESPACE ORGANISATEUR</Eyebrow>
+            <h1 className="mt-3 text-3xl font-bold tracking-tight">
               Tableau de bord
             </h1>
             <p className="mt-1 text-muted-foreground">
@@ -394,8 +393,9 @@ export function OrganizerDashboard({
   );
 }
 
-// Carte KPI : icône Iconoir, libellé, valeur principale et détail.
-// `testId` expose un identifiant stable pour les tests end-to-end (Playwright).
+// Carte KPI : barre latérale d'accent cyan, libellé en petites capitales,
+// valeur en chiffres tabulaires (alignement stable). `testId` expose un
+// identifiant stable pour les tests end-to-end (Playwright).
 function Stat({
   icon: Icon,
   label,
@@ -410,15 +410,25 @@ function Stat({
   testId?: string;
 }) {
   return (
-    <Card data-testid={testId}>
-      <CardContent className="p-5">
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">{label}</span>
-          <Icon className="h-5 w-5 text-primary" />
-        </div>
-        <p className="mt-4 text-3xl font-semibold tracking-tight">{value}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
-      </CardContent>
-    </Card>
+    <div
+      data-testid={testId}
+      className="relative overflow-hidden rounded-lg border border-border bg-card p-5"
+    >
+      {/* Barre d'accent latérale (rappel du talon de billet) */}
+      <span
+        aria-hidden="true"
+        className="absolute inset-y-0 left-0 w-1 bg-cyan-500"
+      />
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {label}
+        </span>
+        <Icon className="h-5 w-5 text-cyan-500" />
+      </div>
+      <p className="mt-4 text-3xl font-bold tabular-nums tracking-tight">
+        {value}
+      </p>
+      <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
+    </div>
   );
 }

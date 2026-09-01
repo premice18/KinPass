@@ -8,7 +8,11 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-xl border border-border bg-card text-card-foreground shadow-sm",
+        // Refonte anti-cliché : suppression de l'ombre systématique (shadow-sm)
+        // et rayon réduit (rounded-lg au lieu de rounded-xl) pour un rendu plus
+        // net. La profondeur est portée par la bordure et le contraste, pas par
+        // une ombre douce répandue.
+        "rounded-lg border border-border bg-card text-card-foreground",
         className,
       )}
       {...props}
