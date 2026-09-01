@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <!-- Illustration « billet numérique » : téléphone avec billet à l'écran (palette Kin Pass) -->
+  <!-- Corps du téléphone (Midnight Dark) -->
+  <rect x="60" y="24" width="80" height="152" rx="16" fill="#0F172A" />
+  <!-- Écran -->
+  <rect x="70" y="38" width="60" height="124" rx="10" fill="#F8FAFC" />
+  <!-- Encoche caméra -->
+  <rect x="92" y="43" width="16" height="4" rx="2" fill="#CBD5E1" />
+  <!-- Billet affiché à l'écran -->
+  <rect x="78" y="62" width="44" height="52" rx="6" fill="#2563EB" fill-opacity="0.12" stroke="#2563EB" stroke-opacity="0.5" stroke-width="1.5" />
+  <line x1="78" y1="88" x2="122" y2="88" stroke="#06B6D4" stroke-width="1.5" stroke-dasharray="3 3" stroke-opacity="0.8" />
+  <rect x="96" y="70" width="8" height="12" rx="2" fill="#06B6D4" fill-opacity="0.85" />
+  <circle cx="110" cy="102" r="6" fill="#0F172A" fill-opacity="0.8" />
+  <!-- Lignes de texte fantômes -->
+  <rect x="82" y="116" width="30" height="4" rx="2" fill="#94A3B8" fill-opacity="0.5" />
+  <rect x="82" y="126" width="22" height="4" rx="2" fill="#94A3B8" fill-opacity="0.4" />
+  <rect x="82" y="136" width="26" height="4" rx="2" fill="#94A3B8" fill-opacity="0.4" />
+  <!-- Petite étoile décorative -->
+  <path d="M148 52 L150 58 L156 58.5 L151.5 62.5 L153 68.5 L148 65.5 L143 68.5 L144.5 62.5 L140 58.5 L146 58 Z" fill="#06B6D4" fill-opacity="0.8" />
+</svg>

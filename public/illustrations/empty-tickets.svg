@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <!-- Illustration « aucun billet » : billet + loupe de recherche (palette Kin Pass) -->
+  <circle cx="100" cy="100" r="82" fill="#2563EB" fill-opacity="0.06" />
+  <rect x="38" y="66" width="104" height="68" rx="10" fill="#2563EB" fill-opacity="0.10" stroke="#2563EB" stroke-opacity="0.4" stroke-width="2" />
+  <line x1="38" y1="100" x2="142" y2="100" stroke="#06B6D4" stroke-width="2" stroke-dasharray="4 4" stroke-opacity="0.7" />
+  <circle cx="126" cy="128" r="20" stroke="#06B6D4" stroke-width="4" />
+  <line x1="140" y1="142" x2="154" y2="156" stroke="#06B6D4" stroke-width="4" stroke-linecap="round" />
+</svg>

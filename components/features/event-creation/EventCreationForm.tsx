@@ -67,6 +67,8 @@ export function EventCreationForm({ onNavigateBack, initialData }: EventCreation
   const [category, setCategory] = useState<EventCategory | ''>(
     initialData?.category ? (initialData.category as EventCategory) : '',
   )
+  // Type d'événement personnalisé, affiché uniquement si catégorie = « Autre ».
+  const [categoryCustom, setCategoryCustom] = useState(initialData?.categoryCustom ?? '')
   const [venue, setVenue] = useState(initialData?.venue ?? '')
   const [location, setLocation] = useState(initialData?.location ?? '')
   const [startAt, setStartAt] = useState(() => toLocalInputValue(initialData?.startAt ?? null))
@@ -116,6 +118,7 @@ export function EventCreationForm({ onNavigateBack, initialData }: EventCreation
     if (startAt && endAt && new Date(endAt) <= new Date(startAt)) {
       return 'La date de fin doit être postérieure à la date de début.'
     }
+    if (category === 'Autre' && !categoryCustom.trim()) return 'Précisez le type d’événement.'
     if (ticketTypes.length === 0) return 'Ajoutez au moins un type de billet.'
     for (const t of ticketTypes) {
       if (!t.name.trim()) return 'Chaque type de billet doit avoir un nom.'
@@ -133,6 +136,8 @@ export function EventCreationForm({ onNavigateBack, initialData }: EventCreation
     title: title.trim(),
     description: description.trim() || undefined,
     category: category || undefined,
+    // Le type personnalisé n'est envoyé que si la catégorie est « Autre ».
+    categoryCustom: category === 'Autre' ? categoryCustom.trim() : undefined,
     venue: venue.trim() || undefined,
     location: location.trim() || undefined,
     startAt: startAt ? new Date(startAt) : undefined,
@@ -246,6 +251,18 @@ export function EventCreationForm({ onNavigateBack, initialData }: EventCreation
                     ))}
                   </select>
                 </Field>
+
+                {/* Champ « Type d'événement » : visible uniquement si Autre */}
+                {category === 'Autre' && (
+                  <Field label="Type d’événement">
+                    <Input
+                      value={categoryCustom}
+                      onChange={(e) => setCategoryCustom(e.target.value)}
+                      placeholder="Ex. Projection cinéma, Foire, Tournoi…"
+                      data-testid="event-category-custom-input"
+                    />
+                  </Field>
+                )}
 
                 <div className="grid gap-5 sm:grid-cols-2">
                   <Field label="Début de l’événement">

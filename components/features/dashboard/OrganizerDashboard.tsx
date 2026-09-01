@@ -33,7 +33,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Eyebrow } from "@/components/ui/eyebrow";
+import { EmptyState } from "@/components/ui/empty-state";
+import { FadeIn, MotionCard } from "@/components/ui/motion";
 import { cn } from "@/lib/utils";
+import { usePexelsImages } from "@/lib/hooks/use-pexels-images";
 import {
   deleteEvent,
   getOrganizerEvents,
@@ -95,6 +98,10 @@ export function OrganizerDashboard({
   // Identifiants d'événements en cours d'action (spinner sur le bouton).
   const [pendingPublishId, setPendingPublishId] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+
+  // Photos de couverture (Pexels) pour les cartes d'événements.
+  // Une seule requête, images réparties sur les cartes ; fallback de marque sinon.
+  const { images: coverImages } = usePexelsImages("concert crowd", 6);
 
   // Charge (ou recharge) la liste des événements depuis la base.
   const load = useCallback(async () => {
@@ -272,51 +279,66 @@ export function OrganizerDashboard({
               </CardContent>
             </Card>
           ) : events.length === 0 ? (
-            /* État vide : premier événement à créer */
-            <Card>
-              <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
-                <Barcode className="h-8 w-8 text-muted-foreground" />
-                <p className="font-medium">Aucun événement pour le moment</p>
-                <p className="max-w-sm text-sm text-muted-foreground">
-                  Créez votre premier événement pour commencer à vendre vos
-                  billets.
-                </p>
-                <Button onClick={onCreateEvent} className="mt-2">
-                  <Plus className="h-4 w-4" />
-                  Créer un événement
-                </Button>
-              </CardContent>
-            </Card>
+            /* État vide : premier événement à créer (illustration de marque) */
+            <EmptyState
+              title="Aucun événement pour le moment"
+              description="Créez votre premier événement pour commencer à vendre vos billets."
+            >
+              <Button onClick={onCreateEvent}>
+                <Plus className="h-4 w-4" />
+                Créer un événement
+              </Button>
+            </EmptyState>
           ) : (
-            events.map((event) => {
+            events.map((event, index) => {
               const status = STATUS_META[event.status];
               const progressWidth = Math.min(100, event.fillRate);
+              // Couverture : image Pexels tournante, sinon placeholder de marque.
+              const cover = coverImages[index % Math.max(coverImages.length, 1)];
               return (
-                <Card key={event.id} data-testid="event-card">
-                  <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
-                    {/* Informations principales */}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-semibold">{event.title}</h3>
-                        <Badge variant={status.badge}>{status.label}</Badge>
+                <FadeIn key={event.id} delay={Math.min(index * 0.05, 0.2)}>
+                  <MotionCard className="rounded-lg border border-border bg-card text-card-foreground">
+                    <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between" data-testid="event-card">
+                    {/* Couverture + informations principales */}
+                    <div className="flex min-w-0 flex-1 items-center gap-4">
+                      {/* Photo de couverture (fallback : pictogramme catégorie) */}
+                      <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded-md bg-muted">
+                        {cover ? (
+                          <img
+                            src={cover.src}
+                            alt=""
+                            loading="lazy"
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <span className="flex h-full w-full items-center justify-center text-muted-foreground">
+                            <Calendar className="h-6 w-6" />
+                          </span>
+                        )}
                       </div>
-                      <div className="mt-2 flex flex-wrap gap-4 text-sm text-muted-foreground">
-                        {event.startAt && (
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="font-semibold">{event.title}</h3>
+                          <Badge variant={status.badge}>{status.label}</Badge>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-4 text-sm text-muted-foreground">
+                          {event.startAt && (
+                            <span className="flex items-center gap-1.5">
+                              <Calendar className="h-4 w-4" />
+                              {formatDate(event.startAt)}
+                            </span>
+                          )}
+                          {event.startAt && (
+                            <span className="flex items-center gap-1.5">
+                              <Clock className="h-4 w-4" />
+                              {formatTime(event.startAt)}
+                            </span>
+                          )}
                           <span className="flex items-center gap-1.5">
-                            <Calendar className="h-4 w-4" />
-                            {formatDate(event.startAt)}
+                            <MapPin className="h-4 w-4" />
+                            {event.venue || event.location || "Lieu à définir"}
                           </span>
-                        )}
-                        {event.startAt && (
-                          <span className="flex items-center gap-1.5">
-                            <Clock className="h-4 w-4" />
-                            {formatTime(event.startAt)}
-                          </span>
-                        )}
-                        <span className="flex items-center gap-1.5">
-                          <MapPin className="h-4 w-4" />
-                          {event.venue || event.location || "Lieu à définir"}
-                        </span>
+                        </div>
                       </div>
                     </div>
 
@@ -382,8 +404,9 @@ export function OrganizerDashboard({
                         )}
                       </Button>
                     </div>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </MotionCard>
+                </FadeIn>
               );
             })
           )}

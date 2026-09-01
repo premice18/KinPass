@@ -4,7 +4,7 @@ import { ThemeProvider } from 'next-themes'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Kin Pass — La billetterie intelligente en RDC',
+  title: 'kinPass — La billetterie intelligente en RDC',
   description: 'Créez, vendez et contrôlez vos billets numériques pour vos événements en République démocratique du Congo.',
   generator: 'v0.app',
 }

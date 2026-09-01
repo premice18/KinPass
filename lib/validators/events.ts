@@ -36,6 +36,8 @@ const baseEventSchema = z.object({
   title: z.string().trim().min(3, 'Le titre doit contenir au moins 3 caractères.').max(255, 'Le titre est trop long (255 caractères max).'),
   description: z.string().trim().max(10_000, 'La description est trop longue.').optional(),
   category: z.enum(EVENT_CATEGORIES, { error: 'Catégorie invalide.' }).optional(),
+  // Type personnalisé, obligatoire uniquement si la catégorie est « Autre ».
+  categoryCustom: z.string().trim().max(100, 'Le type d’événement est trop long (100 caractères max).').optional(),
   venue: z.string().trim().max(255, 'Le lieu est trop long (255 caractères max).').optional(),
   location: z.string().trim().max(255, 'La localisation est trop longue (255 caractères max).').optional(),
   startAt: z.coerce.date({ error: 'Date de début invalide.' }).optional(),
@@ -49,21 +51,37 @@ const baseEventSchema = z.object({
 const eventDateOrderRefine = (d: { startAt?: Date; endAt?: Date }) =>
   !d.startAt || !d.endAt || d.endAt > d.startAt
 
+// Contrainte partagée : si la catégorie est « Autre », le type personnalisé
+// doit être renseigné.
+const eventCustomCategoryRefine = (d: { category?: (typeof EVENT_CATEGORIES)[number]; categoryCustom?: string }) =>
+  d.category !== 'Autre' || (d.categoryCustom ?? '').trim().length > 0
+
 // Entrée de création : titre obligatoire, au moins un type de billet.
-export const createEventSchema = baseEventSchema.refine(eventDateOrderRefine, {
-  message: 'La date de fin doit être postérieure à la date de début.',
-  path: ['endAt'],
-})
+export const createEventSchema = baseEventSchema
+  .refine(eventDateOrderRefine, {
+    message: 'La date de fin doit être postérieure à la date de début.',
+    path: ['endAt'],
+  })
+  .refine(eventCustomCategoryRefine, {
+    message: 'Précisez le type d’événement.',
+    path: ['categoryCustom'],
+  })
 
 export type CreateEventInput = z.infer<typeof createEventSchema>
 
 // Entrée de mise à jour : tous les champs sont optionnels (on ne modifie que ce
 // qui est fourni). Si `ticketTypes` est fourni, l'ensemble des types de billets
 // est remplacé intégralement (voir `updateEvent` pour la règle de sécurité).
-export const updateEventSchema = baseEventSchema.partial().refine(eventDateOrderRefine, {
-  message: 'La date de fin doit être postérieure à la date de début.',
-  path: ['endAt'],
-})
+export const updateEventSchema = baseEventSchema
+  .partial()
+  .refine(eventDateOrderRefine, {
+    message: 'La date de fin doit être postérieure à la date de début.',
+    path: ['endAt'],
+  })
+  .refine(eventCustomCategoryRefine, {
+    message: 'Précisez le type d’événement.',
+    path: ['categoryCustom'],
+  })
 
 export type UpdateEventInput = z.infer<typeof updateEventSchema>
 
