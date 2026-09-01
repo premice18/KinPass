@@ -1,4 +1,4 @@
-// Constantes partagées de l'application Kin Pass.
+// Constantes partagées de l'application kinPass.
 
 // ────────────────────────────────────────────────────────────────────────────
 // Organisateur de test (TEMPORAIRE)
@@ -13,9 +13,10 @@
 // ────────────────────────────────────────────────────────────────────────────
 export const DEFAULT_ORGANIZER_ID = '00000000-0000-4000-8000-000000000001'
 
-// Liste fermée des catégories d'événements proposées dans le formulaire
-// (cohérente avec le modèle de données `events.category`).
-export const EVENT_CATEGORIES = ['Concert', 'Conférence', 'Mariage', 'Soirée privée'] as const
+// Liste des catégories d'événements proposées dans le formulaire.
+// « Autre » ouvre un champ libre (`category_custom`) pour saisir un type
+// personnalisé (cohérent avec le modèle de données `events.category`).
+export const EVENT_CATEGORIES = ['Concert', 'Conférence', 'Festival', 'Soirée privée', 'Autre'] as const
 export type EventCategory = (typeof EVENT_CATEGORIES)[number]
 
 // Devises acceptées pour les types de billets.

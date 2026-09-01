@@ -149,6 +149,8 @@ export async function createEvent(input: CreateEventInput): Promise<ActionResult
           slug,
           description: data.description || null,
           category: data.category || null,
+          // Type personnalisé : uniquement si la catégorie est « Autre ».
+          categoryCustom: data.category === 'Autre' ? data.categoryCustom || null : null,
           venue: data.venue || null,
           location: data.location || null,
           startAt: data.startAt ?? null,
@@ -207,6 +209,11 @@ export async function updateEvent(eventId: string, input: UpdateEventInput): Pro
           slug: data.title ? await generateUniqueSlug(data.title, tx) : existing.slug,
           description: data.description !== undefined ? data.description || null : existing.description,
           category: data.category !== undefined ? data.category || null : existing.category,
+          // Le type personnalisé n'est conservé que si la catégorie est « Autre ».
+          categoryCustom:
+            data.categoryCustom !== undefined
+              ? (data.category === 'Autre' ? data.categoryCustom || null : null)
+              : existing.categoryCustom,
           venue: data.venue !== undefined ? data.venue || null : existing.venue,
           location: data.location !== undefined ? data.location || null : existing.location,
           startAt: data.startAt !== undefined ? data.startAt : existing.startAt,

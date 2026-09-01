@@ -11,7 +11,7 @@ import {
 } from 'drizzle-orm/pg-core'
 
 // ---------------------------------------------------------------------------
-// Schéma PostgreSQL (Neon) — billetterie Kin Pass
+// Schéma PostgreSQL (Neon) — billetterie kinPass
 // Tables : users, events, ticket_types, tickets, scans
 // ---------------------------------------------------------------------------
 
@@ -42,8 +42,10 @@ export const events = pgTable(
     title: varchar('title', { length: 255 }).notNull(),
     slug: varchar('slug', { length: 255 }).notNull(),
     description: text('description'),
-    // Concert | Conférence | Mariage | Soirée privée
+    // Concert | Conférence | Festival | Soirée privée | Autre
     category: varchar('category', { length: 50 }),
+    // Type d'événement personnalisé, renseigné si `category === 'Autre'`.
+    categoryCustom: varchar('category_custom', { length: 100 }),
     venue: varchar('venue', { length: 255 }),
     location: varchar('location', { length: 255 }),
     startAt: timestamp('start_at', { withTimezone: true }),

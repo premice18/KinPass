@@ -1,4 +1,4 @@
-# PROJET KIN PASS – RÉFÉRENCE ULTRA-DÉTAILLÉE
+# PROJET kinPass – RÉFÉRENCE ULTRA-DÉTAILLÉE
 
 **Ce document est le contrat unique et absolu pour l'agent IA.** Aucune décision UI/UX ou technique ne doit être prise sans se référer à ce qui est écrit ci-dessous.
 
@@ -12,6 +12,7 @@
 4. **Mise à jour continue** : L'agent doit cocher les tâches de ce document au fur et à mesure de l'avancement (§4, §6).
 5. **README** : Le fichier `README.md` doit être tenu à jour avec le §5.
 6. **Icônes Iconoir, jamais d'émojis** : Tous les éléments graphiques (boutons, badges, indicateurs) utilisent des icônes SVG **Iconoir** (`iconoir-react`). **Aucun émoji** dans l'interface. Dimensionnées `h-4 w-4` à `h-6 w-6`, colorées via la charte (§1).
+7. **Tests E2E sur demande explicite uniquement (TRÈS IMPORTANT — économie de tokens)** : L'agent NE DOIT **JAMAIS** exécuter la suite Playwright (`pnpm test:e2e`) sans demande explicite de l'utilisateur. Les fichiers de tests sont créés / mis à jour **à chaque implémentation de fonctionnalité**, mais ils ne sont **jamais exécutés** sans accord explicite. Idéalement, l'exécution se fait à la **fin d'une phase entière** regroupant plusieurs fonctionnalités, et uniquement si l'utilisateur le demande. Pour vérifier le code, utiliser `pnpm typecheck` (rapide, non E2E) ; le build et les tests E2E ne se lancent que sur demande.
 
 ---
 
@@ -63,6 +64,7 @@ La direction visuelle est ancrée dans l'univers du **billet / talon** (cohéren
 - **Contraste clair/sombre** : sections alternant fond clair (`Slate Background`) et fond sombre (`Midnight Dark`, via `bg-slate-950`) — ex. section « Fonctionnalités » de la landing.
 - **Chiffres tabulaires** (`tabular-nums`) et `font-mono` pour les montants/codes (ex. KPI, `50 $`, `A4B-8K9`) : évoquent le code d'un billet.
 - **Accent cyan** réservé aux éléments d'accent (eyebrows, icônes KPI, barres latérales) ; le **bleu** reste la couleur des CTA primaires.
+- **Menu mobile (overlay)** : panneau qui se superpose au contenu (backdrop flouté, fermeture par Échap/backdrop/lien) ; **icône animée hamburger ⇄ flèche vers le haut** (`components/ui/animated-menu-icon.tsx`), volontairement distincte d'une croix type « X ».
 
 Anti-patterns bannis : badges-pilules arrondis teintés, cartes `rounded-xl` + `shadow-sm` systématiques, hero symétrique centré, dégradés criards sur les boutons.
 
@@ -81,7 +83,7 @@ Anti-patterns bannis : badges-pilules arrondis teintés, cartes `rounded-xl` + `
 **Objectif** : présenter le produit et orienter vers la création d'événement ou la démo de billetterie.
 
 - Section héro **asymétrique** (étiquette « talon » `Eyebrow` « Billetterie sécurisée en RDC », H1, sous-titre, 2 CTA) + trame de points en fond (perforation).
-- Mockup de billet « talon détachable » (carte sombre `Midnight Dark`, en-tête KIN PASS cyan, code `A4B-8K9` en mono, QR).
+- Mockup de billet « talon détachable » (carte sombre `Midnight Dark`, en-tête kinPass cyan, code `A4B-8K9` en mono, QR).
 - Section 3 fonctionnalités sur fond sombre (Scan QR instantané / Code de secours / Mobile Money), séparées par des filets pointillés.
 - Footer (copyright) séparé par un filet pointillé.
 - **État** : ✅ fait (refonte « billet/talon », cf. §1.5).
@@ -101,7 +103,7 @@ Anti-patterns bannis : badges-pilules arrondis teintés, cartes `rounded-xl` + `
 
 ### 📄 Création d'événement — Route `/events/new` (À VENIR, protégée)
 
-- Informations générales : titre, description, catégorie (Concert/Conférence/Mariage/Soirée privée).
+- Informations générales : titre, description, catégorie (Concert/Conférence/Festival/Soirée privée/Autre — « Autre » affiche un champ libre « Type d'événement »).
 - Localisation & date : lieu, date/heure début, date/heure fin.
 - Visuel : upload de l'affiche (Supabase Storage / Vercel Blob) — **MVP : champ URL** (`poster_url`).
 - **Paramétrage des billets** : plusieurs types (Standard/VIP/Invitation), prix, devise, capacité par type.
@@ -155,7 +157,7 @@ Anti-patterns bannis : badges-pilules arrondis teintés, cartes `rounded-xl` + `
 
 ### 📄 Monétisation & reversement — section du `/dashboard` (À VENIR, protégée)
 
-- « Solde disponible », historique des reversements, bouton « Retirer » (retrait à la demande, commission Kin Pass prélevée à chaque retrait). Détail : §4 Phase 10.
+- « Solde disponible », historique des reversements, bouton « Retirer » (retrait à la demande, commission kinPass prélevée à chaque retrait). Détail : §4 Phase 10.
 
 ### 📄 Conformité & pages légales (À VENIR, publiques)
 
@@ -191,7 +193,8 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 | `title`               | varchar(255) | NOT NULL                     | Titre                                |
 | `slug`                | varchar(255) | UNIQUE (index)               | URL `/e/[slug]`                      |
 | `description`         | text         |                              | Description                          |
-| `category`            | varchar(50)  |                              | Concert/Conférence/Mariage/Soirée    |
+| `category`            | varchar(50)  |                              | Concert/Conférence/Festival/Soirée/Autre |
+| `category_custom`     | varchar(100) |                              | Type personnalisé si `category = 'Autre' |
 | `venue` / `location`  | varchar(255) |                              | Lieu                                 |
 | `start_at` / `end_at` | timestamptz  |                              | Dates                                |
 | `poster_url`          | text         |                              | Affiche                              |
@@ -403,9 +406,10 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 - [ ] E2E : l'organisateur crée un scanneur (email auto-généré affiché) et l'assigne à un événement ; le scanneur se connecte sur `/auth/login` et est **redirigé vers `/scan`** (uniquement son événement) ; il est **bloqué** sur `/dashboard` et `/settings` ; un organisateur est redirigé vers `/dashboard`.
 - [ ] Unitaire : `login` redirige selon `role` ; un `agent` ne peut pas appeler les actions organisateur ; génération d'email synthétique unique sans collision.
 
-### 🟡 Phase 8 — Polish & robustesse (EN COURS — E2E fait, reste à faire)
+### 🟡 Phase 8 — Polish & robustesse (EN COURS — E2E + enrichissement visuel faits, reste à faire)
 
 - [x] Tests E2E Playwright (`tests/e2e/`, 15 scénarios : landing, dashboard, événements, checkout, scanner).
+- [x] Enrichissement visuel : photos Pexels (proxy `/api/pexels`, clé serveur), animations Framer Motion (`FadeIn`/`MotionCard`, reduced-motion), illustrations SVG de marque (`public/illustrations/`), feedbacks Lottie (`public/lottie/` : paiement, succès, scan).
 - [ ] Tests unitaires (composants + Server Actions).
 - [ ] Sécurisation des routes (validation billets / modification événements).
 - [ ] PWA (manifest + service worker) + export listes invités (reporté en Phase 13 pour l'export enrichi).
@@ -416,7 +420,7 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 
 - [ ] Server Action `getPublicEvents` : événements `status = published` dont `start_at >= now` (ou en cours), triés par date, avec affiche, titre, lieu, prix minimum.
 - [ ] Section « Événements à venir » sur la landing : cartes (affiche, titre, date, lieu, prix « à partir de X $ »), clic → `/e/[slug]`.
-- [ ] Filtres simples : par catégorie (Concert/Conférence/Mariage/Soirée privée) et/ou recherche par titre.
+- [ ] Filtres simples : par catégorie (Concert/Conférence/Festival/Soirée privée/Autre) et/ou recherche par titre.
 - [ ] État vide élégant : « Aucun événement à venir pour le moment » + incitation à créer le sien.
 - [ ] Page listing publique `/events` (grille) — optionnel mais recommandé pour le SEO.
 - [ ] Respect du langage visuel « billet/talon » : cartes angulaires, bordure, accent cyan, chiffres tabulaires.
@@ -424,13 +428,13 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 
 ### ❌ Phase 10 — Monétisation & reversement des revenus (À VENIR)
 
-**Objectif** : reverser les revenus des billets à l'organisateur, en prélevant la commission Kin Pass.
+**Objectif** : reverser les revenus des billets à l'organisateur, en prélevant la commission kinPass.
 
 **Décision (validée)** : le modèle retenu est le **retrait à la demande** (« pull ») :
 
 1. Plus simple à implémenter (pas de tâche planifiée ni de compte d'attente).
 2. L'organisateur contrôle quand il retire (liquidité, planification).
-3. À **chaque retrait**, Kin Pass calcule et prélève son pourcentage avant envoi, puis reverse le net sur le compte choisi (M-Pesa / Airtel Money / Orange Money / virement), et la commission part vers le compte KPay de Kin Pass/Premice.
+3. À **chaque retrait**, kinPass calcule et prélève son pourcentage avant envoi, puis reverse le net sur le compte choisi (M-Pesa / Airtel Money / Orange Money / virement), et la commission part vers le compte KPay de kinPass/Premice.
 4. Risque opérationnel limité (pas de flux d'argent non sollicité).
 
 Un **reversement automatique périodique** (ex. chaque vendredi) pourra être proposé plus tard en option, mais il n'est pas retenu pour la première version.
@@ -439,19 +443,19 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - [ ] Dashboard : carte « Solde disponible » (revenus nets), historique des reversements (montant brut, commission, net, statut, date), bouton « Retirer ».
 - [ ] Table `payouts` (id, organizer_id, amount_total, fee_percent, fee_amount, net_amount, provider, account_label, reference, status, requested_at, paid_at) — index sur `organizer_id` et `status`.
 - [ ] Server Action `requestPayout(amount)` : vérifie le solde disponible (revenus non reversés), crée un `payout` en `pending`, calcule `fee_amount = amount × %` et `net_amount = amount - fee_amount`.
-- [ ] Exécution du virement : intégration KPay (payout Mobile Money) **ou** validation manuelle par l'admin qui passe le `payout` en `paid` et envoie le net ; la commission est enregistrée comme revenu Kin Pass.
+- [ ] Exécution du virement : intégration KPay (payout Mobile Money) **ou** validation manuelle par l'admin qui passe le `payout` en `paid` et envoie le net ; la commission est enregistrée comme revenu kinPass.
 - [ ] Notifications organisateur : « Retrait demandé », « Retrait envoyé », « Retrait échoué » (email/WhatsApp).
 - [ ] Règle métier : impossible de retirer plus que le solde disponible ; montant minimum de retrait (ex. 25 $) ; 1 retrait en cours à la fois.
 - [ ] Tests : calcul de la commission, refus de retrait si solde insuffisant, historique cohérent.
 
 ### ❌ Phase 11 — Confiance, conformité & contrat (À VENIR)
 
-**Objectif** : montrer que Kin Pass est sérieux et rassurer les créateurs d'événements (et les acheteurs).
+**Objectif** : montrer que kinPass est sérieux et rassurer les créateurs d'événements (et les acheteurs).
 
 - [ ] Pages légales accessibles depuis le footer : **Conditions Générales d'Utilisation (CGU)**, **Politique de Confidentialité** (adaptée RDC), **Contrat de prestation & règles de reversement**, page **Contact/Support**, page **À propos**.
-- [ ] Contenu détaillé du **contrat de prestation** : pourcentage de commission Kin Pass, fréquence/calendrier de reversement, mode de retrait, responsabilités de chaque partie, gestion des annulations et remboursements, propriété des données, données collectées et usage.
+- [ ] Contenu détaillé du **contrat de prestation** : pourcentage de commission kinPass, fréquence/calendrier de reversement, mode de retrait, responsabilités de chaque partie, gestion des annulations et remboursements, propriété des données, données collectées et usage.
 - [ ] Case à cocher d'acceptation à l'inscription (cf. Phase 4.1) ; table `contract_acceptances` (id, user_id, document_type, version, accepted_at) — **re-signature requise si le contrat évolue** (numéro de version).
-- [ ] Mention de la commission clairement affichée dans le dashboard (ex. « Kin Pass prélève 0.3% sur chaque vente d'un billet»).
+- [ ] Mention de la commission clairement affichée dans le dashboard (ex. « kinPass prélève 0.3% sur chaque vente d'un billet»).
 - [ ] (Option) Badge « Organisateur vérifié » (vérification d'identité) pour renforcer la confiance.
 - [ ] Tests : inscription bloquée sans acceptation des CGU ; versionnage du contrat.
 
@@ -481,7 +485,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 
 ## 5. CONTENU OBLIGATOIRE DU FICHIER `README.md`
 
-1. **Titre & description** — Kin Pass, billetterie et contrôle d'accès en RDC.
+1. **Titre & description** — kinPass, billetterie et contrôle d'accès en RDC.
 2. **À propos** — problème résolu, les 3 rôles (organisateur, acheteur, agent).
 3. **Statut du développement** — modules faits / en cours / à venir (sans émojis).
 4. **Direction visuelle** — résumé du langage « billet/talon » (renvoi §1.5).
@@ -510,7 +514,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - **Phase 7 (scanner)** : ❌ À VENIR — interface de scan (caméra + saisie), **comptes scanneurs gérés par l'organisateur avec RBAC strict** (assignation par événement, aucun accès aux ventes/contrats).
 - **Phase 8 (polish)** : 🟡 EN COURS — tests E2E faits (15 scénarios) ; unitaires, PWA et export restent.
 - **Phase 9 (vitrine publique)** : ❌ À VENIR — événements à venir sur la landing + listing.
-- **Phase 10 (monétisation & reversement)** : ❌ À VENIR — commission Kin Pass, retrait à la demande, table `payouts`.
+- **Phase 10 (monétisation & reversement)** : ❌ À VENIR — commission kinPass, retrait à la demande, table `payouts`.
 - **Phase 11 (confiance & contrat)** : ❌ À VENIR — CGU, confidentialité, contrat de prestation, acceptation versionnée.
 - **Phase 12 (vérification billet)** : ❌ À VENIR — page `/verify` publique + re-téléchargement.
 - **Phase 13 (export & reporting)** : ❌ À VENIR — rapport PDF + export CSV des participants.
@@ -526,12 +530,13 @@ app/
   page.tsx            # Point d'entrée -> KinPassApp
   layout.tsx          # Layout racine + ThemeProvider + métadonnées
   globals.css         # Tokens Tailwind v4 (clair/sombre)
+  api/pexels/route.ts # Proxy Pexels (clé API côté serveur uniquement)
 components/
   KinPassApp.tsx      # Coquille SPA — navigation par état
   layout/             # Composants de coquille (header)
     Logo.tsx          # Logo « ticket premium »
     ThemeToggle.tsx   # Bascule clair/sombre
-  ui/                 # Primitives atomiques (button, card, input, badge, tabs, eyebrow)
+  ui/                 # Primitives atomiques (button, card, input, badge, tabs, eyebrow, motion, empty-state)
   features/           # Vues regroupées par domaine (1 dossier = 1 future route)
     landing/          # LandingPage
     dashboard/        # OrganizerDashboard
@@ -543,10 +548,15 @@ lib/
   validators/events.ts # Schémas Zod (messages français) — séparés des actions
   constants.ts        # Organisateur de test temporaire + catégories/devises/statuts
   slug.ts             # slugify + suffixe aléatoire (slug URL unique)
+  pexels.ts           # Client API Pexels (serveur uniquement)
+  hooks/use-pexels-images.ts  # Hook client de chargement des photos Pexels
   db/
     schema.ts         # Schéma Drizzle (5 tables)
     index.ts          # Client Drizzle (singleton)
   utils.ts            # cn()
+public/
+  illustrations/      # SVG de marque (états vides, billet numérique)
+  lottie/             # Animations Lottie (paiement, succès, scan)
 scripts/
   seed-demo.mts       # Seed organisateur de test + données démo (--reset)
 tests/
@@ -563,6 +573,7 @@ drizzle.config.ts     # Config drizzle-kit
 | Variable       | Obligatoire | Description                     |
 | :------------- | :---------- | :------------------------------ |
 | `DATABASE_URL` | ✅          | URL de connexion Neon (poolée). |
+| `PEXELS_API_KEY` | ❌ (optionnelle) | Clé API Pexels (photos pour fonds/couvertures). Sans clé, fallbacks de marque. |
 
 | Commande                     | Description                                                                |
 | :--------------------------- | :------------------------------------------------------------------------- |
