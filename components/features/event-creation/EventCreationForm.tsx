@@ -391,7 +391,8 @@ export function EventCreationForm({ onNavigateBack, initialData }: EventCreation
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
+              {/* Boutons d'action : retour à la ligne autorisé sur mobile */}
+              <div className="flex flex-wrap items-center gap-3">
                 <Button type="submit" disabled={isPending} className="min-w-44" data-testid="submit-event-button">
                   {isPending ? (
                     <>
