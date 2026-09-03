@@ -142,7 +142,7 @@ Anti-patterns bannis : badges-pilules arrondis teintés, cartes `rounded-xl` + `
 
 ### 📄 Profil organisateur — Route `/settings` (À VENIR, protégée)
 
-- **Rubriques à compléter avant de créer un événement** : photo de profil, numéro WhatsApp, adresse, **comptes de reversement** (M-Pesa / Airtel Money / Orange Money / virement).
+- **Rubriques à compléter avant de créer un événement** : photo de profil (avatar Google automatique si inscription Google, sinon initiales), numéro WhatsApp, adresse, **comptes de reversement** (M-Pesa / Airtel Money / Orange Money / virement).
 - **Équipe / Scanneurs** : création et gestion des comptes de contrôle (cf. §4 Phase 7).
 - Blocage de la publication d'un événement si aucun compte de reversement n'est renseigné. Détail : §4.3.
 
@@ -274,7 +274,7 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 - [x] Toggle clair/sombre (`next-themes` + `components/layout/ThemeToggle.tsx`).
 - [x] Menu mobile responsive (hamburger + dropdown).
 
-### 🟡 Phase 4 — Authentification & compte organisateur (EN COURS — 4.1 faite)
+### 🟡 Phase 4 — Authentification & compte organisateur (EN COURS — 4.1 et 4.2 faites)
 
 #### 4.1 Inscription / connexion
 
@@ -295,14 +295,15 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 
 **Décision (validée)** : **migrer l'ensemble de l'authentification vers Auth.js v5** (`next-auth@beta`) plutôt que d'ajouter Google à côté de la session maison (jose, Phase 4.1). Raison : **un seul système de session** — deux sessions concurrentes (cookie Auth.js + cookie `kinpass_session`) créeraient des conflits et une double maintenance. L'email/mot de passe devient un provider `credentials` (bcryptjs conservé) ; Google devient le provider `google`. Les variables `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` sont déjà présentes dans `.env.local`.
 
-- [ ] Installer `next-auth@beta` (Auth.js v5) et **vérifier la compatibilité Next.js 16 / Turbopack** (documenter la version retenue ; repli : `@auth/core` + `@auth/nextjs` si besoin).
-- [ ] `auth.config.ts` : providers `google` et `credentials` (validation Zod FR), `pages` personnalisées → `/auth/login` (plus de page Auth.js par défaut), `callbacks` `jwt`/`session` (injecter `userId`, `role` dans le jeton).
-- [ ] `auth.ts` (racine) : export `{ handlers, auth, signIn, signOut }` ; stratégie de session **JWT** (pas de table de sessions au MVP) ; `trustHost` pour le déploiement.
-- [ ] Route handler `app/api/auth/[...nextauth]/route.ts` ; **proxy/middleware migré** sur `auth` (remplace la vérification jose du `proxy.ts` actuel).
-- [ ] **Suppression de la session maison** : `lib/session-token.ts` et la logique jose de `lib/auth.ts` sont retirées au profit d'Auth.js ; les Server Actions `login`/`register` utilisent `signIn('credentials')` (hash bcryptjs conservé) ; `logout` → `signOut` ; `/api/auth/me` remplacé par `useSession` (SessionProvider dans la coquille) ou par l'API Auth.js.
-- [ ] **Création / liaison du compte Google** (callback `signIn`) : email Google inconnu → création `provider='google'`, rôle `organizer` ; email connu (déjà inscrit en email/mot de passe) → **liaison** sur le même compte (pas de doublon) ; gestion de l'erreur `OAuthAccountNotLinked` avec un message clair.
-- [ ] **Bouton « Continuer avec Google »** : composant dédié (logo Google officiel en SVG, cohérent avec la charte) affiché **au-dessus** du formulaire email sur login et register, avec séparateur ; appel `signIn("google", { redirectTo: "/?view=dashboard" })` ; état de chargement ; fermé par un overlay propre (pas de fenêtre pop-up en dev).
-- [ ] Déconnexion unique (header) ; tests E2E (écrits, exécution sur demande) : connexion Google simulée, liaison email+Google, déconnexion.
+- [x] Installer `next-auth@beta` (Auth.js v5 — **5.0.0-beta.32**, compatible Next.js 16 / Turbopack).
+- [x] `auth.config.ts` (edge) : `pages` personnalisées `/auth/login`, stratégie JWT, callback `authorized` (garde d'accès par route) et `session` (copie id/role) — sans base de données (Edge).
+- [x] `auth.ts` (node) : export `{ handlers, auth, signIn, signOut }`, `trustHost` ; providers `google` (AUTH_GOOGLE_ID/SECRET) + `credentials` (bcryptjs, compte `provider='email'`) ; callback `jwt` : injection id/role kinPass (résolus en base pour Google).
+- [x] Route handler `app/api/auth/[...nextauth]/route.ts` ; **proxy migré** sur `NextAuth(authConfig).auth` (plus de vérification jose).
+- [x] **Suppression de la session maison** : `lib/session-token.ts` supprimé, `lib/auth.ts` réécrit sur `auth()` (recharge l'utilisateur en base) ; `register` crée le compte puis `signIn('credentials')` côté client ; `logout` → `signOut` client ; `/api/auth/me` conservé (alimenté par `getCurrentUser`).
+- [x] **Création / liaison du compte Google** (callback `jwt`) : email inconnu → création `provider='google'` ; email connu → **liaison** sur le même compte (pas de doublon, pas d'adapter — l'erreur `OAuthAccountNotLinked` ne s'applique qu'avec un adapter, elle est donc hors sujet ici).
+- [x] **Bouton « Continuer avec Google »** (`GoogleButton`, logo Google SVG) au-dessus des formulaires login/register avec séparateur ; `signIn("google", { redirectTo: "/?view=dashboard" })` ; gestion de l'erreur OAuth (`?error=` sur la page login).
+- [x] Déconnexion unique (header via `signOut`) ; schéma `users` étendu (`provider`, `provider_id`, `password_hash` nullable, UNIQUE `(provider, provider_id)`) appliqué en base.
+- [ ] **Validation OAuth réelle** : test manuel « Continuer avec Google » avec les identifiants Google (à faire dans le navigateur) ; tests E2E (écrits, exécution sur demande) : connexion Google simulée, liaison email+Google, déconnexion.
 
 #### 4.3 Profil organisateur (rubriques à compléter avant de créer un événement)
 
@@ -310,6 +311,7 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 
 - [ ] Page `/dashboard/settings` (ou `/settings`) avec sections :
   - **Photo de profil** : upload → stockage (Supabase Storage / Vercel Blob), aperçu circulaire dans le header et le dashboard.
+  - **Avatar automatique Google** : à la connexion Google (Auth.js), `users.avatar_url` est **alimenté automatiquement** avec la photo du compte Google (`user.image`) — enregistrée à la création du compte **et rafraîchie à chaque connexion** (la photo reste à jour) ; affichée dans le header (menu utilisateur), la page profil et le dashboard ; **repli par défaut** quand il n'y a pas d'image : un cercle avec les **initiales** du nom ; l'upload manuel (rubrique précédente) reste disponible pour la remplacer.
   - **Numéro WhatsApp** : `users.phone_whatsapp` (format international `+243…`), utilisé pour les notifications et le contact acheteurs.
   - **Adresse / ville / commune** : `users.address`.
   - **Comptes de reversement** : 1 à N méthodes (M-Pesa / Airtel Money / Orange Money / virement bancaire) — table `payout_methods` (id, user_id, provider, libellé, numéro/téléphone, titulaire, is_default).
@@ -320,7 +322,7 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 
 #### 4.4 Modèle de données (ajouts)
 
-- `users` : `avatar_url text`, `phone_whatsapp varchar(30)`, `address text`.
+- `users` : `avatar_url text` (alimenté par la photo Google à la connexion, cf. 4.3), `phone_whatsapp varchar(30)`, `address text`.
 - `users` (Google/Auth.js, cf. 4.2) : `provider varchar(20)` défaut `'email'` (`email` \| `google`), `provider_id varchar(255)` (sub Google), **`password_hash` devient nullable** (comptes Google sans mot de passe) ; contrainte **UNIQUE `(provider, provider_id)`** + index sur `email`.
 - Nouvelle table `payout_methods` (cf. ci-dessus), FK `user_id` → `users` ON DELETE CASCADE, index sur `user_id`.
 
@@ -687,7 +689,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - **Phase 1** : ✅ TERMINÉE (maquette UI des 5 vues).
 - **Phase 2** : ✅ TERMINÉE (base Neon + schéma Drizzle appliqué).
 - **Phase 3** : ✅ TERMINÉE (logo ticket, dark/light, menu mobile).
-- **Phase 4 (auth + compte organisateur)** : 🟡 EN COURS — **4.1 faite** (register/login email, session JWT, middleware, Server Actions sécurisées) ; **4.2 ajoutée au plan** (Google via Auth.js — migration de la session) ; reste : 4.3 profil (photo, WhatsApp, compte de reversement), rôle agent (Phase 7), exécution des tests E2E (sur demande).
+- **Phase 4 (auth + compte organisateur)** : 🟡 EN COURS — **4.1 faite** (register/login email) et **4.2 faite** (migration Auth.js v5 : providers `credentials` + `google`, session Auth.js, bouton « Continuer avec Google », liaison de comptes, schéma `users` étendu) ; reste : validation OAuth réelle (navigateur), 4.3 profil (photo, WhatsApp, compte de reversement), rôle agent (Phase 7), exécution des tests E2E (sur demande).
 - **Phase 5 (événements)** : ✅ TERMINÉE — CRUD complet + publication, organisateur de test fixe (`lib/constants.ts`), à sécuriser par la session dès la Phase 4.
 - **Phase 6 (billetterie + paiement)** : ❌ À VENIR — page publique, commandes, remise du billet (email/PDF/PNG/JPG), galerie 1-3 photos, pages de confirmation, webhook Mobile Money, **lien partageable & diffusion (6.7)**.
 - **Phase 7 (scanner)** : ❌ À VENIR — interface de scan (caméra + saisie), **comptes scanneurs gérés par l'organisateur avec RBAC strict** (assignation par événement, aucun accès aux ventes/contrats).

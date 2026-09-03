@@ -1,0 +1,99 @@
+// ────────────────────────────────────────────────────────────────────────────
+// Auth.js v5 — configuration complète (runtime Node).
+//
+// Deux providers :
+// - `credentials` : email + mot de passe (bcryptjs) — compte `provider='email'`.
+// - `google` : OAuth Google — compte créé/liaison par email (`provider='google'`
+//   ou liaison sur un compte email existant).
+//
+// Callbacks :
+// - `jwt` : à la connexion, injecte l'id kinPass et le rôle (résolus en base
+//   pour Google ; fournis par `authorize` pour credentials).
+// - `session`/`authorized` : cf. `auth.config.ts`.
+// ────────────────────────────────────────────────────────────────────────────
+
+import NextAuth from 'next-auth'
+import Credentials from 'next-auth/providers/credentials'
+import Google from 'next-auth/providers/google'
+import { eq } from 'drizzle-orm'
+
+import { db } from '@/lib/db'
+import { users } from '@/lib/db/schema'
+import { verifyPassword } from '@/lib/password'
+import { authConfig } from '@/auth.config'
+
+// Trouve un utilisateur par email (compte email/password ou Google).
+async function findUserByEmail(email: string) {
+  const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1)
+  return user ?? null
+}
+
+// Crée un utilisateur issu de Google (email inconnu) ou lie le compte Google
+// à un compte email existant (même email → même compte, pas de doublon).
+async function upsertGoogleUser(email: string, fullName: string | null | undefined, googleId?: string) {
+  const existing = await findUserByEmail(email)
+  if (existing) return existing
+
+  const [created] = await db
+    .insert(users)
+    .values({
+      email,
+      fullName: fullName?.trim() || email.split('@')[0] || 'Utilisateur Google',
+      passwordHash: null,
+      provider: 'google',
+      providerId: googleId ?? null,
+    })
+    .returning()
+  return created
+}
+
+export const { handlers, auth, signIn, signOut } = NextAuth({
+  ...authConfig,
+  trustHost: true,
+  providers: [
+    Google({
+      clientId: process.env.AUTH_GOOGLE_ID,
+      clientSecret: process.env.AUTH_GOOGLE_SECRET,
+    }),
+    Credentials({
+      // Le provider credentials n'est pas compatible Edge : les callbacks
+      // ci-dessous ne s'exécutent qu'en runtime Node.
+      credentials: {
+        email: { label: 'Email', type: 'email' },
+        password: { label: 'Mot de passe', type: 'password' },
+      },
+      async authorize(credentials) {
+        const email = String(credentials?.email ?? '').trim().toLowerCase()
+        const password = String(credentials?.password ?? '')
+        if (!email || !password) return null
+
+        const user = await findUserByEmail(email)
+        // Compte Google pur : pas de mot de passe → refus sur ce provider.
+        if (!user || !user.passwordHash) return null
+        if (!verifyPassword(password, user.passwordHash)) return null
+
+        return { id: user.id, email: user.email, name: user.fullName, role: user.role }
+      },
+    }),
+  ],
+  callbacks: {
+    ...authConfig.callbacks,
+    // Injecte id/role kinPass dans le jeton au moment de la connexion.
+    async jwt({ token, user, account }) {
+      if (user && !token.id) {
+        if (account?.provider === 'google') {
+          // Google : l'utilisateur n'existe pas forcément en base → création
+          // ou liaison par email, puis on récupère l'id/le rôle kinPass.
+          const dbUser = await upsertGoogleUser(user.email ?? '', user.name, account.providerAccountId)
+          token.id = dbUser.id
+          token.role = dbUser.role
+        } else {
+          // Credentials : `user` est déjà notre utilisateur en base.
+          token.id = user.id
+          token.role = user.role ?? 'organizer'
+        }
+      }
+      return token
+    },
+  },
+})
