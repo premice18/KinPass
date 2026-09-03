@@ -4,7 +4,7 @@
 // marketing clés et la navigation vers les deux CTA principaux.
 import { test, expect } from '@playwright/test'
 
-import { goTo } from './helpers'
+import { goTo, loginAsDemo } from './helpers'
 
 test.describe('Landing page', () => {
   test('affiche le titre, le badge et les fonctionnalités', async ({ page }) => {
@@ -25,6 +25,8 @@ test.describe('Landing page', () => {
   })
 
   test('le CTA « Créer un événement » mène au tableau de bord', async ({ page }) => {
+    // Le dashboard exige une session (Phase 4.1) : connexion préalable.
+    await loginAsDemo(page)
     await page.goto('/')
 
     // CTA principal du hero -> vue dashboard (navigation par état)
