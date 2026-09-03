@@ -3,25 +3,24 @@
 // ────────────────────────────────────────────────────────────────────────────
 // Coquille applicative (SPA) kinPass.
 //
-// À ce stade du projet, la navigation est gérée par état (pas encore de
-// routing App Router par URL — cf. Phase 6). Les vues sont donc regroupées
-// par domaine dans `components/features/*` et montées/démontées ici selon la
-// vue active. Chaque dossier `features/<domaine>` correspond à une future
-// route de l'application (landing → `/`, dashboard → `/dashboard`, etc.).
+// Navigation par état (le routing par URL arrivera plus tard). Chaque dossier
+// `features/<domaine>` correspond à une future route.
 //
-// Menu mobile (overlay) :
-// - Le menu se SUPERPOSE au contenu (position fixe, panneau glissant depuis
-//   le haut + backdrop flouté) : la page ne bouge pas.
-// - Fermeture par : clic sur le backdrop, touche Échap, ou choix d'un lien.
-// - Icône animée hamburger ⇄ flèche vers le haut (`AnimatedMenuIcon`),
-//   volontairement différente d'une croix type « X ».
-// - `MotionConfig reducedMotion="user"` respecte `prefers-reduced-motion`.
+// Auth (Phase 4.1) :
+// - À l'ouverture, la coquille interroge `/api/auth/me` pour connaître
+//   l'utilisateur connecté (cookie httpOnly illisible côté client).
+// - Header : « Se connecter » si déconnecté ; nom + « Déconnexion » sinon.
+// - `initialView='dashboard'` (posé après connexion) ouvre le dashboard si
+//   l'utilisateur est un organisateur.
+//
+// Menu mobile : overlay + icône animée hamburger ⇄ flèche (voir §1.5).
+// `MotionConfig reducedMotion="user"` respecte `prefers-reduced-motion`.
 // ────────────────────────────────────────────────────────────────────────────
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion'
-import { CardWallet, Dashboard, PlusCircle, Scanning, SecurityPass } from 'iconoir-react'
-import { Button } from '@/components/ui/button'
+import { CardWallet, Dashboard, LogOut, PlusCircle, Scanning, SecurityPass } from 'iconoir-react'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { AnimatedMenuIcon } from '@/components/ui/animated-menu-icon'
 import { Logo } from '@/components/layout/Logo'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
@@ -31,8 +30,17 @@ import { EventCreationForm } from '@/components/features/event-creation/EventCre
 import { TicketCheckout } from '@/components/features/checkout/TicketCheckout'
 import { Scanner } from '@/components/features/scanner/Scanner'
 import { getEventById, type EditableEvent } from '@/lib/actions/events'
+import { logout } from '@/lib/actions/auth'
 
 type View = 'home' | 'dashboard' | 'create' | 'checkout' | 'scanner'
+
+// Utilisateur exposé au client (sans données sensibles).
+export type SessionUser = {
+  id: string
+  email: string
+  fullName: string
+  role: string
+}
 
 const nav = [
   { id: 'home', label: 'Accueil', icon: SecurityPass },
@@ -48,18 +56,41 @@ const menuItemVariants = {
   visible: { opacity: 1, x: 0 },
 }
 
-export function KinPassApp() {
+interface KinPassAppProps {
+  initialView?: View
+}
+
+export function KinPassApp({ initialView = 'home' }: KinPassAppProps) {
   const [view, setView] = useState<View>('home')
   const [menuOpen, setMenuOpen] = useState(false)
   // Événement chargé pour le mode édition du formulaire (null = mode création).
   const [editingEvent, setEditingEvent] = useState<EditableEvent | null>(null)
+  // Session (chargée au montage via /api/auth/me).
+  const [user, setUser] = useState<SessionUser | null>(null)
+  const [authChecked, setAuthChecked] = useState(false)
+
+  // Charge la session au premier rendu.
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => r.json())
+      .then((data: { user: SessionUser | null }) => {
+        setUser(data.user)
+        setAuthChecked(true)
+        // Après connexion (?view=dashboard), ouvre le dashboard organisateur.
+        if (data.user?.role === 'organizer' && initialView === 'dashboard') {
+          setView('dashboard')
+        }
+      })
+      .catch(() => setAuthChecked(true))
+    // `initialView` ne sert qu'au premier rendu.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Ferme le menu et rend le focus au bouton d'ouverture (accessibilité).
-  const closeMenu = () => {
+  const closeMenu = useCallback(() => {
     setMenuOpen(false)
-    // Le bouton porte un id stable ; on y rend le focus après fermeture.
     document.getElementById('menu-toggle')?.focus()
-  }
+  }, [])
 
   const navigate = (next: View) => {
     setView(next)
@@ -85,6 +116,14 @@ export function KinPassApp() {
     navigate('create')
   }
 
+  // Déconnexion : efface la session puis revient à l'accueil.
+  const handleLogout = async () => {
+    await logout()
+    setUser(null)
+    setEditingEvent(null)
+    navigate('home')
+  }
+
   // Pendant que le menu est ouvert : touche Échap pour fermer + blocage du
   // scroll de la page (l'overlay est en position fixe par-dessus le contenu).
   useEffect(() => {
@@ -99,8 +138,7 @@ export function KinPassApp() {
       document.removeEventListener('keydown', onKeyDown)
       document.body.style.overflow = previousOverflow
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [menuOpen])
+  }, [menuOpen, closeMenu])
 
   const content =
     view === 'home' ? (
@@ -147,7 +185,32 @@ export function KinPassApp() {
               ))}
             </nav>
 
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
+              {/* Zone utilisateur : connexion / nom + déconnexion */}
+              {authChecked &&
+                (user ? (
+                  <div className="hidden items-center gap-1.5 md:flex">
+                    <span className="max-w-36 truncate text-sm text-muted-foreground">
+                      {user.fullName}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleLogout}
+                      aria-label="Se déconnecter"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Déconnexion
+                    </Button>
+                  </div>
+                ) : (
+                  <a
+                    href="/auth/login"
+                    className={buttonVariants({ variant: 'outline', size: 'sm', className: 'hidden md:inline-flex' })}
+                  >
+                    Se connecter
+                  </a>
+                ))}
               <ThemeToggle />
               {/* Bouton du menu mobile : icône animée hamburger ⇄ flèche */}
               <Button
@@ -213,6 +276,26 @@ export function KinPassApp() {
                       </Button>
                     </motion.div>
                   ))}
+                  {/* Lien connexion / déconnexion en pied de menu mobile */}
+                  <motion.div variants={menuItemVariants} className="mt-1 border-t border-border pt-2">
+                    {user ? (
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-start text-muted-foreground"
+                        onClick={handleLogout}
+                      >
+                        <LogOut className="h-4 w-4" />
+                        Déconnexion ({user.fullName})
+                      </Button>
+                    ) : (
+                      <a
+                        href="/auth/login"
+                        className={buttonVariants({ variant: 'ghost', className: 'w-full justify-start' })}
+                      >
+                        Se connecter
+                      </a>
+                    )}
+                  </motion.div>
                 </motion.div>
               </motion.nav>
             </motion.div>

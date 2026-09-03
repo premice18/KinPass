@@ -271,20 +271,20 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 - [x] Toggle clair/sombre (`next-themes` + `components/layout/ThemeToggle.tsx`).
 - [x] Menu mobile responsive (hamburger + dropdown).
 
-### ❌ Phase 4 — Authentification & compte organisateur (À VENIR)
+### 🟡 Phase 4 — Authentification & compte organisateur (EN COURS — 4.1 faite)
 
 #### 4.1 Inscription / connexion
 
-- [ ] `lib/auth.ts` : inscription + connexion, hash `bcrypt`, sessions par cookies (`jose`/`iron-session`), rôle `organizer` par défaut, cookie `httpOnly` + `secure` + `sameSite=lax`.
-- [ ] **Deux rôles** : `organizer` (auto-inscription) et `agent`/scanneur (créé uniquement par un organisateur, jamais en auto-inscription — cf. Phase 7).
-- [ ] Routes App Router `/auth/register` et `/auth/login` (formulaires séparés, icônes Iconoir `Mail` / `Lock`).
-- [ ] Validation Zod (messages français) : email valide + unique ; mot de passe ≥ 8 caractères, une majuscule, une minuscule, un chiffre ; nom complet requis.
-- [ ] Écran register : email, mot de passe, confirmation, nom complet, **case « J'accepte les Conditions Générales d'Utilisation et les règles de reversement » obligatoire** (lien vers le contrat — cf. Phase 11).
-- [ ] Écran login : email + mot de passe, lien « Mot de passe oublié » (reset par email — cf. Phase 11), gestion des erreurs (« identifiants invalides »).
-- [ ] Après login → redirection `/dashboard` ; après register → redirection vers la complétion du profil.
-- [ ] Middleware/proxy protégeant `/dashboard`, `/events/*`, `/scan/*` (redirection vers `/auth/login` si non authentifié) ; **RBAC par rôle** : `agent` limité à `/scan/*` (aucun accès `/dashboard`, `/settings`, `/events/*`).
-- [ ] Remplacement de `DEFAULT_ORGANIZER_ID` (`lib/constants.ts`) par l'ID de session dans **toutes** les Server Actions de `lib/actions/events.ts` (fin du mode « organisateur de test »).
-- [ ] Tests E2E : register → login → accès `/dashboard` ; accès refusé sans session ; logout.
+- [x] `lib/auth.ts` : inscription + connexion, hash `bcrypt` (bcryptjs), sessions par cookies JWT (`jose`, HS256), rôle `organizer` par défaut, cookie `httpOnly` + `secure` + `sameSite=lax`, `AUTH_SECRET` en env.
+- [x] **Deux rôles** : `organizer` (auto-inscription) et `agent`/scanneur (créé uniquement par un organisateur, jamais en auto-inscription — cf. Phase 7). Le rôle `agent` sera branché avec la Phase 7.
+- [x] Routes App Router `/auth/register` et `/auth/login` (formulaires séparés, icônes Iconoir `Mail` / `Lock`), pages placeholder `/auth/forgot-password` et `/legal/cgu` (contenu complet en Phase 11).
+- [x] Validation Zod (messages français) : email valide + unique ; mot de passe ≥ 8 caractères, une majuscule, une minuscule, un chiffre ; nom complet requis ; confirmation du mot de passe.
+- [x] Écran register : email, mot de passe, confirmation, nom complet, **case « J'accepte les Conditions Générales » obligatoire** (lien placeholder — cf. Phase 11).
+- [x] Écran login : email + mot de passe, lien « Mot de passe oublié » (placeholder — reset par email en Phase 11), erreur générique « Identifiants invalides ».
+- [x] Après login/register → redirection `/?view=dashboard` (SPA) ; `?next=` supporté pour les futures routes ; header connecté/déconnecté dans la coquille.
+- [x] Middleware protégeant `/dashboard`, `/events/*`, `/scan/*` (redirection vers `/auth/login?next=...` si non authentifié) ; pages `/auth/*` redirigent un utilisateur connecté.
+- [x] Remplacement de `DEFAULT_ORGANIZER_ID` par l'ID de session dans **toutes** les Server Actions de `lib/actions/events.ts` (session + contrôle de propriété) ; seed mis à jour avec identifiants démo `organisateur@kinpass.test` / `Demo@2026`.
+- [ ] Tests E2E (mis à jour pour se connecter — register → login → dashboard ; accès refusé sans session ; logout) : **écrits, exécution sur demande** (règle §0.7).
 
 #### 4.2 Profil organisateur (rubriques à compléter avant de créer un événement)
 
@@ -570,6 +570,56 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - [ ] Recharge par Mobile Money (ou cash à la porte) → QR de débit scanné par les vendeurs (boissons/marchandises) → l'organisateur reçoit le solde net (commission kinPass déduite).
 - [ ] Non prioritaire (besoin d'adoption terrain) ; à réévaluer après les modules 15.1-15.5.
 
+### ❌ Phase 16 — Administration superadmin (back-office du créateur) (À VENIR)
+
+**Objectif** : une interface réservée au **créateur de l'application** pour **tout voir et tout gérer** : paramètres globaux, organisateurs, événements, billets/scans, reversements, et un journal d'audit (« qui fait quoi »).
+
+**Décision (validée — amélioration de l'idée initiale)** :
+- **URL distincte** `/superadmin` + **page de connexion dédiée** `/superadmin/login` (branding back-office distinct, pas de page marketing).
+- **Pas de page d'inscription publique.** Les comptes superadmin sont **provisionnés par seed** (`scripts/seed-superadmin.mts`) ; les emails autorisés sont dans `.env.local` (`SUPERADMIN_EMAILS`). Zéro surface d'inscription = zéro risque de compte créé par un tiers. Un superadmin peut ajouter d'autres superadmins depuis le back-office.
+- **Un seul système d'authentification** : rôle `superadmin` ajouté à `users.role` (aux côtés de `organizer` et `agent`), même session/cookie. `/superadmin/login` n'accepte **que** le rôle `superadmin` (les autres reçoivent un message neutre « accès réservé ») ; `/auth/login` redirige un superadmin vers `/superadmin`.
+
+#### 16.1 Modèle de données (ajouts)
+
+- `users.role` : ajouter `'superadmin'` (enum `organizer` | `agent` | `superadmin`).
+- Nouvelle table `audit_logs` (id, actor_id FK `users` SET NULL, action varchar, entity varchar, entity_id uuid, metadata jsonb, created_at) — index sur `actor_id` et `created_at` — pour le « qui fait quoi ».
+- Nouvelle table `app_settings` (key varchar UNIQUE, value text, updated_at) — config globale (commission, versions de contrat, feature flags).
+
+#### 16.2 Authentification & sécurité
+
+- [ ] Route `/superadmin/login` dédiée ; middleware : `/superadmin/*` exige `role === 'superadmin'`.
+- [ ] Contrôle du rôle **serveur** dans chaque Server Action superadmin (défense en profondeur).
+- [ ] Rate-limit sur le login ; mot de passe bcrypt ; (plus tard, option) 2FA TOTP.
+- [ ] `scripts/seed-superadmin.mts` : crée les comptes superadmin à partir de `.env.local` `SUPERADMIN_EMAILS` (idempotent, mot de passe fourni en variable d'env `SUPERADMIN_PASSWORD` ou généré et affiché).
+- [ ] Journalisation (`audit_logs`) de **toute** action sensible : connexion superadmin, approbation/refus de reversement, suspension/réactivation d'organisateur, modification de `app_settings`, création d'un autre superadmin.
+
+#### 16.3 Vue d'ensemble (KPIs globaux — tableau de bord exécutif)
+
+- [ ] 5-6 KPIs (limite pour rester lisible) : **organisateurs actifs**, **événements publiés**, **billets vendus**, **revenus bruts**, **commission kinPass cumulée**, **reversements en attente**.
+- [ ] Tendances sur 7/30 jours + indicateurs de progression ; drill-down (clic → détail).
+- [ ] Alerte si le nombre de reversements « en attente » dépasse un seuil (cf. skill KPI : éviter les métriques vaniteuses, privilégier l'actionnable).
+
+#### 16.4 Modules de gestion (la totale)
+
+- [ ] **Organisateurs** : liste + fiche (profil, comptes de reversement, contrats acceptés) ; actions **suspendre / réactiver** (bloque la connexion et la vente).
+- [ ] **Événements** : liste de **tous** les événements (tous organisateurs) avec filtres (statut, catégorie), détail, changement de statut forcé.
+- [ ] **Billets & scans** : recherche par code de billet, liste des derniers scans, vue d'un billet.
+- [ ] **Reversements** : file d'attente des `payouts` `pending` → **approuver / refuser / marquer payé** (flux manuel de la Phase 10) ; historique.
+- [ ] **Agents (scanneurs)** : lecture de tous les comptes d'agents et de leurs assignations.
+- [ ] **Paramètres globaux** : `KINPASS_FEE_PERCENT`, versions du contrat (CGU/prestation), feature flags (activer/désactiver un module de la Phase 15).
+- [ ] **Journal d'audit** : consultation filtrable des `audit_logs` (par acteur, action, période).
+
+#### 16.5 UI back-office
+
+- [ ] Layout dense type « console » (tables, filtres, pagination) — réutiliser `components/ui` ; distinct de l'app publique (pas de hero marketing, accent visuel « zone à risque » sur les actions destructives).
+- [ ] Navigation latérale par module ; mode sombre/clair cohérent avec le reste.
+
+#### 16.6 Server Actions & tests
+
+- [ ] Server Actions dédiées (`lib/actions/admin.ts`) : `listOrganizers`, `suspendOrganizer`, `reactivateOrganizer`, `listEvents`, `getEventDetail`, `searchTicket`, `listPayouts`, `processPayout`, `getAuditLogs`, `updateAppSetting` — toutes protégées `role === 'superadmin'`.
+- [ ] Tests E2E (écrits ; exécution sur demande) : un superadmin se connecte et voit tout ; un organisateur/agent est **refusé** sur `/superadmin` ; suspension d'organisateur effective ; action journalisée dans l'audit.
+- [ ] Unitaire : permissions (organisateur ne peut pas appeler les actions admin), journalisation systématique.
+
 ---
 
 ## 5. CONTENU OBLIGATOIRE DU FICHIER `README.md`
@@ -597,7 +647,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - **Phase 1** : ✅ TERMINÉE (maquette UI des 5 vues).
 - **Phase 2** : ✅ TERMINÉE (base Neon + schéma Drizzle appliqué).
 - **Phase 3** : ✅ TERMINÉE (logo ticket, dark/light, menu mobile).
-- **Phase 4 (auth + compte organisateur)** : ❌ À VENIR — inscription/connexion, profil (photo, WhatsApp, compte de reversement), remplacement de l'organisateur de test.
+- **Phase 4 (auth + compte organisateur)** : 🟡 EN COURS — **4.1 faite** (register/login, session JWT, middleware, Server Actions sécurisées) ; reste : 4.2 profil (photo, WhatsApp, compte de reversement), rôle agent (Phase 7), exécution des tests E2E (sur demande).
 - **Phase 5 (événements)** : ✅ TERMINÉE — CRUD complet + publication, organisateur de test fixe (`lib/constants.ts`), à sécuriser par la session dès la Phase 4.
 - **Phase 6 (billetterie + paiement)** : ❌ À VENIR — page publique, commandes, remise du billet (email/PDF/PNG/JPG), galerie 1-3 photos, pages de confirmation, webhook Mobile Money.
 - **Phase 7 (scanner)** : ❌ À VENIR — interface de scan (caméra + saisie), **comptes scanneurs gérés par l'organisateur avec RBAC strict** (assignation par événement, aucun accès aux ventes/contrats).
@@ -609,6 +659,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - **Phase 13 (export & reporting)** : ❌ À VENIR — rapport PDF + export CSV des participants.
 - **Phase 14 (entrées libres & RSVP)** : ❌ À VENIR — événements gratuits de bout en bout, commission 0, checkout sans paiement.
 - **Phase 15 (innovations différenciantes)** : ❌ À VENIR — WhatsApp-first, QR dynamique anti-fraude, diaspora « je paie, un proche profite », paiement cash à l'entrée, affiliation des rabatteurs.
+- **Phase 16 (admin superadmin)** : ❌ À VENIR — back-office `/superadmin` du créateur : vue globale (KPIs), gestion des organisateurs/événements/billets/reversements, paramètres globaux, journal d'audit. Comptes provisionnés par seed (`SUPERADMIN_EMAILS`), rôle `superadmin`.
 
 **Avancement global estimé : ~40 %** (UI + fondations base de données + gestion des événements de bout en bout ; auth, billetterie publique, monétisation et scanner restent à faire).
 
@@ -665,6 +716,7 @@ drizzle.config.ts     # Config drizzle-kit
 | :------------- | :---------- | :------------------------------ |
 | `DATABASE_URL` | ✅          | URL de connexion Neon (poolée). |
 | `PEXELS_API_KEY` | ❌ (optionnelle) | Clé API Pexels (photos pour fonds/couvertures). Sans clé, fallbacks de marque. |
+| `AUTH_SECRET` | ✅          | Clé de signature des sessions JWT (≥ 32 caractères, base64url). |
 
 | Commande                     | Description                                                                |
 | :--------------------------- | :------------------------------------------------------------------------- |

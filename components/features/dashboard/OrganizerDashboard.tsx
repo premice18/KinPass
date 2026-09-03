@@ -209,10 +209,21 @@ export function OrganizerDashboard({
         {error && (
           <div
             role="alert"
-            className="mt-6 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            className="mt-6 flex flex-wrap items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
           >
-            <WarningCircle className="h-4 w-4 shrink-0" />
-            {error}
+            <span className="flex items-center gap-2">
+              <WarningCircle className="h-4 w-4 shrink-0" />
+              {error}
+            </span>
+            {/* Non connecté : inviter à se connecter pour voir ses événements */}
+            {error.startsWith('Connexion requise') && (
+              <a
+                href="/auth/login"
+                className="ml-auto rounded-md border border-destructive/40 px-2.5 py-1 text-xs font-medium hover:bg-destructive/10"
+              >
+                Se connecter
+              </a>
+            )}
           </div>
         )}
 

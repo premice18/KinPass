@@ -5,11 +5,12 @@
 // confirmation). Les données sont nettoyées à la fin du test.
 import { test, expect } from '@playwright/test'
 
-import { goTo } from './helpers'
+import { goTo, loginAsDemo } from './helpers'
 
 test.describe('Création / édition d’événement', () => {
-  // Chaque test démarre sur l'accueil, puis navigue via le menu (goTo).
+  // Connexion, retour à l'accueil, puis navigation via le menu (goTo).
   test.beforeEach(async ({ page }) => {
+    await loginAsDemo(page)
     await page.goto('/')
   })
 
