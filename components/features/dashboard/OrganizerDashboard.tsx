@@ -49,6 +49,8 @@ interface DashboardProps {
   onCreateEvent: () => void;
   // Navigation par état : ouvre le formulaire en mode édition (id).
   onEditEvent: (eventId: string) => void;
+  // Navigation par état : ouvre la vue détail d'un événement (id).
+  onViewEvent: (eventId: string) => void;
 }
 
 // Formate un montant avec des milliers à la française et la devise RDC.
@@ -91,6 +93,7 @@ const STATUS_META: Record<
 export function OrganizerDashboard({
   onCreateEvent,
   onEditEvent,
+  onViewEvent,
 }: DashboardProps) {
   const [events, setEvents] = useState<EventWithStats[]>([]);
   const [loading, setLoading] = useState(true);
@@ -400,6 +403,16 @@ export function OrganizerDashboard({
                         aria-label={`Modifier ${event.title}`}
                       >
                         <EditPencil className="h-4 w-4" />
+                      </Button>
+                      {/* Vue détail : KPIs + billets de CE événement */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onViewEvent(event.id)}
+                        aria-label={`Voir le détail de ${event.title}`}
+                      >
+                        <StatsReport className="h-4 w-4" />
+                        Détail
                       </Button>
                       <Button
                         variant="destructive"
