@@ -26,13 +26,14 @@ import { Logo } from '@/components/layout/Logo'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { LandingPage } from '@/components/features/landing/LandingPage'
 import { OrganizerDashboard } from '@/components/features/dashboard/OrganizerDashboard'
+import { EventDetail } from '@/components/features/dashboard/EventDetail'
 import { EventCreationForm } from '@/components/features/event-creation/EventCreationForm'
 import { TicketCheckout } from '@/components/features/checkout/TicketCheckout'
 import { Scanner } from '@/components/features/scanner/Scanner'
 import { getEventById, type EditableEvent } from '@/lib/actions/events'
 import { logout } from '@/lib/actions/auth'
 
-type View = 'home' | 'dashboard' | 'create' | 'checkout' | 'scanner'
+type View = 'home' | 'dashboard' | 'detail' | 'create' | 'checkout' | 'scanner'
 
 // Utilisateur exposé au client (sans données sensibles).
 export type SessionUser = {
@@ -65,6 +66,8 @@ export function KinPassApp({ initialView = 'home' }: KinPassAppProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   // Événement chargé pour le mode édition du formulaire (null = mode création).
   const [editingEvent, setEditingEvent] = useState<EditableEvent | null>(null)
+  // Événement consulté dans la vue détail.
+  const [viewedEventId, setViewedEventId] = useState<string | null>(null)
   // Session (chargée au montage via /api/auth/me).
   const [user, setUser] = useState<SessionUser | null>(null)
   const [authChecked, setAuthChecked] = useState(false)
@@ -124,6 +127,20 @@ export function KinPassApp({ initialView = 'home' }: KinPassAppProps) {
     navigate('home')
   }
 
+  // Ouvre la vue détail d'un événement (KPIs + billets de CET événement).
+  const openEventDetail = (eventId: string) => {
+    setViewedEventId(eventId)
+    setView('detail')
+    setMenuOpen(false)
+  }
+
+  // Ouvre le formulaire en mode édition depuis la vue détail.
+  const openEditFromDetail = (eventId: string) => {
+    setEditingEvent(null)
+    setViewedEventId(eventId)
+    navigate('create')
+  }
+
   // Pendant que le menu est ouvert : touche Échap pour fermer + blocage du
   // scroll de la page (l'overlay est en position fixe par-dessus le contenu).
   useEffect(() => {
@@ -144,7 +161,17 @@ export function KinPassApp({ initialView = 'home' }: KinPassAppProps) {
     view === 'home' ? (
       <LandingPage onGetStarted={() => navigate('dashboard')} onCheckout={() => navigate('checkout')} />
     ) : view === 'dashboard' ? (
-      <OrganizerDashboard onCreateEvent={openCreateEvent} onEditEvent={openEditEvent} />
+      <OrganizerDashboard
+        onCreateEvent={openCreateEvent}
+        onEditEvent={openEditEvent}
+        onViewEvent={openEventDetail}
+      />
+    ) : view === 'detail' && viewedEventId ? (
+      <EventDetail
+        eventId={viewedEventId}
+        onBack={() => navigate('dashboard')}
+        onEdit={openEditFromDetail}
+      />
     ) : view === 'create' ? (
       <EventCreationForm
         initialData={editingEvent ?? undefined}
