@@ -186,3 +186,5 @@ Le plan détaillé (avec spécifications par phase) est dans [`project_info.md`]
 6. **Confiance & conformité** : conditions générales, politique de confidentialité, contrat de prestation.
 7. **Vérification de billet publique** : page `/verify` pour vérifier et re-télécharger un billet.
 8. **Export & reporting** : rapport PDF et export CSV des participants.
+9. **Événements à entrée libre** : événements gratuits de bout en bout (commission 0, inscription sans paiement).
+10. **Innovations différenciantes** : WhatsApp-first, QR dynamique anti-fraude, diaspora « je paie, un proche profite », paiement cash à l'entrée, affiliation des rabatteurs.

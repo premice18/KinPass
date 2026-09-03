@@ -481,6 +481,95 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - [ ] Filtres avant export : par type de billet, par statut (valide/utilisé/annulé).
 - [ ] Tests : génération du PDF/CSV, cohérence des données exportées avec la base.
 
+### ❌ Phase 14 — Événements à entrée libre (gratuits) & RSVP (À VENIR)
+
+**Objectif** : permettre des événements **gratuits** de bout en bout. Pour l'organisateur comme pour l'acheteur, **kinPass ne facture rien** : commission 0 (0 × `KINPASS_FEE_PERCENT` = 0), aucun paiement Mobile Money exigé, aucun frais caché.
+
+**Décision (validée)** : pas de drapeau global « gratuit ». Un événement est gratuit si **tous ses types de billets ont un prix de 0** (ex. type « Entrée libre »). Le système détecte automatiquement le mode gratuit (total de commande = 0) et saute toute la chaîne de paiement. Avantages : un événement peut mélanger entrée gratuite et places payantes (ex. « Entrée libre » + « VIP 30 $ »), et aucune logique de commission à dériver.
+
+#### 14.1 Création (côté organisateur)
+
+- [ ] Helper dans `EventCreationForm` : bouton « Entrée libre » qui pré-remplit un type `price = 0` (nom suggéré « Entrée libre », devise USD, capacité au choix) et affiche la mention « Événement gratuit : kinPass ne facture ni l'organisateur ni les invités ».
+- [ ] Autoriser (comme aujourd'hui) les prix 0 ; validation serveur inchangée (`price >= 0`).
+- [ ] Badge/statut visuel dans le dashboard : « Gratuit » sur les événements dont tous les prix sont 0.
+
+#### 14.2 Achat / inscription (côté invité)
+
+- [ ] Checkout : si le total calculé est **0** → écran « Confirmer ma participation » (coordonnées : nom, téléphone, email optionnel) **sans** étape Mobile Money, sans webhook, sans écran « Redirection… ».
+- [ ] Confirmation immédiate : génération du billet (code 6 caractères + QR) et remise (email ou téléchargement PDF/PNG/JPG), mêmes options que le payant.
+- [ ] Page publique `/e/[slug]` : afficher « **Entrée libre** » (vert, emphase) au lieu d'un prix quand le type est à 0.
+- [ ] Anti-abus : limite d'inscriptions par numéro de téléphone (ex. 5) pour éviter l'accaparement des places gratuites.
+
+#### 14.3 Suivi & statistiques
+
+- [ ] Dashboard : les événements gratuits affichent les KPIs de **participation** (inscriptions, taux de remplissage, entrées scannées) ; ligne revenus = 0 $ (aucune commission prélevée, aucune ligne dans l'historique de reversement).
+- [ ] État « jauge pleine » : si la capacité est atteinte, la page publique indique « Complet » et bloque l'inscription.
+- [ ] Export CSV/PDF (Phase 13) déjà compatible (les billets existent) ; vérifier l'affichage « Gratuit ».
+
+#### 14.4 Tests
+
+- [ ] E2E (écrits ; exécution sur demande) : inscription à un événement gratuit sans aucune étape de paiement ; événement mixte (gratuit + VIP payant) ; jauge pleine ; commission 0 dans le dashboard.
+- [ ] Unitaire : calcul de commission sur total 0 ; détection du mode gratuit.
+
+### ❌ Phase 15 — Innovations différenciantes (marché de Kinshasa) (À VENIR)
+
+**Contexte** : les plateformes de billetterie présentes à Kinshasa proposent toutes le même schéma — billet payant en ligne, QR statique, communication par email. Pour **démarquer kinPass**, les modules suivants ciblent les réalités congolaises : WhatsApp (canal roi), paiement en espèces, diaspora, fraude aux QR, et économie informelle des « rabatteurs ». Chaque module est indépendant et peut être activé séparément.
+
+#### 15.1 WhatsApp-first (livraison, rappels, annulation) — priorité haute
+
+**Pourquoi ça démarque** : au Congo, WhatsApp est LE canal de communication. Les concurrents utilisent l'email, que la majorité n'ouvre pas.
+
+- [ ] Livraison du billet par **WhatsApp** (Business API) en plus de l'email : envoi du billet (image/PDF) + lien de téléchargement.
+- [ ] Rappels automatiques : J-3, J-1, J-2h avant l'événement (si l'organisateur active les rappels).
+- [ ] Annulation / report d'événement : notification WhatsApp à tous les acheteurs (un seul clic côté organisateur).
+- [ ] Préférences : l'acheteur choisit email et/ou WhatsApp ; MVP = lien `wa.me` pré-rempli, production = WhatsApp Business Cloud API.
+- [ ] Tests E2E (écrits ; exécution sur demande) : parcours « recevoir par WhatsApp », rappel programmé.
+
+#### 15.2 QR dynamique anti-fraude (anti capture d'écran)
+
+**Pourquoi ça démarque** : les QR statiques se screenshotent et se partagent ; c'est la fraude n°1 à la porte.
+
+- [ ] QR **régénéré périodiquement** (jeton horodaté, ex. rotation toutes les 60 s) : l'écran du téléphone montre un QR qui change, les captures d'écran deviennent inutilisables.
+- [ ] Le scanner valide le jeton (code + fenêtre temporelle) en plus de l'état du billet ; hors fenêtre → « QR expiré, réactualisez ».
+- [ ] Règle « un billet = un téléphone » (optionnelle) : le code est lié au numéro de l'acheteur au premier affichage.
+- [ ] Compromis documenté : hors-ligne à la porte (réseau faible) → repli sur le code 6 caractères statique classique (toujours fonctionnel).
+- [ ] Tests : QR expiré refusé, QR rejoué (relecture du même QR) refusé, code 6 caractères toujours accepté.
+
+#### 15.3 Diaspora : « Je paie, un proche profite »
+
+**Pourquoi ça démarque** : la diaspora congolaise (Europe, USA, Afrique de l'Ouest) paie régulièrement des billets pour sa famille restée au pays, mais ne peut pas utiliser M-Pesa/Airtel/Orange depuis l'étranger.
+
+- [ ] Mode « Offrir un billet » : paiement par **carte bancaire internationale** (Stripe/Paystack) côté payeur.
+- [ ] Le bénéficiaire (au pays) reçoit un **code de retrait** par WhatsApp/SMS : il entre le code sur `/redeem` et récupère son billet (PDF/QR) sur son propre téléphone.
+- [ ] Mentions obligatoires : nom du payeur visible sur le billet (« Offer par X ») — valeur émotionnelle + traçabilité.
+- [ ] Sécurité : code de retrait à usage unique + expiration (72 h), renvoi possible par l'acheteur.
+- [ ] Tests : achat diaspora, code de retrait à usage unique, expiration, renvoi.
+
+#### 15.4 Paiement en espèces à l'entrée (réservation sans paiement en ligne)
+
+**Pourquoi ça démarque** : une partie du public n'a pas de Mobile Money ou préfère payer comptant le jour J.
+
+- [ ] Option événement « Paiement à la porte » (par type de billet) : l'invité **réserve** gratuitement (sans paiement), le billet est marqué `reserved` avec un délai (ex. entrée jusqu'à 20 h 30).
+- [ ] À la porte : l'agent encaisse (espèces) et valide le billet via l'interface de scan (« Marquer payé ») ; ou l'invité paie par Mobile Money sur place.
+- [ ] Anti-fraude : réservation nominative + limite par téléphone ; billet `reserved` non scannable tant qu'il n'est pas `paid`.
+- [ ] Dashboard : suivi des réservations non converties (no-show) pour jauger l'affluence réelle.
+- [ ] Tests : réservation → paiement à la porte → scan ; réservation expirée refusée.
+
+#### 15.5 Affiliation locale (« rabatteurs ») avec commission Mobile Money
+
+**Pourquoi ça démarque** : à Kinshasa, une grande part des ventes passe par des promoteurs de rue. Aucune plateforme ne les outille ni ne les rémunère automatiquement.
+
+- [ ] L'organisateur génère des **liens d'affiliation** (un par rabatteur : nom, téléphone).
+- [ ] Suivi : ventes attribuées au rabatteur, commissions (montant fixe ou % défini par l'organisateur, ex. 1 $ ou 5 %).
+- [ ] Paiement des commissions en **Mobile Money** (même infra que les reversements, Phase 10).
+- [ ] Espace rabatteur minimal : lien personnel, ventes enregistrées, solde de commissions (sans accès aux données de l'événement).
+- [ ] Tests : attribution d'une vente par lien, calcul de commission, versement.
+
+#### 15.6 (Option — plus tard) Cashless événement : porte-monnaie interne
+
+- [ ] Recharge par Mobile Money (ou cash à la porte) → QR de débit scanné par les vendeurs (boissons/marchandises) → l'organisateur reçoit le solde net (commission kinPass déduite).
+- [ ] Non prioritaire (besoin d'adoption terrain) ; à réévaluer après les modules 15.1-15.5.
+
 ---
 
 ## 5. CONTENU OBLIGATOIRE DU FICHIER `README.md`
@@ -518,6 +607,8 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - **Phase 11 (confiance & contrat)** : ❌ À VENIR — CGU, confidentialité, contrat de prestation, acceptation versionnée.
 - **Phase 12 (vérification billet)** : ❌ À VENIR — page `/verify` publique + re-téléchargement.
 - **Phase 13 (export & reporting)** : ❌ À VENIR — rapport PDF + export CSV des participants.
+- **Phase 14 (entrées libres & RSVP)** : ❌ À VENIR — événements gratuits de bout en bout, commission 0, checkout sans paiement.
+- **Phase 15 (innovations différenciantes)** : ❌ À VENIR — WhatsApp-first, QR dynamique anti-fraude, diaspora « je paie, un proche profite », paiement cash à l'entrée, affiliation des rabatteurs.
 
 **Avancement global estimé : ~40 %** (UI + fondations base de données + gestion des événements de bout en bout ; auth, billetterie publique, monétisation et scanner restent à faire).
 
