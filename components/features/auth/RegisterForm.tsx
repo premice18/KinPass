@@ -10,6 +10,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { signIn } from 'next-auth/react'
 import { Mail, User } from 'iconoir-react'
 
 import { Button } from '@/components/ui/button'
@@ -17,6 +18,7 @@ import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/ui/password-input'
 import { Eyebrow } from '@/components/ui/eyebrow'
 import { AuthShell } from '@/components/features/auth/AuthShell'
+import { GoogleButton } from '@/components/features/auth/GoogleButton'
 import { register } from '@/lib/actions/auth'
 
 // Politique de mot de passe (reflète `registerSchema`).
@@ -70,7 +72,19 @@ export function RegisterForm() {
         setError(result.error)
         return
       }
-      // Compte créé et session posée : direction le dashboard.
+      // Compte créé : connexion automatique via le provider credentials
+      // (pose la session Auth.js), puis direction le dashboard.
+      const signInResult = await signIn('credentials', {
+        email: email.trim(),
+        password,
+        redirect: false,
+      })
+      if (signInResult?.error) {
+        // Cas limite : compte créé mais connexion échouée → laisser l'utilisateur
+        // se connecter manuellement.
+        router.push('/auth/login')
+        return
+      }
       router.push('/?view=dashboard')
       router.refresh()
     })
@@ -85,6 +99,12 @@ export function RegisterForm() {
       </p>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+        <GoogleButton />
+        <div className="flex items-center gap-3 text-xs uppercase tracking-wider text-muted-foreground">
+          <span className="h-px flex-1 bg-border" />
+          ou avec un email
+          <span className="h-px flex-1 bg-border" />
+        </div>
         <label className="block space-y-2 text-sm font-medium">
           Adresse email
           <span className="relative block">

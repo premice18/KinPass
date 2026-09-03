@@ -17,8 +17,9 @@
 // `MotionConfig reducedMotion="user"` respecte `prefers-reduced-motion`.
 // ────────────────────────────────────────────────────────────────────────────
 
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion'
+import { signOut } from 'next-auth/react'
 import { CardWallet, Dashboard, LogOut, PlusCircle, Scanning, SecurityPass } from 'iconoir-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { AnimatedMenuIcon } from '@/components/ui/animated-menu-icon'
@@ -31,7 +32,6 @@ import { EventCreationForm } from '@/components/features/event-creation/EventCre
 import { TicketCheckout } from '@/components/features/checkout/TicketCheckout'
 import { Scanner } from '@/components/features/scanner/Scanner'
 import { getEventById, type EditableEvent } from '@/lib/actions/events'
-import { logout } from '@/lib/actions/auth'
 
 type View = 'home' | 'dashboard' | 'detail' | 'create' | 'checkout' | 'scanner'
 
@@ -90,10 +90,10 @@ export function KinPassApp({ initialView = 'home' }: KinPassAppProps) {
   }, [])
 
   // Ferme le menu et rend le focus au bouton d'ouverture (accessibilité).
-  const closeMenu = useCallback(() => {
+  const closeMenu = () => {
     setMenuOpen(false)
     document.getElementById('menu-toggle')?.focus()
-  }, [])
+  }
 
   const navigate = (next: View) => {
     setView(next)
@@ -119,9 +119,9 @@ export function KinPassApp({ initialView = 'home' }: KinPassAppProps) {
     navigate('create')
   }
 
-  // Déconnexion : efface la session puis revient à l'accueil.
+  // Déconnexion (Auth.js) : efface la session puis revient à l'accueil.
   const handleLogout = async () => {
-    await logout()
+    await signOut({ redirect: false })
     setUser(null)
     setEditingEvent(null)
     navigate('home')

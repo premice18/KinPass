@@ -16,19 +16,28 @@ import {
 // ---------------------------------------------------------------------------
 
 // Utilisateurs : organisateurs (créateurs d'événements) et agents de contrôle.
+// Auth.js : `provider`/`providerId` distinguent email/password et Google ;
+// `passwordHash` est nullable (compte Google pur sans mot de passe).
 export const users = pgTable(
   'users',
   {
     id: uuid('id').defaultRandom().primaryKey(),
     email: varchar('email', { length: 255 }).notNull().unique(),
-    passwordHash: text('password_hash').notNull(),
+    passwordHash: text('password_hash'),
     fullName: varchar('full_name', { length: 255 }).notNull(),
-    // 'organizer' | 'agent'
+    // 'organizer' | 'agent' | 'superadmin'
     role: varchar('role', { length: 20 }).notNull().default('organizer'),
+    // 'email' | 'google' — Auth.js (cf. plan §4.2)
+    provider: varchar('provider', { length: 20 }).notNull().default('email'),
+    // Identifiant auprès du provider (ex. sub Google) — NULL pour email/password.
+    providerId: varchar('provider_id', { length: 255 }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [index('users_email_idx').on(table.email)],
+  (table) => [
+    index('users_email_idx').on(table.email),
+    uniqueIndex('users_provider_idx').on(table.provider, table.providerId),
+  ],
 )
 
 // Événements créés par un organisateur.
