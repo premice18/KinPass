@@ -99,7 +99,8 @@ Anti-patterns bannis : badges-pilules arrondis teintés, cartes `rounded-xl` + `
 
 - **KPIs temps réel** : chiffre d'affaires (USD/CDF), billets vendus, taux de remplissage, personnes entrées (scannées).
 - **Liste des événements** : cartes avec statut (Brouillon / Publié / Terminé), progression des ventes, accès à la gestion.
-- **État** : ✅ fait (`components/features/dashboard/OrganizerDashboard.tsx`, branché sur les données réelles via `getOrganizerEvents()` — KPIs agrégés en base, actions Publier/Éditer/Supprimer).
+- **Vue détail par événement** : KPIs de l'événement, types de billets, derniers billets vendus.
+- **État** : ✅ fait (`components/features/dashboard/OrganizerDashboard.tsx` + `EventDetail.tsx`, branchés sur les données réelles — KPIs agrégés en base, actions Publier/Éditer/Supprimer/Voir le détail).
 
 ### 📄 Création d'événement — Route `/events/new` (À VENIR, protégée)
 
@@ -143,7 +144,7 @@ Anti-patterns bannis : badges-pilules arrondis teintés, cartes `rounded-xl` + `
 
 - **Rubriques à compléter avant de créer un événement** : photo de profil, numéro WhatsApp, adresse, **comptes de reversement** (M-Pesa / Airtel Money / Orange Money / virement).
 - **Équipe / Scanneurs** : création et gestion des comptes de contrôle (cf. §4 Phase 7).
-- Blocage de la publication d'un événement si aucun compte de reversement n'est renseigné. Détail : §4.2.
+- Blocage de la publication d'un événement si aucun compte de reversement n'est renseigné. Détail : §4.3.
 
 ### 📄 Vitrine publique & listing — Landing + Route `/events` (À VENIR)
 
@@ -179,9 +180,11 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 | :-------------------------- | :----------- | :-------------------- | :--------------------- |
 | `id`                        | uuid         | PK, defaultRandom     | Identifiant            |
 | `email`                     | varchar(255) | UNIQUE NOT NULL       | Connexion              |
-| `password_hash`             | text         | NOT NULL              | Hash bcrypt            |
+| `password_hash`             | text         | nullable (Auth.js)    | Hash bcrypt — absent pour un compte Google pur |
 | `full_name`                 | varchar(255) | NOT NULL              | Nom complet            |
-| `role`                      | varchar(20)  | default `'organizer'` | `organizer` \| `agent` |
+| `role`                      | varchar(20)  | default `'organizer'` | `organizer` \| `agent` \| `superadmin` |
+| `provider`                  | varchar(20)  | default `'email'`     | `email` \| `google` (Auth.js, cf. §4.2) |
+| `provider_id`               | varchar(255) |                       | Identifiant du provider (sub Google) |
 | `created_at` / `updated_at` | timestamptz  | defaultNow            | Horodatage             |
 
 ### Table `events`
@@ -236,7 +239,7 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 | `result`     | varchar(20) | NOT NULL             | `valid` \| `used` \| `invalid` |
 | `scanned_at` | timestamptz | defaultNow           | Horodatage                     |
 
-**Index de performance** : `tickets.code` (UNIQUE), `tickets.event_id`, `tickets.ticket_type_id`, `scans.ticket_id`, `scans.event_id`, `events.slug` (UNIQUE), `events.organizer_id`, `users.email`.
+**Index de performance** : `tickets.code` (UNIQUE), `tickets.event_id`, `tickets.ticket_type_id`, `scans.ticket_id`, `scans.event_id`, `events.slug` (UNIQUE), `events.organizer_id`, `users.email`, `users (provider, provider_id)` (UNIQUE — Auth.js, cf. §4.2).
 
 ---
 
@@ -286,7 +289,22 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 - [x] Remplacement de `DEFAULT_ORGANIZER_ID` par l'ID de session dans **toutes** les Server Actions de `lib/actions/events.ts` (session + contrôle de propriété) ; seed mis à jour avec identifiants démo `organisateur@kinpass.test` / `Demo@2026`.
 - [ ] Tests E2E (mis à jour pour se connecter — register → login → dashboard ; accès refusé sans session ; logout) : **écrits, exécution sur demande** (règle §0.7).
 
-#### 4.2 Profil organisateur (rubriques à compléter avant de créer un événement)
+#### 4.2 Authentification sociale — Google via Auth.js
+
+**Objectif** : proposer « Continuer avec Google » sur `/auth/login` et `/auth/register`, en plus de l'email/mot de passe.
+
+**Décision (validée)** : **migrer l'ensemble de l'authentification vers Auth.js v5** (`next-auth@beta`) plutôt que d'ajouter Google à côté de la session maison (jose, Phase 4.1). Raison : **un seul système de session** — deux sessions concurrentes (cookie Auth.js + cookie `kinpass_session`) créeraient des conflits et une double maintenance. L'email/mot de passe devient un provider `credentials` (bcryptjs conservé) ; Google devient le provider `google`. Les variables `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` sont déjà présentes dans `.env.local`.
+
+- [ ] Installer `next-auth@beta` (Auth.js v5) et **vérifier la compatibilité Next.js 16 / Turbopack** (documenter la version retenue ; repli : `@auth/core` + `@auth/nextjs` si besoin).
+- [ ] `auth.config.ts` : providers `google` et `credentials` (validation Zod FR), `pages` personnalisées → `/auth/login` (plus de page Auth.js par défaut), `callbacks` `jwt`/`session` (injecter `userId`, `role` dans le jeton).
+- [ ] `auth.ts` (racine) : export `{ handlers, auth, signIn, signOut }` ; stratégie de session **JWT** (pas de table de sessions au MVP) ; `trustHost` pour le déploiement.
+- [ ] Route handler `app/api/auth/[...nextauth]/route.ts` ; **proxy/middleware migré** sur `auth` (remplace la vérification jose du `proxy.ts` actuel).
+- [ ] **Suppression de la session maison** : `lib/session-token.ts` et la logique jose de `lib/auth.ts` sont retirées au profit d'Auth.js ; les Server Actions `login`/`register` utilisent `signIn('credentials')` (hash bcryptjs conservé) ; `logout` → `signOut` ; `/api/auth/me` remplacé par `useSession` (SessionProvider dans la coquille) ou par l'API Auth.js.
+- [ ] **Création / liaison du compte Google** (callback `signIn`) : email Google inconnu → création `provider='google'`, rôle `organizer` ; email connu (déjà inscrit en email/mot de passe) → **liaison** sur le même compte (pas de doublon) ; gestion de l'erreur `OAuthAccountNotLinked` avec un message clair.
+- [ ] **Bouton « Continuer avec Google »** : composant dédié (logo Google officiel en SVG, cohérent avec la charte) affiché **au-dessus** du formulaire email sur login et register, avec séparateur ; appel `signIn("google", { redirectTo: "/?view=dashboard" })` ; état de chargement ; fermé par un overlay propre (pas de fenêtre pop-up en dev).
+- [ ] Déconnexion unique (header) ; tests E2E (écrits, exécution sur demande) : connexion Google simulée, liaison email+Google, déconnexion.
+
+#### 4.3 Profil organisateur (rubriques à compléter avant de créer un événement)
 
 **Objectif** : seul celui qui crée un événement a besoin d'un compte. Il doit pouvoir **finaliser son profil** (photo, WhatsApp, compte de reversement, adresse) dans une page de paramètres dédiée, avant de publier.
 
@@ -300,9 +318,10 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 - [ ] Badge « Profil incomplet » affiché sur le dashboard tant que les champs obligatoires manquent ; **blocage de la publication d'un événement si aucun compte de reversement n'est renseigné** (message explicite : « Ajoutez un compte de reversement pour publier »).
 - [ ] Tests : complétion du profil, upload photo, ajout/suppression/choix du compte de reversement par défaut.
 
-#### 4.3 Modèle de données (ajouts)
+#### 4.4 Modèle de données (ajouts)
 
 - `users` : `avatar_url text`, `phone_whatsapp varchar(30)`, `address text`.
+- `users` (Google/Auth.js, cf. 4.2) : `provider varchar(20)` défaut `'email'` (`email` \| `google`), `provider_id varchar(255)` (sub Google), **`password_hash` devient nullable** (comptes Google sans mot de passe) ; contrainte **UNIQUE `(provider, provider_id)`** + index sur `email`.
 - Nouvelle table `payout_methods` (cf. ci-dessus), FK `user_id` → `users` ON DELETE CASCADE, index sur `user_id`.
 
 ### ✅ Phase 5 — Gestion des événements (FAITE — sans auth, organisateur de test)
@@ -310,6 +329,7 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 - [x] Server Actions `lib/actions/events.ts` : créer/lire/éditer/publier/supprimer (persistance en base, transactions atomiques, slug unique, validation Zod en français, `organizer_id` fixe temporaire).
 - [x] Formulaire `EventCreationForm` branché (multi-types de billets dynamiques, affiche par URL, validation client + serveur, mode édition) — navigation par état SPA en attendant le routing.
 - [x] Dashboard `OrganizerDashboard` branché sur les données réelles (KPIs agrégés, progression des ventes, actions Publier/Éditer/Supprimer).
+- [x] **Vue détail par événement** (`EventDetail` — clic « Détail » sur une carte) : KPIs dédiés, types de billets, 25 derniers billets (code, acheteur, statut) ; enrichie en Phase 13 (export PDF/CSV, ventes par type exactes).
 - [x] Données de démo : `scripts/seed-demo.mts` (organisateur de test + 2 événements, billets, scans ; option `--reset`).
 
 ### ❌ Phase 6 — Billetterie publique & paiement (À VENIR)
@@ -355,6 +375,26 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 #### 6.6 Modèle de données (ajouts)
 
 - Tables `event_images`, `orders`, `order_items` (cf. ci-dessus) ; `tickets.order_id` FK nullable.
+
+#### 6.7 Lien d'événement partageable & diffusion
+
+**Objectif** : permettre à l'organisateur de **partager facilement son événement** via un lien complet — WhatsApp (canal roi en RDC), réseaux sociaux, QR code physique, copie en un clic.
+
+**Décision (validée)** :
+- L'URL canonique est construite depuis le **slug existant** : `${NEXT_PUBLIC_APP_URL}/e/${slug}`. **Pas de raccourcisseur tiers au MVP** (Bitly…) : dépendance externe + coût + lien mort si le service ferme. Un éventuel lien court **interne** sera étudié plus tard (option, cf. plus bas).
+- Les **aperçus WhatsApp / réseaux** reposent sur les balises Open Graph (SEO déjà prévu en 6.1) : la page `/e/[slug]` doit exposer `og:title`, `og:description`, `og:image` (affiche) — indispensable pour un partage « riche ».
+- **Tracking des provenances reporté** (option) : mesurer les clics par source n'est pas un besoin MVP ; éviter la sur-ingénierie.
+
+- [ ] Variable d'environnement `NEXT_PUBLIC_APP_URL` (base publique du site, ex. `https://kinpass.app`) — documentée au §8 ; helper `lib/share.ts` : `buildEventUrl(event)` et `buildShareText(event)` (titre + date).
+- [ ] **Composant de partage** (dashboard) : bouton « Partager » (icône Iconoir `ShareAndroid`) dans la **vue Détail** de l'événement (et dans la liste des événements, au choix) → panneau modal (`AnimatePresence`) contenant :
+  - l'URL complète en lecture seule + bouton **Copier** (`navigator.clipboard`, état « Copié ! ») ;
+  - un **QR code** (`qrcode.react`, déjà prévu en 6.2 pour les billets — réutiliser) pour le partage physique/affiche ;
+  - les boutons de diffusion : **WhatsApp** (`https://wa.me/?text=`), X/Twitter (intent), Facebook (sharer), Telegram ; **partage natif** mobile (`navigator.share` si disponible) en repli.
+- [ ] Intégration sur la **page publique** `/e/[slug]` (6.1) : bouton de partage discret + vérification des aperçus OG (test réel sur WhatsApp/Telegram).
+- [ ] Copie en un clic : état « Lien copié » avec retour visuel ; accessibilité (labels, focus) ; test desktop **et** mobile.
+- [ ] Tests E2E (écrits ; exécution sur demande) : copie du lien, ouverture du QR, construction correcte de l'URL (`/e/[slug]`).
+
+**Option (plus tard — hors MVP)** : lien court interne (`/s/{code}`) et comptage des clics par source (table `share_clicks` : event_id, source, referrer, count) pour mesurer l'efficacité des canaux de diffusion.
 
 ### ❌ Phase 7 — Contrôle d'accès & comptes scanneurs (À VENIR)
 
@@ -628,7 +668,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 2. **À propos** — problème résolu, les 3 rôles (organisateur, acheteur, agent).
 3. **Statut du développement** — modules faits / en cours / à venir (sans émojis).
 4. **Direction visuelle** — résumé du langage « billet/talon » (renvoi §1.5).
-5. **Stack technique** — détaillée (Next.js 16, TypeScript, Tailwind v4, Drizzle, Neon, Zod, Playwright, pnpm), avec le rôle de chaque techno.
+5. **Stack technique** — détaillée (Next.js 16, TypeScript, Tailwind v4, Drizzle, Neon, Zod, Auth.js, Playwright, pnpm), avec le rôle de chaque techno.
 6. **Architecture** — App Router, Server Actions, validation, accès données, composants.
 7. **Prérequis** — Node.js 20+, pnpm, un compte Neon.
 8. **Installation** — `pnpm install`, configuration `.env.local`, seed.
@@ -647,9 +687,9 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - **Phase 1** : ✅ TERMINÉE (maquette UI des 5 vues).
 - **Phase 2** : ✅ TERMINÉE (base Neon + schéma Drizzle appliqué).
 - **Phase 3** : ✅ TERMINÉE (logo ticket, dark/light, menu mobile).
-- **Phase 4 (auth + compte organisateur)** : 🟡 EN COURS — **4.1 faite** (register/login, session JWT, middleware, Server Actions sécurisées) ; reste : 4.2 profil (photo, WhatsApp, compte de reversement), rôle agent (Phase 7), exécution des tests E2E (sur demande).
+- **Phase 4 (auth + compte organisateur)** : 🟡 EN COURS — **4.1 faite** (register/login email, session JWT, middleware, Server Actions sécurisées) ; **4.2 ajoutée au plan** (Google via Auth.js — migration de la session) ; reste : 4.3 profil (photo, WhatsApp, compte de reversement), rôle agent (Phase 7), exécution des tests E2E (sur demande).
 - **Phase 5 (événements)** : ✅ TERMINÉE — CRUD complet + publication, organisateur de test fixe (`lib/constants.ts`), à sécuriser par la session dès la Phase 4.
-- **Phase 6 (billetterie + paiement)** : ❌ À VENIR — page publique, commandes, remise du billet (email/PDF/PNG/JPG), galerie 1-3 photos, pages de confirmation, webhook Mobile Money.
+- **Phase 6 (billetterie + paiement)** : ❌ À VENIR — page publique, commandes, remise du billet (email/PDF/PNG/JPG), galerie 1-3 photos, pages de confirmation, webhook Mobile Money, **lien partageable & diffusion (6.7)**.
 - **Phase 7 (scanner)** : ❌ À VENIR — interface de scan (caméra + saisie), **comptes scanneurs gérés par l'organisateur avec RBAC strict** (assignation par événement, aucun accès aux ventes/contrats).
 - **Phase 8 (polish)** : 🟡 EN COURS — tests E2E faits (15 scénarios) ; unitaires, PWA et export restent.
 - **Phase 9 (vitrine publique)** : ❌ À VENIR — événements à venir sur la landing + listing.
@@ -717,6 +757,9 @@ drizzle.config.ts     # Config drizzle-kit
 | `DATABASE_URL` | ✅          | URL de connexion Neon (poolée). |
 | `PEXELS_API_KEY` | ❌ (optionnelle) | Clé API Pexels (photos pour fonds/couvertures). Sans clé, fallbacks de marque. |
 | `AUTH_SECRET` | ✅          | Clé de signature des sessions JWT (≥ 32 caractères, base64url). |
+| `AUTH_GOOGLE_ID` | ❌ (si Google) | Client ID OAuth Google (Google Cloud Console). |
+| `AUTH_GOOGLE_SECRET` | ❌ (si Google) | Client secret OAuth Google. |
+| `NEXT_PUBLIC_APP_URL` | ✅ (partage/SEO) | URL publique du site (ex. `https://kinpass.app`) — construire les liens partageables et les aperçus OG. |
 
 | Commande                     | Description                                                                |
 | :--------------------------- | :------------------------------------------------------------------------- |
