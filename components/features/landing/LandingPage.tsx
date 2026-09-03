@@ -117,8 +117,8 @@ export function LandingPage({ onGetStarted, onCheckout }: LandingPageProps) {
                     Open Studio · 20 septembre · 19h00
                   </p>
                 </div>
-                {/* Talon détachable (code + QR) */}
-                <div className="flex items-end justify-between border-t border-dashed border-white/15 px-6 py-5 sm:px-8">
+                {/* Talon détachable (code + QR) — retour à la ligne si étroit */}
+                <div className="flex flex-wrap items-end justify-between gap-3 border-t border-dashed border-white/15 px-6 py-5 sm:px-8">
                   <div>
                     <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-slate-500">
                       Billet VIP

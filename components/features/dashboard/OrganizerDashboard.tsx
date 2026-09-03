@@ -191,7 +191,9 @@ export function OrganizerDashboard({
               Suivez vos événements et vos ventes en temps réel.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          {/* Boutons d'action : passage à la ligne autorisé sur petit écran
+              pour éviter tout débordement horizontal */}
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -379,8 +381,9 @@ export function OrganizerDashboard({
                       </div>
                     </div>
 
-                    {/* Actions : publier / éditer / supprimer */}
-                    <div className="flex items-center gap-2">
+                    {/* Actions : publier / détail / éditer / supprimer.
+                        Passage à la ligne autorisé (petits écrans). */}
+                    <div className="flex flex-wrap items-center gap-2">
                       {event.status === "draft" && (
                         <Button
                           variant="outline"
