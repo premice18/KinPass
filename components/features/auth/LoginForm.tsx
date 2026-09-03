@@ -1,15 +1,18 @@
 'use client'
 
 // ────────────────────────────────────────────────────────────────────────────
-// Formulaire de connexion (phase 4.1).
+// Formulaire de connexion (Phase 4.1, adapté Auth.js 4.2).
 //
-// Validation locale (mêmes règles que Zod) puis appel de la Server Action
-// `login`. En cas de succès, redirection vers la page de destination :
-// `?view=dashboard` (SPA) ou `?next=` (futures routes protégées).
+// Deux voies :
+// - « Continuer avec Google » : flux OAuth Auth.js (`signIn("google")`).
+// - Email + mot de passe : `signIn("credentials")` (Auth.js, bcrypt vérifié
+//   côté serveur par le provider).
+// En cas de succès → redirection vers `?next=` ou le dashboard.
 // ────────────────────────────────────────────────────────────────────────────
 
 import { useState, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { signIn } from 'next-auth/react'
 import { Mail } from 'iconoir-react'
 
 import { Button } from '@/components/ui/button'
@@ -17,17 +20,19 @@ import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/ui/password-input'
 import { Eyebrow } from '@/components/ui/eyebrow'
 import { AuthShell } from '@/components/features/auth/AuthShell'
-import { login } from '@/lib/actions/auth'
+import { GoogleButton } from '@/components/features/auth/GoogleButton'
 
 export function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const next = searchParams.get('next')
   const view = searchParams.get('view')
+  // Erreur posée par Auth.js après un échec OAuth (ex. AccessDenied).
+  const oauthError = searchParams.get('error')
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
+  const [error, setError] = useState(oauthError ? 'La connexion a échoué. Réessayez.' : '')
   const [isPending, startTransition] = useTransition()
 
   // Validation locale (miroir de `loginSchema`).
@@ -37,6 +42,7 @@ export function LoginForm() {
     return null
   }
 
+  // Connexion email + mot de passe via le provider credentials d'Auth.js.
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -48,12 +54,16 @@ export function LoginForm() {
     }
 
     startTransition(async () => {
-      const result = await login({ email: email.trim(), password })
-      if (!result.success) {
-        setError(result.error)
+      const result = await signIn('credentials', {
+        email: email.trim(),
+        password,
+        redirect: false,
+      })
+      if (!result || result.error) {
+        // Code générique Auth.js (CredentialsSignin) → message neutre.
+        setError('Identifiants invalides.')
         return
       }
-      // Succès : redirection vers la page demandée ou le dashboard.
       router.push(next ?? `/?view=${view ?? 'dashboard'}`)
       router.refresh()
     })
@@ -67,7 +77,17 @@ export function LoginForm() {
         Accédez à votre tableau de bord kinPass.
       </p>
 
-      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+      <div className="mt-6">
+        <GoogleButton />
+      </div>
+
+      <div className="my-5 flex items-center gap-3 text-xs uppercase tracking-wider text-muted-foreground">
+        <span className="h-px flex-1 bg-border" />
+        ou avec un email
+        <span className="h-px flex-1 bg-border" />
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
         <label className="block space-y-2 text-sm font-medium">
           Adresse email
           <span className="relative block">
@@ -93,12 +113,9 @@ export function LoginForm() {
           />
         </label>
 
-        <div className="flex items-center justify-between text-sm">
+        <div className="text-right text-sm">
           {/* Réinitialisation par email : prévue en Phase 11 */}
-          <a
-            href="/auth/forgot-password"
-            className="text-primary hover:underline"
-          >
+          <a href="/auth/forgot-password" className="text-primary hover:underline">
             Mot de passe oublié ?
           </a>
         </div>

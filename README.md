@@ -42,7 +42,7 @@ Trois profils utilisent la plateforme :
 | Tests end-to-end (Playwright)    | Terminé (15 scénarios)                                              |
 | Tunnel d'achat / billetterie     | En cours (interface, paiement factice)                              |
 | Contrôle d'accès (scanner)       | En cours (saisie manuelle, scan caméra absent)                      |
-| Authentification                 | En cours (inscription/connexion fonctionnelles, profil à venir)     |
+| Authentification                 | En cours (email/mot de passe + Google via Auth.js, profil à venir)  |
 | Paiement Mobile Money            | À venir                                                             |
 | Monétisation & reversement       | À venir                                                             |
 
@@ -71,7 +71,7 @@ L'interface intègre également :
 | Base de données | **Neon** (PostgreSQL serverless)                               | Stockage des données                                  |
 | ORM             | **Drizzle ORM** + **postgres** (postgres.js) + **drizzle-kit** | Requêtes typées, schéma, migrations                   |
 | Validation      | **Zod 4**                                                      | Validation côté serveur (messages en français)        |
-| Authentification| **bcryptjs** + **jose** (JWT)                                  | Hash des mots de passe, sessions par cookie httpOnly  |
+| Authentification| **Auth.js v5** (`next-auth`) + **bcryptjs**                    | Sessions (JWT), providers email/mot de passe et Google |
 | Thème           | **next-themes**                                                | Bascule clair / sombre                                |
 | Tests           | **Playwright** (`@playwright/test`)                            | Tests end-to-end                                      |
 | Analytics       | **@vercel/analytics**                                          | Mesure d'audience                                     |
