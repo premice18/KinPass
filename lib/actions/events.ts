@@ -1,16 +1,17 @@
 'use server'
 
 // ────────────────────────────────────────────────────────────────────────────
-// Server Actions — Gestion des événements (Phase 5)
+// Server Actions — Gestion des événements (Phase 5, sécurisée en Phase 4)
 //
 // CRUD complet des événements avec leurs types de billets, persistance en base
 // (Neon PostgreSQL via Drizzle), validation Zod (messages en français,
 // schémas dans `lib/validators/events.ts`), génération de slug unique et
 // transactions atomiques.
 //
-// TEMPORAIRE : tant que l'authentification (Phase 4) n'est pas en place,
-// l'organisateur est résolu via `resolveOrganizerId()` (utilisateur de test
-// fixe). Chaque action devra ensuite être sécurisée par la session.
+// SÉCURISATION (Phase 4.1) : l'organisateur est l'utilisateur de session
+// (`getCurrentUser`). Chaque action exige une session valide et vérifie la
+// propriété de la ressource (défense en profondeur, en complément du
+// middleware).
 //
 // NB : un fichier "use server" ne peut exporter que des fonctions async et des
 // types ; les schémas Zod vivent donc dans `lib/validators/events.ts`.
@@ -19,8 +20,9 @@
 import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 
 import { db } from '@/lib/db'
-import { events, scans, ticketTypes, tickets, users, type Event, type TicketType } from '@/lib/db/schema'
-import { DEFAULT_ORGANIZER_ID, type EventStatus } from '@/lib/constants'
+import { events, scans, ticketTypes, tickets, type Event, type TicketType, type User } from '@/lib/db/schema'
+import type { EventStatus } from '@/lib/constants'
+import { getCurrentUser } from '@/lib/auth'
 import { randomSuffix, slugify } from '@/lib/slug'
 import {
   createEventSchema,
@@ -54,26 +56,16 @@ export type EditableEvent = Event & { ticketTypes: TicketType[] }
 
 // ── Helpers internes ─────────────────────────────────────────────────────────
 
-// Retourne l'identifiant de l'organisateur de test, en le créant s'il n'existe
-// pas encore (idempotent). TEMPORAIRE : sera remplacé par la session (Phase 4).
-async function resolveOrganizerId(): Promise<string> {
-  const existing = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.id, DEFAULT_ORGANIZER_ID))
-    .limit(1)
-  if (existing.length > 0) return DEFAULT_ORGANIZER_ID
+// Message renvoyé quand l'utilisateur n'est pas connecté (le dashboard
+// l'affiche avec une invitation à se connecter). NB : const interne — un
+// fichier "use server" ne peut exporter que des fonctions async et des types.
+const LOGIN_REQUIRED_ERROR = 'Connexion requise pour accéder à vos événements.'
 
-  await db
-    .insert(users)
-    .values({
-      id: DEFAULT_ORGANIZER_ID,
-      email: 'organisateur@kinpass.test',
-      passwordHash: 'placeholder-phase-4', // jamais utilisé avant la Phase 4
-      fullName: 'Organisateur de test',
-    })
-    .onConflictDoNothing()
-  return DEFAULT_ORGANIZER_ID
+// Retourne l'organisateur de session (rôle `organizer`), ou `null`.
+async function getSessionOrganizer(): Promise<User | null> {
+  const user = await getCurrentUser()
+  if (!user || user.role !== 'organizer') return null
+  return user
 }
 
 // Génère un slug unique à partir du titre : slugify(titre), puis ajout d'un
@@ -112,8 +104,19 @@ function toTicketTypeRow(t: TicketTypeInput, eventId: string) {
 }
 
 // Change le statut d'un événement (draft → published → finished).
+// Session + propriété obligatoires.
 async function setEventStatus(eventId: string, status: EventStatus): Promise<ActionResult<Event>> {
+  const organizer = await getSessionOrganizer()
+  if (!organizer) return { success: false, error: LOGIN_REQUIRED_ERROR }
+
   try {
+    const [owned] = await db
+      .select({ id: events.id })
+      .from(events)
+      .where(and(eq(events.id, eventId), eq(events.organizerId, organizer.id)))
+      .limit(1)
+    if (!owned) return { success: false, error: 'Action non autorisée.' }
+
     const [updated] = await db
       .update(events)
       .set({ status, updatedAt: new Date() })
@@ -136,7 +139,10 @@ export async function createEvent(input: CreateEventInput): Promise<ActionResult
   const data = parsed.data
 
   try {
-    const organizerId = await resolveOrganizerId()
+    // Session obligatoire : l'événement appartient à l'organisateur connecté.
+    const organizer = await getSessionOrganizer()
+    if (!organizer) return { success: false, error: LOGIN_REQUIRED_ERROR }
+
     const slug = await generateUniqueSlug(data.title)
     const now = new Date()
 
@@ -144,7 +150,7 @@ export async function createEvent(input: CreateEventInput): Promise<ActionResult
       const [created] = await tx
         .insert(events)
         .values({
-          organizerId,
+          organizerId: organizer.id,
           title: data.title,
           slug,
           description: data.description || null,
@@ -182,7 +188,14 @@ export async function updateEvent(eventId: string, input: UpdateEventInput): Pro
   const data = parsed.data
 
   try {
-    const [existing] = await db.select().from(events).where(eq(events.id, eventId)).limit(1)
+    const organizer = await getSessionOrganizer()
+    if (!organizer) return { success: false, error: LOGIN_REQUIRED_ERROR }
+
+    const [existing] = await db
+      .select()
+      .from(events)
+      .where(and(eq(events.id, eventId), eq(events.organizerId, organizer.id)))
+      .limit(1)
     if (!existing) return { success: false, error: 'Événement introuvable.' }
 
     return await db.transaction(async (tx) => {
@@ -239,9 +252,13 @@ export async function updateEvent(eventId: string, input: UpdateEventInput): Pro
 
 // Supprime un événement et toutes ses dépendances (ticket_types, tickets,
 // scans) grâce aux contraintes ON DELETE CASCADE du schéma.
+// Session + propriété obligatoires.
 export async function deleteEvent(eventId: string): Promise<ActionResult<{ id: string }>> {
+  const organizer = await getSessionOrganizer()
+  if (!organizer) return { success: false, error: LOGIN_REQUIRED_ERROR }
+
   try {
-    await db.delete(events).where(eq(events.id, eventId))
+    await db.delete(events).where(and(eq(events.id, eventId), eq(events.organizerId, organizer.id)))
     return { success: true, data: { id: eventId } }
   } catch {
     return { success: false, error: "Impossible de supprimer l'événement." }
@@ -263,11 +280,13 @@ export async function finishEvent(eventId: string): Promise<ActionResult<Event>>
 // L'agrégation en SQL évite de charger toutes les lignes tickets/scans.
 export async function getOrganizerEvents(): Promise<ActionResult<EventWithStats[]>> {
   try {
-    const organizerId = await resolveOrganizerId()
+    const organizer = await getSessionOrganizer()
+    if (!organizer) return { success: false, error: LOGIN_REQUIRED_ERROR }
+
     const eventsList = await db
       .select()
       .from(events)
-      .where(eq(events.organizerId, organizerId))
+      .where(eq(events.organizerId, organizer.id))
       .orderBy(desc(events.createdAt))
     if (eventsList.length === 0) return { success: true, data: [] }
 
@@ -344,9 +363,17 @@ export async function getOrganizerEvents(): Promise<ActionResult<EventWithStats[
 }
 
 // Retourne un événement complet avec ses types de billets (mode édition).
+// Session + propriété obligatoires (on ne peut éditer que ses événements).
 export async function getEventById(eventId: string): Promise<ActionResult<EditableEvent>> {
+  const organizer = await getSessionOrganizer()
+  if (!organizer) return { success: false, error: LOGIN_REQUIRED_ERROR }
+
   try {
-    const [event] = await db.select().from(events).where(eq(events.id, eventId)).limit(1)
+    const [event] = await db
+      .select()
+      .from(events)
+      .where(and(eq(events.id, eventId), eq(events.organizerId, organizer.id)))
+      .limit(1)
     if (!event) return { success: false, error: 'Événement introuvable.' }
 
     const eventTypes = await db

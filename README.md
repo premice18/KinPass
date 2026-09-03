@@ -42,11 +42,11 @@ Trois profils utilisent la plateforme :
 | Tests end-to-end (Playwright)    | Terminé (15 scénarios)                                              |
 | Tunnel d'achat / billetterie     | En cours (interface, paiement factice)                              |
 | Contrôle d'accès (scanner)       | En cours (saisie manuelle, scan caméra absent)                      |
-| Authentification                 | À venir                                                             |
+| Authentification                 | En cours (inscription/connexion fonctionnelles, profil à venir)     |
 | Paiement Mobile Money            | À venir                                                             |
 | Monétisation & reversement       | À venir                                                             |
 
-> **Note** : l'authentification n'étant pas encore implémentée, les événements sont pour l'instant créés sous un organisateur de test fixe (`lib/constants.ts`). Ce mécanisme temporaire sera remplacé par la session utilisateur dès la phase d'authentification.
+> **Note** : depuis la Phase 4.1, les Server Actions sont sécurisées par session. Un **compte de démonstration** est créé par le seed : `organisateur@kinpass.test` / `Demo@2026` (voir Installation).
 
 ## Direction visuelle
 
@@ -71,6 +71,7 @@ L'interface intègre également :
 | Base de données | **Neon** (PostgreSQL serverless)                               | Stockage des données                                  |
 | ORM             | **Drizzle ORM** + **postgres** (postgres.js) + **drizzle-kit** | Requêtes typées, schéma, migrations                   |
 | Validation      | **Zod 4**                                                      | Validation côté serveur (messages en français)        |
+| Authentification| **bcryptjs** + **jose** (JWT)                                  | Hash des mots de passe, sessions par cookie httpOnly  |
 | Thème           | **next-themes**                                                | Bascule clair / sombre                                |
 | Tests           | **Playwright** (`@playwright/test`)                            | Tests end-to-end                                      |
 | Analytics       | **@vercel/analytics**                                          | Mesure d'audience                                     |
@@ -93,19 +94,22 @@ L'interface intègre également :
 
 ```bash
 pnpm install
-cp .env.local.example .env.local   # renseigner DATABASE_URL
+cp .env.local.example .env.local   # renseigner DATABASE_URL + AUTH_SECRET
 pnpm db:push                       # crée les tables en base
 node scripts/seed-demo.mts         # données de démonstration (optionnel)
 pnpm dev
 ```
 
-Ouvrir [http://localhost:3000](http://localhost:3000).
+Ouvrir [http://localhost:3000](http://localhost:3000), puis créer un compte
+via **Inscription** (`/auth/register`) ou utiliser le compte de démonstration :
+`organisateur@kinpass.test` / `Demo@2026` (celui-ci possède les événements du seed).
 
 ## Variables d'environnement
 
 | Variable       | Description                                            |
 | -------------- | ------------------------------------------------------ |
 | `DATABASE_URL` | URL de connexion Neon (poolée), ex. `postgresql://...` |
+| `AUTH_SECRET`  | Clé de signature des sessions JWT (≥ 32 caractères). Générer : `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"` |
 | `PEXELS_API_KEY` | Clé API [Pexels](https://www.pexels.com/api/) (optionnelle) — photos libres de droits pour les fonds et couvertures. Sans clé, les composants affichent des fallbacks de marque. |
 
 ## Commandes
@@ -186,3 +190,5 @@ Le plan détaillé (avec spécifications par phase) est dans [`project_info.md`]
 6. **Confiance & conformité** : conditions générales, politique de confidentialité, contrat de prestation.
 7. **Vérification de billet publique** : page `/verify` pour vérifier et re-télécharger un billet.
 8. **Export & reporting** : rapport PDF et export CSV des participants.
+9. **Événements à entrée libre** : événements gratuits de bout en bout (commission 0, inscription sans paiement).
+10. **Innovations différenciantes** : WhatsApp-first, QR dynamique anti-fraude, diaspora « je paie, un proche profite », paiement cash à l'entrée, affiliation des rabatteurs.

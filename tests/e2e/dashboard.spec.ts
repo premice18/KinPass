@@ -3,13 +3,17 @@
 // Ces tests dépendent des données de démonstration (seed `--reset` exécuté en
 // globalSetup) : l'événement « Kin House : Open Studio » (publié, 12 billets
 // vendus, 10 scans) et « Conférence Tech RDC » (brouillon).
+//
+// Depuis la Phase 4.1 (auth), le dashboard exige une session organisateur :
+// chaque test se connecte d'abord avec le compte de démonstration.
 import { test, expect } from '@playwright/test'
 
-import { goTo } from './helpers'
+import { goTo, loginAsDemo } from './helpers'
 
 test.describe('Tableau de bord organisateur', () => {
-  // Chaque test démarre sur l'accueil, puis navigue via le menu (goTo).
+  // Connexion, retour à l'accueil, puis navigation via le menu (goTo).
   test.beforeEach(async ({ page }) => {
+    await loginAsDemo(page)
     await page.goto('/')
   })
 

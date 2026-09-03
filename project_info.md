@@ -271,20 +271,20 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 - [x] Toggle clair/sombre (`next-themes` + `components/layout/ThemeToggle.tsx`).
 - [x] Menu mobile responsive (hamburger + dropdown).
 
-### ❌ Phase 4 — Authentification & compte organisateur (À VENIR)
+### 🟡 Phase 4 — Authentification & compte organisateur (EN COURS — 4.1 faite)
 
 #### 4.1 Inscription / connexion
 
-- [ ] `lib/auth.ts` : inscription + connexion, hash `bcrypt`, sessions par cookies (`jose`/`iron-session`), rôle `organizer` par défaut, cookie `httpOnly` + `secure` + `sameSite=lax`.
-- [ ] **Deux rôles** : `organizer` (auto-inscription) et `agent`/scanneur (créé uniquement par un organisateur, jamais en auto-inscription — cf. Phase 7).
-- [ ] Routes App Router `/auth/register` et `/auth/login` (formulaires séparés, icônes Iconoir `Mail` / `Lock`).
-- [ ] Validation Zod (messages français) : email valide + unique ; mot de passe ≥ 8 caractères, une majuscule, une minuscule, un chiffre ; nom complet requis.
-- [ ] Écran register : email, mot de passe, confirmation, nom complet, **case « J'accepte les Conditions Générales d'Utilisation et les règles de reversement » obligatoire** (lien vers le contrat — cf. Phase 11).
-- [ ] Écran login : email + mot de passe, lien « Mot de passe oublié » (reset par email — cf. Phase 11), gestion des erreurs (« identifiants invalides »).
-- [ ] Après login → redirection `/dashboard` ; après register → redirection vers la complétion du profil.
-- [ ] Middleware/proxy protégeant `/dashboard`, `/events/*`, `/scan/*` (redirection vers `/auth/login` si non authentifié) ; **RBAC par rôle** : `agent` limité à `/scan/*` (aucun accès `/dashboard`, `/settings`, `/events/*`).
-- [ ] Remplacement de `DEFAULT_ORGANIZER_ID` (`lib/constants.ts`) par l'ID de session dans **toutes** les Server Actions de `lib/actions/events.ts` (fin du mode « organisateur de test »).
-- [ ] Tests E2E : register → login → accès `/dashboard` ; accès refusé sans session ; logout.
+- [x] `lib/auth.ts` : inscription + connexion, hash `bcrypt` (bcryptjs), sessions par cookies JWT (`jose`, HS256), rôle `organizer` par défaut, cookie `httpOnly` + `secure` + `sameSite=lax`, `AUTH_SECRET` en env.
+- [x] **Deux rôles** : `organizer` (auto-inscription) et `agent`/scanneur (créé uniquement par un organisateur, jamais en auto-inscription — cf. Phase 7). Le rôle `agent` sera branché avec la Phase 7.
+- [x] Routes App Router `/auth/register` et `/auth/login` (formulaires séparés, icônes Iconoir `Mail` / `Lock`), pages placeholder `/auth/forgot-password` et `/legal/cgu` (contenu complet en Phase 11).
+- [x] Validation Zod (messages français) : email valide + unique ; mot de passe ≥ 8 caractères, une majuscule, une minuscule, un chiffre ; nom complet requis ; confirmation du mot de passe.
+- [x] Écran register : email, mot de passe, confirmation, nom complet, **case « J'accepte les Conditions Générales » obligatoire** (lien placeholder — cf. Phase 11).
+- [x] Écran login : email + mot de passe, lien « Mot de passe oublié » (placeholder — reset par email en Phase 11), erreur générique « Identifiants invalides ».
+- [x] Après login/register → redirection `/?view=dashboard` (SPA) ; `?next=` supporté pour les futures routes ; header connecté/déconnecté dans la coquille.
+- [x] Middleware protégeant `/dashboard`, `/events/*`, `/scan/*` (redirection vers `/auth/login?next=...` si non authentifié) ; pages `/auth/*` redirigent un utilisateur connecté.
+- [x] Remplacement de `DEFAULT_ORGANIZER_ID` par l'ID de session dans **toutes** les Server Actions de `lib/actions/events.ts` (session + contrôle de propriété) ; seed mis à jour avec identifiants démo `organisateur@kinpass.test` / `Demo@2026`.
+- [ ] Tests E2E (mis à jour pour se connecter — register → login → dashboard ; accès refusé sans session ; logout) : **écrits, exécution sur demande** (règle §0.7).
 
 #### 4.2 Profil organisateur (rubriques à compléter avant de créer un événement)
 
@@ -481,6 +481,145 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - [ ] Filtres avant export : par type de billet, par statut (valide/utilisé/annulé).
 - [ ] Tests : génération du PDF/CSV, cohérence des données exportées avec la base.
 
+### ❌ Phase 14 — Événements à entrée libre (gratuits) & RSVP (À VENIR)
+
+**Objectif** : permettre des événements **gratuits** de bout en bout. Pour l'organisateur comme pour l'acheteur, **kinPass ne facture rien** : commission 0 (0 × `KINPASS_FEE_PERCENT` = 0), aucun paiement Mobile Money exigé, aucun frais caché.
+
+**Décision (validée)** : pas de drapeau global « gratuit ». Un événement est gratuit si **tous ses types de billets ont un prix de 0** (ex. type « Entrée libre »). Le système détecte automatiquement le mode gratuit (total de commande = 0) et saute toute la chaîne de paiement. Avantages : un événement peut mélanger entrée gratuite et places payantes (ex. « Entrée libre » + « VIP 30 $ »), et aucune logique de commission à dériver.
+
+#### 14.1 Création (côté organisateur)
+
+- [ ] Helper dans `EventCreationForm` : bouton « Entrée libre » qui pré-remplit un type `price = 0` (nom suggéré « Entrée libre », devise USD, capacité au choix) et affiche la mention « Événement gratuit : kinPass ne facture ni l'organisateur ni les invités ».
+- [ ] Autoriser (comme aujourd'hui) les prix 0 ; validation serveur inchangée (`price >= 0`).
+- [ ] Badge/statut visuel dans le dashboard : « Gratuit » sur les événements dont tous les prix sont 0.
+
+#### 14.2 Achat / inscription (côté invité)
+
+- [ ] Checkout : si le total calculé est **0** → écran « Confirmer ma participation » (coordonnées : nom, téléphone, email optionnel) **sans** étape Mobile Money, sans webhook, sans écran « Redirection… ».
+- [ ] Confirmation immédiate : génération du billet (code 6 caractères + QR) et remise (email ou téléchargement PDF/PNG/JPG), mêmes options que le payant.
+- [ ] Page publique `/e/[slug]` : afficher « **Entrée libre** » (vert, emphase) au lieu d'un prix quand le type est à 0.
+- [ ] Anti-abus : limite d'inscriptions par numéro de téléphone (ex. 5) pour éviter l'accaparement des places gratuites.
+
+#### 14.3 Suivi & statistiques
+
+- [ ] Dashboard : les événements gratuits affichent les KPIs de **participation** (inscriptions, taux de remplissage, entrées scannées) ; ligne revenus = 0 $ (aucune commission prélevée, aucune ligne dans l'historique de reversement).
+- [ ] État « jauge pleine » : si la capacité est atteinte, la page publique indique « Complet » et bloque l'inscription.
+- [ ] Export CSV/PDF (Phase 13) déjà compatible (les billets existent) ; vérifier l'affichage « Gratuit ».
+
+#### 14.4 Tests
+
+- [ ] E2E (écrits ; exécution sur demande) : inscription à un événement gratuit sans aucune étape de paiement ; événement mixte (gratuit + VIP payant) ; jauge pleine ; commission 0 dans le dashboard.
+- [ ] Unitaire : calcul de commission sur total 0 ; détection du mode gratuit.
+
+### ❌ Phase 15 — Innovations différenciantes (marché de Kinshasa) (À VENIR)
+
+**Contexte** : les plateformes de billetterie présentes à Kinshasa proposent toutes le même schéma — billet payant en ligne, QR statique, communication par email. Pour **démarquer kinPass**, les modules suivants ciblent les réalités congolaises : WhatsApp (canal roi), paiement en espèces, diaspora, fraude aux QR, et économie informelle des « rabatteurs ». Chaque module est indépendant et peut être activé séparément.
+
+#### 15.1 WhatsApp-first (livraison, rappels, annulation) — priorité haute
+
+**Pourquoi ça démarque** : au Congo, WhatsApp est LE canal de communication. Les concurrents utilisent l'email, que la majorité n'ouvre pas.
+
+- [ ] Livraison du billet par **WhatsApp** (Business API) en plus de l'email : envoi du billet (image/PDF) + lien de téléchargement.
+- [ ] Rappels automatiques : J-3, J-1, J-2h avant l'événement (si l'organisateur active les rappels).
+- [ ] Annulation / report d'événement : notification WhatsApp à tous les acheteurs (un seul clic côté organisateur).
+- [ ] Préférences : l'acheteur choisit email et/ou WhatsApp ; MVP = lien `wa.me` pré-rempli, production = WhatsApp Business Cloud API.
+- [ ] Tests E2E (écrits ; exécution sur demande) : parcours « recevoir par WhatsApp », rappel programmé.
+
+#### 15.2 QR dynamique anti-fraude (anti capture d'écran)
+
+**Pourquoi ça démarque** : les QR statiques se screenshotent et se partagent ; c'est la fraude n°1 à la porte.
+
+- [ ] QR **régénéré périodiquement** (jeton horodaté, ex. rotation toutes les 60 s) : l'écran du téléphone montre un QR qui change, les captures d'écran deviennent inutilisables.
+- [ ] Le scanner valide le jeton (code + fenêtre temporelle) en plus de l'état du billet ; hors fenêtre → « QR expiré, réactualisez ».
+- [ ] Règle « un billet = un téléphone » (optionnelle) : le code est lié au numéro de l'acheteur au premier affichage.
+- [ ] Compromis documenté : hors-ligne à la porte (réseau faible) → repli sur le code 6 caractères statique classique (toujours fonctionnel).
+- [ ] Tests : QR expiré refusé, QR rejoué (relecture du même QR) refusé, code 6 caractères toujours accepté.
+
+#### 15.3 Diaspora : « Je paie, un proche profite »
+
+**Pourquoi ça démarque** : la diaspora congolaise (Europe, USA, Afrique de l'Ouest) paie régulièrement des billets pour sa famille restée au pays, mais ne peut pas utiliser M-Pesa/Airtel/Orange depuis l'étranger.
+
+- [ ] Mode « Offrir un billet » : paiement par **carte bancaire internationale** (Stripe/Paystack) côté payeur.
+- [ ] Le bénéficiaire (au pays) reçoit un **code de retrait** par WhatsApp/SMS : il entre le code sur `/redeem` et récupère son billet (PDF/QR) sur son propre téléphone.
+- [ ] Mentions obligatoires : nom du payeur visible sur le billet (« Offer par X ») — valeur émotionnelle + traçabilité.
+- [ ] Sécurité : code de retrait à usage unique + expiration (72 h), renvoi possible par l'acheteur.
+- [ ] Tests : achat diaspora, code de retrait à usage unique, expiration, renvoi.
+
+#### 15.4 Paiement en espèces à l'entrée (réservation sans paiement en ligne)
+
+**Pourquoi ça démarque** : une partie du public n'a pas de Mobile Money ou préfère payer comptant le jour J.
+
+- [ ] Option événement « Paiement à la porte » (par type de billet) : l'invité **réserve** gratuitement (sans paiement), le billet est marqué `reserved` avec un délai (ex. entrée jusqu'à 20 h 30).
+- [ ] À la porte : l'agent encaisse (espèces) et valide le billet via l'interface de scan (« Marquer payé ») ; ou l'invité paie par Mobile Money sur place.
+- [ ] Anti-fraude : réservation nominative + limite par téléphone ; billet `reserved` non scannable tant qu'il n'est pas `paid`.
+- [ ] Dashboard : suivi des réservations non converties (no-show) pour jauger l'affluence réelle.
+- [ ] Tests : réservation → paiement à la porte → scan ; réservation expirée refusée.
+
+#### 15.5 Affiliation locale (« rabatteurs ») avec commission Mobile Money
+
+**Pourquoi ça démarque** : à Kinshasa, une grande part des ventes passe par des promoteurs de rue. Aucune plateforme ne les outille ni ne les rémunère automatiquement.
+
+- [ ] L'organisateur génère des **liens d'affiliation** (un par rabatteur : nom, téléphone).
+- [ ] Suivi : ventes attribuées au rabatteur, commissions (montant fixe ou % défini par l'organisateur, ex. 1 $ ou 5 %).
+- [ ] Paiement des commissions en **Mobile Money** (même infra que les reversements, Phase 10).
+- [ ] Espace rabatteur minimal : lien personnel, ventes enregistrées, solde de commissions (sans accès aux données de l'événement).
+- [ ] Tests : attribution d'une vente par lien, calcul de commission, versement.
+
+#### 15.6 (Option — plus tard) Cashless événement : porte-monnaie interne
+
+- [ ] Recharge par Mobile Money (ou cash à la porte) → QR de débit scanné par les vendeurs (boissons/marchandises) → l'organisateur reçoit le solde net (commission kinPass déduite).
+- [ ] Non prioritaire (besoin d'adoption terrain) ; à réévaluer après les modules 15.1-15.5.
+
+### ❌ Phase 16 — Administration superadmin (back-office du créateur) (À VENIR)
+
+**Objectif** : une interface réservée au **créateur de l'application** pour **tout voir et tout gérer** : paramètres globaux, organisateurs, événements, billets/scans, reversements, et un journal d'audit (« qui fait quoi »).
+
+**Décision (validée — amélioration de l'idée initiale)** :
+- **URL distincte** `/superadmin` + **page de connexion dédiée** `/superadmin/login` (branding back-office distinct, pas de page marketing).
+- **Pas de page d'inscription publique.** Les comptes superadmin sont **provisionnés par seed** (`scripts/seed-superadmin.mts`) ; les emails autorisés sont dans `.env.local` (`SUPERADMIN_EMAILS`). Zéro surface d'inscription = zéro risque de compte créé par un tiers. Un superadmin peut ajouter d'autres superadmins depuis le back-office.
+- **Un seul système d'authentification** : rôle `superadmin` ajouté à `users.role` (aux côtés de `organizer` et `agent`), même session/cookie. `/superadmin/login` n'accepte **que** le rôle `superadmin` (les autres reçoivent un message neutre « accès réservé ») ; `/auth/login` redirige un superadmin vers `/superadmin`.
+
+#### 16.1 Modèle de données (ajouts)
+
+- `users.role` : ajouter `'superadmin'` (enum `organizer` | `agent` | `superadmin`).
+- Nouvelle table `audit_logs` (id, actor_id FK `users` SET NULL, action varchar, entity varchar, entity_id uuid, metadata jsonb, created_at) — index sur `actor_id` et `created_at` — pour le « qui fait quoi ».
+- Nouvelle table `app_settings` (key varchar UNIQUE, value text, updated_at) — config globale (commission, versions de contrat, feature flags).
+
+#### 16.2 Authentification & sécurité
+
+- [ ] Route `/superadmin/login` dédiée ; middleware : `/superadmin/*` exige `role === 'superadmin'`.
+- [ ] Contrôle du rôle **serveur** dans chaque Server Action superadmin (défense en profondeur).
+- [ ] Rate-limit sur le login ; mot de passe bcrypt ; (plus tard, option) 2FA TOTP.
+- [ ] `scripts/seed-superadmin.mts` : crée les comptes superadmin à partir de `.env.local` `SUPERADMIN_EMAILS` (idempotent, mot de passe fourni en variable d'env `SUPERADMIN_PASSWORD` ou généré et affiché).
+- [ ] Journalisation (`audit_logs`) de **toute** action sensible : connexion superadmin, approbation/refus de reversement, suspension/réactivation d'organisateur, modification de `app_settings`, création d'un autre superadmin.
+
+#### 16.3 Vue d'ensemble (KPIs globaux — tableau de bord exécutif)
+
+- [ ] 5-6 KPIs (limite pour rester lisible) : **organisateurs actifs**, **événements publiés**, **billets vendus**, **revenus bruts**, **commission kinPass cumulée**, **reversements en attente**.
+- [ ] Tendances sur 7/30 jours + indicateurs de progression ; drill-down (clic → détail).
+- [ ] Alerte si le nombre de reversements « en attente » dépasse un seuil (cf. skill KPI : éviter les métriques vaniteuses, privilégier l'actionnable).
+
+#### 16.4 Modules de gestion (la totale)
+
+- [ ] **Organisateurs** : liste + fiche (profil, comptes de reversement, contrats acceptés) ; actions **suspendre / réactiver** (bloque la connexion et la vente).
+- [ ] **Événements** : liste de **tous** les événements (tous organisateurs) avec filtres (statut, catégorie), détail, changement de statut forcé.
+- [ ] **Billets & scans** : recherche par code de billet, liste des derniers scans, vue d'un billet.
+- [ ] **Reversements** : file d'attente des `payouts` `pending` → **approuver / refuser / marquer payé** (flux manuel de la Phase 10) ; historique.
+- [ ] **Agents (scanneurs)** : lecture de tous les comptes d'agents et de leurs assignations.
+- [ ] **Paramètres globaux** : `KINPASS_FEE_PERCENT`, versions du contrat (CGU/prestation), feature flags (activer/désactiver un module de la Phase 15).
+- [ ] **Journal d'audit** : consultation filtrable des `audit_logs` (par acteur, action, période).
+
+#### 16.5 UI back-office
+
+- [ ] Layout dense type « console » (tables, filtres, pagination) — réutiliser `components/ui` ; distinct de l'app publique (pas de hero marketing, accent visuel « zone à risque » sur les actions destructives).
+- [ ] Navigation latérale par module ; mode sombre/clair cohérent avec le reste.
+
+#### 16.6 Server Actions & tests
+
+- [ ] Server Actions dédiées (`lib/actions/admin.ts`) : `listOrganizers`, `suspendOrganizer`, `reactivateOrganizer`, `listEvents`, `getEventDetail`, `searchTicket`, `listPayouts`, `processPayout`, `getAuditLogs`, `updateAppSetting` — toutes protégées `role === 'superadmin'`.
+- [ ] Tests E2E (écrits ; exécution sur demande) : un superadmin se connecte et voit tout ; un organisateur/agent est **refusé** sur `/superadmin` ; suspension d'organisateur effective ; action journalisée dans l'audit.
+- [ ] Unitaire : permissions (organisateur ne peut pas appeler les actions admin), journalisation systématique.
+
 ---
 
 ## 5. CONTENU OBLIGATOIRE DU FICHIER `README.md`
@@ -508,7 +647,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - **Phase 1** : ✅ TERMINÉE (maquette UI des 5 vues).
 - **Phase 2** : ✅ TERMINÉE (base Neon + schéma Drizzle appliqué).
 - **Phase 3** : ✅ TERMINÉE (logo ticket, dark/light, menu mobile).
-- **Phase 4 (auth + compte organisateur)** : ❌ À VENIR — inscription/connexion, profil (photo, WhatsApp, compte de reversement), remplacement de l'organisateur de test.
+- **Phase 4 (auth + compte organisateur)** : 🟡 EN COURS — **4.1 faite** (register/login, session JWT, middleware, Server Actions sécurisées) ; reste : 4.2 profil (photo, WhatsApp, compte de reversement), rôle agent (Phase 7), exécution des tests E2E (sur demande).
 - **Phase 5 (événements)** : ✅ TERMINÉE — CRUD complet + publication, organisateur de test fixe (`lib/constants.ts`), à sécuriser par la session dès la Phase 4.
 - **Phase 6 (billetterie + paiement)** : ❌ À VENIR — page publique, commandes, remise du billet (email/PDF/PNG/JPG), galerie 1-3 photos, pages de confirmation, webhook Mobile Money.
 - **Phase 7 (scanner)** : ❌ À VENIR — interface de scan (caméra + saisie), **comptes scanneurs gérés par l'organisateur avec RBAC strict** (assignation par événement, aucun accès aux ventes/contrats).
@@ -518,6 +657,9 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - **Phase 11 (confiance & contrat)** : ❌ À VENIR — CGU, confidentialité, contrat de prestation, acceptation versionnée.
 - **Phase 12 (vérification billet)** : ❌ À VENIR — page `/verify` publique + re-téléchargement.
 - **Phase 13 (export & reporting)** : ❌ À VENIR — rapport PDF + export CSV des participants.
+- **Phase 14 (entrées libres & RSVP)** : ❌ À VENIR — événements gratuits de bout en bout, commission 0, checkout sans paiement.
+- **Phase 15 (innovations différenciantes)** : ❌ À VENIR — WhatsApp-first, QR dynamique anti-fraude, diaspora « je paie, un proche profite », paiement cash à l'entrée, affiliation des rabatteurs.
+- **Phase 16 (admin superadmin)** : ❌ À VENIR — back-office `/superadmin` du créateur : vue globale (KPIs), gestion des organisateurs/événements/billets/reversements, paramètres globaux, journal d'audit. Comptes provisionnés par seed (`SUPERADMIN_EMAILS`), rôle `superadmin`.
 
 **Avancement global estimé : ~40 %** (UI + fondations base de données + gestion des événements de bout en bout ; auth, billetterie publique, monétisation et scanner restent à faire).
 
@@ -574,6 +716,7 @@ drizzle.config.ts     # Config drizzle-kit
 | :------------- | :---------- | :------------------------------ |
 | `DATABASE_URL` | ✅          | URL de connexion Neon (poolée). |
 | `PEXELS_API_KEY` | ❌ (optionnelle) | Clé API Pexels (photos pour fonds/couvertures). Sans clé, fallbacks de marque. |
+| `AUTH_SECRET` | ✅          | Clé de signature des sessions JWT (≥ 32 caractères, base64url). |
 
 | Commande                     | Description                                                                |
 | :--------------------------- | :------------------------------------------------------------------------- |

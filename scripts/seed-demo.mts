@@ -1,9 +1,14 @@
 // ────────────────────────────────────────────────────────────────────────────
-// Seed de démonstration — Kin Pass (Phase 5)
+// Seed de démonstration — kinPass (Phase 5 + auth Phase 4.1)
 //
-// Crée l'organisateur de test (UUID fixe, voir `lib/constants.ts`) et, si la
-// base est vide, un événement publié avec des billets vendus et scannés pour
-// alimenter le tableau de bord. Idempotent : peut être relancé sans risque.
+// Crée l'organisateur de test (UUID fixe, voir `lib/constants.ts`) avec un
+// mot de passe réel (auth activée) puis, si la base est vide, un événement
+// publié avec des billets vendus et scannés pour alimenter le tableau de
+// bord. Idempotent : peut être relancé sans risque.
+//
+// Identifiants de démonstration :
+//   email    : organisateur@kinpass.test
+//   password : Demo@2026
 //
 // Exécution :
 //   node scripts/seed-demo.mts          (ajoute uniquement si la base est vide)
@@ -12,6 +17,7 @@
 
 import { config } from 'dotenv'
 import postgres from 'postgres'
+import bcrypt from 'bcryptjs'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { eq } from 'drizzle-orm'
 
@@ -30,17 +36,23 @@ if (!process.env.DATABASE_URL) {
 const client = postgres(process.env.DATABASE_URL, { max: 1 })
 const db = drizzle(client)
 
-// 1) Organisateur de test (ne fait rien s'il existe déjà).
+// Mot de passe de démonstration (connu, à usage local uniquement).
+const DEMO_PASSWORD = 'Demo@2026'
+
+// 1) Organisateur de test (met à jour le mot de passe s'il existait sans hash).
 await db
   .insert(users)
   .values({
     id: DEFAULT_ORGANIZER_ID,
     email: 'organisateur@kinpass.test',
-    passwordHash: 'placeholder-phase-4', // jamais utilisé avant l'auth (Phase 4)
+    passwordHash: bcrypt.hashSync(DEMO_PASSWORD, 10),
     fullName: 'Organisateur de test',
   })
-  .onConflictDoNothing()
-console.log('✓ Organisateur de test prêt.')
+  .onConflictDoUpdate({
+    target: users.id,
+    set: { passwordHash: bcrypt.hashSync(DEMO_PASSWORD, 10) },
+  })
+console.log('✓ Organisateur de test prêt (organisateur@kinpass.test / Demo@2026).')
 
 // 2) Option --reset : suppression complète des données de l'organisateur
 // (les événements entraînent leurs ticket_types/tickets/scans en cascade).
