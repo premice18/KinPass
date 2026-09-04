@@ -15,6 +15,7 @@ import { eq } from 'drizzle-orm'
 
 import { db } from '@/lib/db'
 import { users } from '@/lib/db/schema'
+import { generateUserSlug } from '@/lib/db/user-slug'
 import { hashPassword } from '@/lib/password'
 import { registerSchema, type RegisterInput } from '@/lib/validators/auth'
 
@@ -46,10 +47,14 @@ export async function register(input: RegisterInput): Promise<AuthResult> {
   }
 
   try {
+    // Slug public unique (page `/o/[slug]`, Phase 9.5) — généré une fois,
+    // jamais modifié ensuite pour ne pas casser les liens publics.
+    const slug = await generateUserSlug(data.fullName)
     const [created] = await db
       .insert(users)
       .values({
         email: data.email,
+        slug,
         fullName: data.fullName,
         passwordHash: hashPassword(data.password),
         role: 'organizer',

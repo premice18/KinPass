@@ -9,9 +9,9 @@
 // ────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Barcode, Calendar, CardWallet, Clock, MapPin, Refresh, Scanning, StatsReport, WarningCircle } from 'iconoir-react'
+import { ArrowLeft, Barcode, Calendar, CardWallet, Clock, MapPin, NewTab, Refresh, Scanning, StatsReport, WarningCircle } from 'iconoir-react'
 
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Eyebrow } from '@/components/ui/eyebrow'
@@ -149,9 +149,26 @@ export function EventDetail({ eventId, onBack, onEdit }: EventDetailProps) {
               </span>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={() => onEdit(event.id)}>
-            Modifier
-          </Button>
+          {/* Page publique (Phase 6.1) : uniquement pour un événement publié —
+              un brouillon n'a pas encore d'URL publique (404). */}
+          <div className="flex flex-wrap items-center gap-2">
+            {event.status === 'published' && (
+              <a
+                href={`/e/${event.slug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                aria-label={`Voir la page publique de ${event.title}`}
+                data-testid="event-detail-public-link"
+              >
+                <NewTab className="h-4 w-4" />
+                Page publique
+              </a>
+            )}
+            <Button variant="outline" size="sm" onClick={() => onEdit(event.id)}>
+              Modifier
+            </Button>
+          </div>
         </div>
 
         {/* KPIs de l'événement */}

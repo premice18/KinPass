@@ -17,11 +17,24 @@
 // types ; les schémas Zod vivent donc dans `lib/validators/events.ts`.
 // ────────────────────────────────────────────────────────────────────────────
 
-import { and, desc, eq, inArray, sql } from 'drizzle-orm'
+import { cache } from 'react'
+import { and, asc, desc, eq, ilike, inArray, sql } from 'drizzle-orm'
 
 import { db } from '@/lib/db'
-import { events, payoutMethods, scans, ticketTypes, tickets, type Event, type TicketType, type User } from '@/lib/db/schema'
-import type { EventStatus } from '@/lib/constants'
+import {
+  eventImages,
+  events,
+  payoutMethods,
+  scans,
+  ticketTypes,
+  tickets,
+  users,
+  type Event,
+  type EventImage,
+  type TicketType,
+  type User,
+} from '@/lib/db/schema'
+import type { EventCategory, EventStatus } from '@/lib/constants'
 import { getCurrentUser } from '@/lib/auth'
 import { randomSuffix, slugify } from '@/lib/slug'
 import {
@@ -29,6 +42,7 @@ import {
   firstZodErrorMessage,
   updateEventSchema,
   type CreateEventInput,
+  type EventImageInput,
   type TicketTypeInput,
   type UpdateEventInput,
 } from '@/lib/validators/events'
@@ -50,9 +64,40 @@ export type EventWithStats = Event & {
   scannedCount: number // personnes entrées (scans valides)
 }
 
-// Événement complet avec ses types de billets (utilisé pour pré-remplir le
-// formulaire en mode édition).
-export type EditableEvent = Event & { ticketTypes: TicketType[] }
+// Événement complet avec ses types de billets et sa galerie (utilisé pour
+// pré-remplir le formulaire en mode édition).
+export type EditableEvent = Event & { ticketTypes: TicketType[]; eventImages: EventImage[] }
+
+// ── Données publiques de la page événement (Phase 6.1) ──────────────────────
+
+// Photo de la galerie exposée publiquement (champs strictement publics).
+export type PublicEventImage = { id: string; url: string; alt: string | null }
+
+// Type de billet exposé publiquement (tarif affiché sur la page).
+export type PublicTicketType = { id: string; name: string; price: string; currency: string }
+
+// Événement public (route `/e/[slug]`) : champs marketing uniquement —
+// aucun identifiant interne sensible (organizer_id, sold_count par type…).
+export type PublicEvent = {
+  id: string
+  slug: string
+  title: string
+  description: string | null
+  category: string | null
+  categoryCustom: string | null
+  venue: string | null
+  location: string | null
+  startAt: Date | null
+  endAt: Date | null
+  posterUrl: string | null
+  status: EventStatus
+  ticketTypes: PublicTicketType[]
+  images: PublicEventImage[]
+  // Organisateur (page publique `/o/[slug]`, Phase 9.5) — `null` si le
+  // compte n'a pas encore de slug (comptes créés avant la Phase 9.5).
+  organizerName: string | null
+  organizerSlug: string | null
+}
 
 // ── Helpers internes ─────────────────────────────────────────────────────────
 
@@ -100,6 +145,17 @@ function toTicketTypeRow(t: TicketTypeInput, eventId: string) {
     price: String(t.price),
     currency: t.currency,
     capacity: t.capacity ?? null,
+  }
+}
+
+// Convertit une photo de galerie validée (Zod) en ligne d'insertion Drizzle.
+// `position` = index dans le tableau reçu (ordre d'affichage côté public).
+function toEventImageRow(image: EventImageInput, eventId: string, position: number) {
+  return {
+    eventId,
+    url: image.url,
+    alt: image.alt?.trim() || null,
+    position,
   }
 }
 
@@ -183,6 +239,13 @@ export async function createEvent(input: CreateEventInput): Promise<ActionResult
         .returning()
 
       await tx.insert(ticketTypes).values(data.ticketTypes.map((t) => toTicketTypeRow(t, created.id)))
+
+      // Galerie de photos (optionnelle au MVP : URLs hébergées ailleurs).
+      if (data.eventImages && data.eventImages.length > 0) {
+        await tx
+          .insert(eventImages)
+          .values(data.eventImages.map((image, index) => toEventImageRow(image, created.id, index)))
+      }
       return created
     })
 
@@ -226,6 +289,18 @@ export async function updateEvent(eventId: string, input: UpdateEventInput): Pro
         }
         await tx.delete(ticketTypes).where(eq(ticketTypes.eventId, eventId))
         await tx.insert(ticketTypes).values(data.ticketTypes.map((t) => toTicketTypeRow(t, eventId)))
+      }
+
+      // Galerie : remplacement intégral si le formulaire la fournit (simplifié
+      // au MVP, comme les types de billets) — les photos n'ont pas d'historique
+      // sensible, le remplacement est sans risque même après des ventes.
+      if (data.eventImages !== undefined) {
+        await tx.delete(eventImages).where(eq(eventImages.eventId, eventId))
+        if (data.eventImages.length > 0) {
+          await tx
+            .insert(eventImages)
+            .values(data.eventImages.map((image, index) => toEventImageRow(image, eventId, index)))
+        }
       }
 
       // Mise à jour des informations générales (seuls les champs fournis
@@ -404,7 +479,14 @@ export async function getEventById(eventId: string): Promise<ActionResult<Editab
       .from(ticketTypes)
       .where(eq(ticketTypes.eventId, eventId))
       .orderBy(ticketTypes.createdAt)
-    return { success: true, data: { ...event, ticketTypes: eventTypes } }
+
+    // Galerie du formulaire (mode édition), dans l'ordre d'affichage.
+    const eventImagesList = await db
+      .select()
+      .from(eventImages)
+      .where(eq(eventImages.eventId, eventId))
+      .orderBy(asc(eventImages.position))
+    return { success: true, data: { ...event, ticketTypes: eventTypes, eventImages: eventImagesList } }
   } catch {
     return { success: false, error: "Impossible de charger l'événement." }
   }
@@ -460,5 +542,214 @@ export async function getEventDetail(
     return { success: true, data: { event: withStats, tickets: recentTickets } }
   } catch {
     return { success: false, error: "Impossible de charger le détail de l'événement." }
+  }
+}
+
+// ── Page publique événement (Phase 6.1) ─────────────────────────────────────
+
+// Charge un événement PUBLIÉ (ou terminé) par son slug, avec ses tarifs et sa
+// galerie — AUCUNE session requise (route publique `/e/[slug]`).
+//
+// Sécurité : seuls les champs marketing sont exposés ; les brouillons et les
+// événements inconnus renvoient une erreur (la route appelle alors `notFound`).
+// `react cache()` dé-duplique l'appel entre `generateMetadata` et la page
+// pendant le même rendu serveur (une seule requête base au total).
+export const getPublicEventBySlug = cache(async (slug: string): Promise<ActionResult<PublicEvent> | null> => {
+  try {
+    const [event] = await db
+      .select()
+      .from(events)
+      .where(and(eq(events.slug, slug), inArray(events.status, ['published', 'finished'])))
+      .limit(1)
+    if (!event) return { success: false, error: 'Événement introuvable.' }
+
+    // Tarifs affichés sur la page (prix par type, triés par ordre de création).
+    const types = await db
+      .select({ id: ticketTypes.id, name: ticketTypes.name, price: ticketTypes.price, currency: ticketTypes.currency })
+      .from(ticketTypes)
+      .where(eq(ticketTypes.eventId, event.id))
+      .orderBy(ticketTypes.createdAt)
+
+    // Galerie de photos, dans l'ordre d'affichage (position).
+    const images = await db
+      .select({ id: eventImages.id, url: eventImages.url, alt: eventImages.alt })
+      .from(eventImages)
+      .where(eq(eventImages.eventId, event.id))
+      .orderBy(asc(eventImages.position))
+
+    // Organisateur : nom + slug public (lien vers `/o/[slug]`, Phase 9.5).
+    const [organizer] = await db
+      .select({ fullName: users.fullName, slug: users.slug })
+      .from(users)
+      .where(eq(users.id, event.organizerId))
+      .limit(1)
+
+    return {
+      success: true,
+      data: {
+        id: event.id,
+        slug: event.slug,
+        title: event.title,
+        description: event.description,
+        category: event.category,
+        categoryCustom: event.categoryCustom,
+        venue: event.venue,
+        location: event.location,
+        startAt: event.startAt,
+        endAt: event.endAt,
+        posterUrl: event.posterUrl,
+        status: event.status as EventStatus,
+        ticketTypes: types.map((t) => ({ id: t.id, name: t.name, price: t.price, currency: t.currency })),
+        images: images.map((image) => ({ id: image.id, url: image.url, alt: image.alt })),
+        organizerName: organizer?.fullName ?? null,
+        organizerSlug: organizer?.slug ?? null,
+      },
+    }
+  } catch {
+    return { success: false, error: 'Événement introuvable.' }
+  }
+})
+
+// ── Vitrine publique des événements (Phase 9) ───────────────────────────────
+
+// Carte d'événement « talon » de la vitrine (landing + listing) — type partagé
+// consommé par les deux. Anti-abus : aucune place « inventée » — la
+// disponibilité n'est jamais affichée, seul « Complet » est calculé sur les
+// données réelles (soldCount >= capacité totale).
+export type PublicEventCard = {
+  id: string
+  slug: string
+  title: string
+  category: string | null
+  categoryCustom: string | null
+  venue: string | null
+  location: string | null
+  startAt: Date | null
+  endAt: Date | null
+  posterUrl: string | null
+  // Prix minimum parmi les types PAYANTS (null si aucun type payant).
+  minPrice: number | null
+  // Devise du prix minimum affiché.
+  minPriceCurrency: 'USD' | 'CDF' | null
+  // Vrai si TOUS les types sont à 0 (événement gratuit → « Entrée libre »).
+  isFree: boolean
+  // Capacité totale réelle (somme des capacités) — null si aucune définie.
+  capacity: number | null
+  // Billets réellement vendus (statuts valid/used), agrégés depuis `tickets`.
+  soldCount: number
+  // Vrai si capacité définie ET atteinte (jauge pleine).
+  isSoldOut: boolean
+  // Organisateur (nom + slug public — lien `/o/[slug]`, Phase 9.5).
+  organizerName: string | null
+  organizerSlug: string | null
+}
+
+// Options de filtrage du loader partagé (utilisé par la landing, le listing
+// et la page publique organisateur).
+export type PublicEventsQuery = {
+  category?: EventCategory
+  search?: string
+  // Nombre maximal d'événements (bandeau de la landing : 3-4).
+  limit?: number
+  // Restriction à un organisateur (page `/o/[slug]`).
+  organizerId?: string
+}
+
+// Charge les événements PUBLIÉS à venir ou en cours, triés par date croissante.
+// Uniquement `status = 'published'` — jamais de brouillons/terminés (règle
+// d'affichage de la vitrine, cf. plan §4.9).
+export async function loadPublicEventCards(query: PublicEventsQuery = {}): Promise<PublicEventCard[]> {
+  const { category, search, limit, organizerId } = query
+
+  // Date filtre : événements pas encore passés (en cours inclus) — un
+  // événement sans date reste visible (coalesce sur la date de début).
+  const whereClauses: ReturnType<typeof eq>[] = [eq(events.status, 'published')]
+  if (category) whereClauses.push(eq(events.category, category))
+  if (search) whereClauses.push(ilike(events.title, `%${search.trim()}%`))
+  if (organizerId) whereClauses.push(eq(events.organizerId, organizerId))
+
+  const rows = await db
+    .select({
+      event: events,
+      organizerName: users.fullName,
+      organizerSlug: users.slug,
+    })
+    .from(events)
+    .innerJoin(users, eq(events.organizerId, users.id))
+    .where(and(sql`coalesce(${events.endAt}, ${events.startAt}) >= now()`, ...whereClauses))
+    .orderBy(asc(events.startAt), asc(events.createdAt))
+    .limit(limit ?? 100)
+
+  const eventIds = rows.map((row) => row.event.id)
+  if (eventIds.length === 0) return []
+
+  // Types de billets de tous les événements (une seule requête groupée).
+  const types = await db
+    .select({
+      eventId: ticketTypes.eventId,
+      name: ticketTypes.name,
+      price: ticketTypes.price,
+      currency: ticketTypes.currency,
+      capacity: ticketTypes.capacity,
+    })
+    .from(ticketTypes)
+    .where(inArray(ticketTypes.eventId, eventIds))
+
+  // Ventes réelles par événement (les billets annulés ne comptent pas).
+  const soldRows = await db
+    .select({ eventId: tickets.eventId, count: sql<number>`count(*)::int` })
+    .from(tickets)
+    .where(and(inArray(tickets.eventId, eventIds), inArray(tickets.status, ['valid', 'used'])))
+    .groupBy(tickets.eventId)
+  const soldByEvent = new Map(soldRows.map((row) => [row.eventId, row.count]))
+
+  // Assemblage des cartes (agrégations calculées en mémoire).
+  return rows.map(({ event, organizerName, organizerSlug }) => {
+    const eventTypes = types.filter((type) => type.eventId === event.id)
+
+    // Prix minimum parmi les types payants + devise associée.
+    const paid = eventTypes
+      .map((type) => ({ price: Number(type.price), currency: type.currency as 'USD' | 'CDF' }))
+      .filter((type) => type.price > 0)
+      .sort((a, b) => a.price - b.price)
+    const cheapest = paid[0]
+
+    const capacity = eventTypes.reduce((sum, type) => sum + (type.capacity ?? 0), 0)
+    const totalCapacity = capacity > 0 ? capacity : null
+    const soldCount = soldByEvent.get(event.id) ?? 0
+
+    return {
+      id: event.id,
+      slug: event.slug,
+      title: event.title,
+      category: event.category,
+      categoryCustom: event.categoryCustom,
+      venue: event.venue,
+      location: event.location,
+      startAt: event.startAt,
+      endAt: event.endAt,
+      posterUrl: event.posterUrl,
+      minPrice: cheapest?.price ?? null,
+      minPriceCurrency: cheapest?.currency ?? null,
+      isFree: paid.length === 0,
+      capacity: totalCapacity,
+      soldCount,
+      isSoldOut: totalCapacity !== null && soldCount >= totalCapacity,
+      organizerName,
+      organizerSlug,
+    }
+  })
+}
+
+// Server Action PUBLIQUE — événements à venir (aucune session requise).
+// Partagée par la landing (bandeau « À venir », `limit`) et le listing
+// (filtres applicables en base pour la future route `/events` SEO) ;
+// la vue SPA applique ses filtres client sur la liste complète.
+export async function getPublicEvents(query: PublicEventsQuery = {}): Promise<ActionResult<PublicEventCard[]>> {
+  try {
+    const eventsList = await loadPublicEventCards(query)
+    return { success: true, data: eventsList }
+  } catch {
+    return { success: false, error: 'Impossible de charger les événements.' }
   }
 }

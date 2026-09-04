@@ -35,12 +35,14 @@ Trois profils utilisent la plateforme :
 
 | Module                           | Statut                                                              |
 | -------------------------------- | ------------------------------------------------------------------- |
-| Landing page                     | Terminé                                                             |
+| Landing page                     | Terminé (bandeau « Événements à venir » inclus)                     |
+| Vitrine publique                 | Terminé (Phase 9 : listing Billetterie, filtres, recherche, tri, page organisateur /o/[slug]) |
 | Dashboard organisateur           | Terminé (données réelles : KPIs, publication, édition, suppression) |
-| Création / édition d'événement   | Terminé (persistance en base, multi-types de billets, slug unique)  |
+| Création / édition d'événement   | Terminé (persistance en base, multi-types de billets, galerie 1-3 photos, slug unique) |
+| Page publique événement `/e/[slug]` | Terminé (Phase 6.1 : SEO dynamique, galerie carrousel, partage WhatsApp) |
 | Base de données (Neon + Drizzle) | Terminé                                                             |
-| Tests end-to-end (Playwright)    | Terminé (15 scénarios)                                              |
-| Tunnel d'achat / billetterie     | En cours (interface, paiement factice)                              |
+| Tests end-to-end (Playwright)    | Écrits (landing, dashboard, événements, page publique, vitrine, checkout, scanner) — exécution sur demande |
+| Tunnel d'achat / billetterie     | En cours (interface, paiement factice — vrai checkout en Phase 6.2) |
 | Contrôle d'accès (scanner)       | En cours (saisie manuelle, scan caméra absent)                      |
 | Authentification                 | En cours (email/mot de passe + Google via Auth.js, profil à venir)  |
 | Paiement Mobile Money            | À venir                                                             |
@@ -79,10 +81,10 @@ L'interface intègre également :
 
 ## Architecture
 
-- **App Router** : le point d'entrée `app/page.tsx` rend `KinPassApp`, une coquille applicative (SPA) qui gère la navigation par état entre les vues. Le passage à un routing par URL (`/dashboard`, `/events/new`, `/e/[slug]`) est prévu.
-- **Server Actions** (`lib/actions/`) : logique métier côté serveur (création, mise à jour, publication, suppression des événements, agrégation des statistiques) appelée directement depuis les composants client.
+- **App Router** : le point d'entrée `app/page.tsx` rend `KinPassApp`, une coquille applicative (SPA) qui gère la navigation par état entre les vues. Deux routes publiques sont de vraies URLs : **`/e/[slug]`** (page événement, Phase 6.1) et **`/o/[slug]`** (page organisateur, Phase 9.5) — métadonnées SEO dynamiques (`generateMetadata` : titre, description, `og:image` = affiche, canonical) puis rendu de la coquille (ou de la page autonome pour `/o`) avec les données injectées. Le passage des autres vues à un routing par URL (`/dashboard`, `/events`, `/e/[slug]/checkout`) est prévu.
+- **Server Actions** (`lib/actions/`) : logique métier côté serveur (création, mise à jour, publication, suppression des événements — galerie comprise —, agrégation des statistiques, vitrine publique `getPublicEvents`, profil public organisateur) appelée directement depuis les composants client.
 - **Couche de validation** (`lib/validators/`) : schémas Zod partagés, séparés des actions (contrainte `"use server"`).
-- **Accès aux données** (`lib/db/`) : schéma Drizzle (5 tables : `users`, `events`, `ticket_types`, `tickets`, `scans`) et client singleton.
+- **Accès aux données** (`lib/db/`) : schéma Drizzle (tables : `users`, `payout_methods`, `events`, `event_images`, `ticket_types`, `tickets`, `scans`) et client singleton.
 - **Composants** : primitives réutilisables dans `components/ui/`, composants de coquille dans `components/layout/`, vues métier dans `components/features/` (une par domaine).
 
 ## Prérequis
@@ -103,6 +105,9 @@ pnpm dev
 Ouvrir [http://localhost:3000](http://localhost:3000), puis créer un compte
 via **Inscription** (`/auth/register`) ou utiliser le compte de démonstration :
 `organisateur@kinpass.test` / `Demo@2026` (celui-ci possède les événements du seed).
+La vitrine publique est visible sans connexion : bandeau de la landing, rubrique
+« Billetterie », pages `/e/kin-house-open-studio`, `/e/expo-photo-gombe` et
+`/o/organisateur-demo`.
 
 ## Variables d'environnement
 
@@ -143,6 +148,8 @@ Le détail (conventions de nommage, `data-testid`, ajout de tests) est dans [`te
 
 ```
 app/                     # Routes App Router (page + layout + styles globaux)
+app/e/[slug]/            # Page publique événement (SEO, Phase 6.1)
+app/o/[slug]/            # Page publique organisateur (Phase 9.5)
 components/
   KinPassApp.tsx         # Coquille SPA (navigation par état)
   layout/                # Composants de coquille (Logo, ThemeToggle)
@@ -151,18 +158,23 @@ components/
     landing/             #   LandingPage
     dashboard/           #   OrganizerDashboard
     event-creation/      #   EventCreationForm
+    event-public/        #   EventPublicView (galerie, partage)
+    events/              #   EventCard « talon » + EventListing (vitrine Phase 9)
     checkout/            #   TicketCheckout
     scanner/             #   Scanner
 lib/
-  actions/events.ts      # Server Actions (CRUD événements + statistiques)
+  actions/events.ts      # Server Actions (CRUD + stats + galerie + pages publiques + vitrine)
+  actions/organizers.ts  # Profil public organisateur (/o/[slug])
   validators/events.ts   # Schémas Zod
   constants.ts           # Constantes (catégories, devises, statuts, organisateur de test)
+  share.ts               # Helpers de partage (URL /e/[slug], texte WhatsApp)
   slug.ts                # Génération de slug URL unique
-  db/schema.ts           # Schéma Drizzle (5 tables)
+  db/schema.ts           # Schéma Drizzle (users, payout_methods, events, event_images, ticket_types, tickets, scans)
+  db/user-slug.ts        # Slug public organisateur
   db/index.ts            # Client Drizzle (singleton)
   utils.ts               # utilitaire cn()
 scripts/
-  seed-demo.mts          # Données de démonstration
+  seed-demo.mts          # Données de démonstration (4 événements dont 3 publiés)
 tests/
   e2e/                   # Tests Playwright
 playwright.config.ts     # Configuration Playwright
@@ -173,7 +185,9 @@ drizzle.config.ts        # Configuration drizzle-kit
 
 - **Landing page** : présentation du produit, section fonctionnalités, footer.
 - **Dashboard organisateur** : KPIs en temps réel (revenus USD/CDF, billets vendus, taux de remplissage, personnes entrées), liste des événements avec statut et progression des ventes, actions publier / éditer / supprimer.
-- **Création / édition d'événement** : informations générales, multi-types de billets (prix, devise USD/CDF, capacité), slug unique généré depuis le titre, validation côté serveur et client.
+- **Création / édition d'événement** : informations générales, affiche (URL), **galerie de 1 à 3 photos** (URL, réordonnancement, suppression), multi-types de billets (prix, devise USD/CDF, capacité), slug unique généré depuis le titre, validation côté serveur et client.
+- **Page publique d'événement** (`/e/[slug]`) : en-tête sombre, affiche + galerie en carrousel, description, tarifs, partage WhatsApp / copie du lien, métadonnées SEO dynamiques (og:image = affiche). Les brouillons et slugs inconnus renvoient une 404.
+- **Vitrine publique (Phase 9)** : bandeau « Événements à venir » sur la landing ; rubrique « Billetterie » = listing complet (grille de cartes, filtres par catégorie, recherche par titre, tri par date, états chargement/erreur/vide) ; carte événement « talon » (pastille de date, prix réel « à partir de X $ », « Entrée libre »/« Complet » calculés) ; page publique organisateur `/o/[slug]` (avatar, bio, site, Instagram, événements publiés).
 - **Tunnel de réservation** (maquette) : sélection de quantité, coordonnées, paiement factice.
 - **Scanner** (maquette) : saisie manuelle du code avec retours VERT / ORANGE / ROUGE.
 - **Thème clair / sombre** et menu mobile responsive.
@@ -183,9 +197,9 @@ drizzle.config.ts        # Configuration drizzle-kit
 Le plan détaillé (avec spécifications par phase) est dans [`project_info.md`](./project_info.md). Les grandes étapes restantes :
 
 1. **Authentification & compte organisateur** : inscription/connexion, profil (photo, WhatsApp, compte de reversement), sécurisation des Server Actions.
-2. **Billetterie publique** : page événement, galerie de 1 à 3 photos, commandes, remise du billet (email ou téléchargement PDF/PNG/JPG), paiement Mobile Money et pages de confirmation.
+2. **Billetterie publique** : page événement (faite), galerie 1-3 photos (faite) — commandes, remise du billet (email ou téléchargement PDF/PNG/JPG), paiement Mobile Money et pages de confirmation restent à faire.
 3. **Scanner** : caméra QR, comptes scanneurs gérés par l'organisateur (accès restreint aux seuls événements assignés), validation en base.
-4. **Vitrine publique** : événements publiés affichés sur la landing et sur une page de listing.
+4. **Vitrine publique (faite)** : événements publiés sur la landing et la rubrique « Billetterie » ; page publique organisateur `/o/[slug]` ; route `/events` SEO restante avec le routing par URL.
 5. **Monétisation & reversement** : commission kinPass, retrait à la demande vers le compte de l'organisateur.
 6. **Confiance & conformité** : conditions générales, politique de confidentialité, contrat de prestation.
 7. **Vérification de billet publique** : page `/verify` pour vérifier et re-télécharger un billet.

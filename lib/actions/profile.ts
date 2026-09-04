@@ -12,6 +12,7 @@ import { and, asc, eq } from 'drizzle-orm'
 
 import { db } from '@/lib/db'
 import { payoutMethods, users, type PayoutMethod } from '@/lib/db/schema'
+import { generateUserSlug } from '@/lib/db/user-slug'
 import { getCurrentUser } from '@/lib/auth'
 import {
   addPayoutMethodSchema,
@@ -86,9 +87,13 @@ export async function updateProfile(input: UpdateProfileInput): Promise<ActionRe
   }
 
   try {
+    // Slug public : un compte créé avant la Phase 9.5 n'en a pas encore —
+    // on le génère à la première mise à jour du profil (stable ensuite).
+    const slug = user.slug ?? (await generateUserSlug(data.fullName ?? user.fullName))
     await db
       .update(users)
       .set({
+        slug,
         fullName: data.fullName ?? user.fullName,
         phoneWhatsapp:
           data.phoneWhatsapp !== undefined ? data.phoneWhatsapp || null : user.phoneWhatsapp,

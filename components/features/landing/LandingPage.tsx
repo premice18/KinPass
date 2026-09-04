@@ -13,6 +13,7 @@
 //   illustration SVG de marque (`public/illustrations/digital-ticket.svg`).
 // ────────────────────────────────────────────────────────────────────────────
 
+import { useEffect, useState } from 'react'
 import {
   ArrowRight,
   Check,
@@ -20,21 +21,43 @@ import {
   SecurityPass,
   ShieldCheck,
   SmartphoneDevice,
-} from "iconoir-react";
+} from 'iconoir-react'
 import { Button } from "@/components/ui/button";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { FadeIn } from "@/components/ui/motion";
 import { usePexelsImages } from "@/lib/hooks/use-pexels-images";
+import { EventCard } from '@/components/features/events/EventCard'
+import { getPublicEvents, type PublicEventCard } from '@/lib/actions/events'
 
 interface LandingPageProps {
   onGetStarted: () => void;
-  onCheckout?: () => void;
+  // Ouvre la rubrique « Billetterie » (listing des événements à venir).
+  onBrowse: () => void;
 }
 
-export function LandingPage({ onGetStarted, onCheckout }: LandingPageProps) {
+export function LandingPage({ onGetStarted, onBrowse }: LandingPageProps) {
   // Photo de couverture pour le hero (retombe sur le fond de points si vide).
   const { images: heroImages } = usePexelsImages("concert crowd", 3);
   const heroImage = heroImages[0];
+
+  // Bandeau « Événements à venir » : 3 événements publiés max (Phase 9.2).
+  // Section masquée tant que la liste n'est pas chargée (pas d'à-coup) et
+  // entièrement cachée si aucun événement publié n'est à venir.
+  const [upcoming, setUpcoming] = useState<PublicEventCard[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getPublicEvents({ limit: 3 })
+      .then((result) => {
+        if (!cancelled) setUpcoming(result.success ? result.data : []);
+      })
+      .catch(() => {
+        if (!cancelled) setUpcoming([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <main className="min-h-screen bg-background">
@@ -75,7 +98,7 @@ export function LandingPage({ onGetStarted, onCheckout }: LandingPageProps) {
                 <Button size="lg" onClick={onGetStarted}>
                   Créer un événement <ArrowRight className="h-4 w-4" />
                 </Button>
-                <Button size="lg" variant="outline" onClick={onCheckout}>
+                <Button size="lg" variant="outline" onClick={onBrowse}>
                   Voir un événement
                 </Button>
               </div>
@@ -141,6 +164,51 @@ export function LandingPage({ onGetStarted, onCheckout }: LandingPageProps) {
           </FadeIn>
         </div>
       </section>
+
+      {/* ── ÉVÉNEMENTS À VENIR (bandeau découverte, Phase 9.2) ───────────── */}
+      {upcoming && upcoming.length > 0 && (
+        <section
+          aria-label="Événements à venir"
+          className="border-b border-dashed border-border bg-card/40"
+          data-testid="upcoming-events"
+        >
+          <div className="mx-auto max-w-6xl px-4 py-14 sm:px-8">
+            <FadeIn>
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <Eyebrow>À venir</Eyebrow>
+                  <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
+                    Événements à venir
+                  </h2>
+                  <p className="mt-2 text-muted-foreground">
+                    Réservez votre place dès maintenant.
+                  </p>
+                </div>
+                <Button variant="ghost" onClick={onBrowse}>
+                  Voir tous les événements
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </FadeIn>
+
+            <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {upcoming.map((event, index) => {
+                // Couverture de repli Pexels (héro) si l'événement n'a pas d'affiche.
+                const fallback = heroImages[index % Math.max(heroImages.length, 1)]
+                return (
+                  <FadeIn key={event.id} delay={Math.min(index * 0.08, 0.24)}>
+                    <EventCard
+                      event={event}
+                      coverUrl={event.posterUrl ? null : (fallback?.src ?? null)}
+                      testId="public-event-card"
+                    />
+                  </FadeIn>
+                )
+              })}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ── COMMENT ÇA MARCHE (séquence 01 → 02 → 03) ─────────────────────── */}
       <section className="mx-auto max-w-6xl px-4 py-20 sm:px-8">

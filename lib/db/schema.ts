@@ -24,6 +24,9 @@ export const users = pgTable(
   {
     id: uuid('id').defaultRandom().primaryKey(),
     email: varchar('email', { length: 255 }).notNull().unique(),
+    // Slug public de l'organisateur (route `/o/[slug]`, Phase 9.5) : généré à
+    // l'inscription depuis le nom complet (unique, suffixé si collision).
+    slug: varchar('slug', { length: 255 }).unique(),
     passwordHash: text('password_hash'),
     fullName: varchar('full_name', { length: 255 }).notNull(),
     // 'organizer' | 'agent' | 'superadmin'
@@ -102,6 +105,26 @@ export const events = pgTable(
   ],
 )
 
+// Galerie de photos descriptives d'un événement (Phase 6.1) : 1 à 3 images
+// URL au MVP (l'upload réel arrivera avec le stockage externe). `position`
+// pilote l'ordre d'affichage côté public ; `posterUrl` reste la « une ».
+export const eventImages = pgTable(
+  'event_images',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    eventId: uuid('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    url: text('url').notNull(),
+    // Texte alternatif (accessibilité, SEO) — optionnel au MVP.
+    alt: varchar('alt', { length: 255 }),
+    // Ordre d'affichage dans la galerie (0 = première).
+    position: integer('position').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index('event_images_event_idx').on(table.eventId)],
+)
+
 // Types de billets d'un événement (ex : Standard 10 $, VIP 30 $, Invitation gratuite).
 export const ticketTypes = pgTable(
   'ticket_types',
@@ -175,6 +198,8 @@ export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
 export type Event = typeof events.$inferSelect
 export type NewEvent = typeof events.$inferInsert
+export type EventImage = typeof eventImages.$inferSelect
+export type NewEventImage = typeof eventImages.$inferInsert
 export type TicketType = typeof ticketTypes.$inferSelect
 export type NewTicketType = typeof ticketTypes.$inferInsert
 export type Ticket = typeof tickets.$inferSelect
