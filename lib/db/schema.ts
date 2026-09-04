@@ -1,4 +1,5 @@
 import {
+  boolean,
   index,
   integer,
   numeric,
@@ -31,6 +32,15 @@ export const users = pgTable(
     provider: varchar('provider', { length: 20 }).notNull().default('email'),
     // Identifiant auprès du provider (ex. sub Google) — NULL pour email/password.
     providerId: varchar('provider_id', { length: 255 }),
+    // Profil organisateur (Phase 4.3) — avatar (URL, alimenté par Google),
+    // téléphone WhatsApp et adresse.
+    avatarUrl: text('avatar_url'),
+    phoneWhatsapp: varchar('phone_whatsapp', { length: 30 }),
+    address: varchar('address', { length: 255 }),
+    // Présence « grandes compagnies » : bio courte, site web, réseau social.
+    bio: text('bio'),
+    website: varchar('website', { length: 255 }),
+    instagram: varchar('instagram', { length: 100 }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
@@ -38,6 +48,27 @@ export const users = pgTable(
     index('users_email_idx').on(table.email),
     uniqueIndex('users_provider_idx').on(table.provider, table.providerId),
   ],
+)
+
+// Comptes de reversement de l'organisateur (Phase 4.3) : où kinPass envoie
+// les revenus lors d'un retrait (Phase 10). 1 à N méthodes par organisateur.
+export const payoutMethods = pgTable(
+  'payout_methods',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    // 'mpesa' | 'airtel_money' | 'orange_money' | 'bank'
+    provider: varchar('provider', { length: 20 }).notNull(),
+    // Titulaire du compte (nom complet).
+    accountName: varchar('account_name', { length: 100 }).notNull(),
+    // Numéro Mobile Money ou IBAN selon le provider.
+    accountNumber: varchar('account_number', { length: 50 }).notNull(),
+    isDefault: boolean('is_default').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index('payout_methods_user_idx').on(table.userId)],
 )
 
 // Événements créés par un organisateur.
@@ -150,3 +181,4 @@ export type Ticket = typeof tickets.$inferSelect
 export type NewTicket = typeof tickets.$inferInsert
 export type Scan = typeof scans.$inferSelect
 export type NewScan = typeof scans.$inferInsert
+export type PayoutMethod = typeof payoutMethods.$inferSelect

@@ -20,7 +20,7 @@
 import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 
 import { db } from '@/lib/db'
-import { events, scans, ticketTypes, tickets, type Event, type TicketType, type User } from '@/lib/db/schema'
+import { events, payoutMethods, scans, ticketTypes, tickets, type Event, type TicketType, type User } from '@/lib/db/schema'
 import type { EventStatus } from '@/lib/constants'
 import { getCurrentUser } from '@/lib/auth'
 import { randomSuffix, slugify } from '@/lib/slug'
@@ -104,12 +104,27 @@ function toTicketTypeRow(t: TicketTypeInput, eventId: string) {
 }
 
 // Change le statut d'un événement (draft → published → finished).
-// Session + propriété obligatoires.
+// Session + propriété obligatoires. Publication bloquée tant que
+// l'organisateur n'a pas configuré de compte de reversement (Phase 4.3/10).
 async function setEventStatus(eventId: string, status: EventStatus): Promise<ActionResult<Event>> {
   const organizer = await getSessionOrganizer()
   if (!organizer) return { success: false, error: LOGIN_REQUIRED_ERROR }
 
   try {
+    if (status === 'published') {
+      const payout = await db
+        .select({ id: payoutMethods.id })
+        .from(payoutMethods)
+        .where(eq(payoutMethods.userId, organizer.id))
+        .limit(1)
+      if (payout.length === 0) {
+        return {
+          success: false,
+          error: 'Ajoutez un compte de reversement dans vos réglages pour publier un événement.',
+        }
+      }
+    }
+
     const [owned] = await db
       .select({ id: events.id })
       .from(events)

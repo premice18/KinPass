@@ -21,7 +21,7 @@ import bcrypt from 'bcryptjs'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { eq } from 'drizzle-orm'
 
-import { events, scans, tickets, ticketTypes, users } from '../lib/db/schema.ts'
+import { events, payoutMethods, scans, tickets, ticketTypes, users } from '../lib/db/schema.ts'
 import { DEFAULT_ORGANIZER_ID } from '../lib/constants.ts'
 
 config({ path: '.env.local' })
@@ -78,6 +78,15 @@ function makeCode(index: number): string {
 }
 
 await db.transaction(async (tx) => {
+  // Compte de reversement du compte démo (requis pour publier, Phase 4.3/10).
+  await tx.insert(payoutMethods).values({
+    userId: DEFAULT_ORGANIZER_ID,
+    provider: 'mpesa',
+    accountName: 'Organisateur de test',
+    accountNumber: '+243 820 000 000',
+    isDefault: true,
+  })
+
   // ── Événement 1 : publié, avec des ventes et des scans ────────────────────
   const [houseEvent] = await tx
     .insert(events)

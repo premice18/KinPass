@@ -20,6 +20,8 @@ export async function GET() {
       email: user.email,
       fullName: user.fullName,
       role: user.role,
+      // Avatar (photo Google ou URL) — affiché dans le header.
+      avatarUrl: user.avatarUrl,
     },
   })
 }
