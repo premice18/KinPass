@@ -16,7 +16,7 @@
 // ────────────────────────────────────────────────────────────────────────────
 
 import { useState, useTransition } from 'react'
-import { ArrowLeft, CheckCircle, Plus, Refresh, Trash, WarningCircle } from 'iconoir-react'
+import { ArrowDown, ArrowLeft, ArrowUp, CheckCircle, Plus, Refresh, Trash, WarningCircle } from 'iconoir-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -39,6 +39,13 @@ type TicketTypeDraft = {
   price: string
   currency: TicketCurrency
   capacity: string
+}
+
+// Photo de la galerie en cours de saisie (Phase 6.1) — URL au MVP.
+type EventImageDraft = {
+  key: string
+  url: string
+  alt: string
 }
 
 // Classe partagée pour les <select> et <textarea> (mêmes styles que <Input>).
@@ -89,6 +96,18 @@ export function EventCreationForm({ onNavigateBack, initialData }: EventCreation
     return [{ key: makeTicketKey(), name: 'Standard', price: '', currency: 'USD', capacity: '' }]
   })
 
+  // ── Galerie de photos (Phase 6.1) : 1 à 3 images URL, ordre = position ──
+  const [eventImages, setEventImages] = useState<EventImageDraft[]>(() => {
+    if (initialData && initialData.eventImages.length > 0) {
+      return initialData.eventImages.map((image) => ({
+        key: image.id,
+        url: image.url,
+        alt: image.alt ?? '',
+      }))
+    }
+    return []
+  })
+
   // ── État de soumission ────────────────────────────────────────────────────
   const [isPending, startTransition] = useTransition()
   const [formError, setFormError] = useState('')
@@ -111,6 +130,32 @@ export function EventCreationForm({ onNavigateBack, initialData }: EventCreation
     setTicketTypes((prev) => prev.map((t) => (t.key === key ? { ...t, ...patch } : t)))
   }
 
+  // ── Galerie : ajout / suppression / déplacement / édition ─────────────────
+  const addEventImage = () => {
+    setEventImages((prev) =>
+      prev.length < 3 ? [...prev, { key: makeTicketKey(), url: '', alt: '' }] : prev,
+    )
+  }
+
+  const removeEventImage = (key: string) => {
+    setEventImages((prev) => prev.filter((image) => image.key !== key))
+  }
+
+  // Déplace une photo (position dans la galerie = index du tableau).
+  const moveEventImage = (index: number, direction: -1 | 1) => {
+    setEventImages((prev) => {
+      const target = index + direction
+      if (target < 0 || target >= prev.length) return prev
+      const next = [...prev]
+      ;[next[index], next[target]] = [next[target], next[index]]
+      return next
+    })
+  }
+
+  const updateEventImage = (key: string, patch: Partial<EventImageDraft>) => {
+    setEventImages((prev) => prev.map((image) => (image.key === key ? { ...image, ...patch } : image)))
+  }
+
   // Validation côté client : mêmes règles que les schémas Zod serveur
   // (messages d'erreur en français). Retourne null si tout est valide.
   const clientValidate = (): string | null => {
@@ -124,6 +169,15 @@ export function EventCreationForm({ onNavigateBack, initialData }: EventCreation
       if (!t.name.trim()) return 'Chaque type de billet doit avoir un nom.'
       if (t.capacity !== '' && Number(t.capacity) < 1) {
         return 'La capacité doit être d’au moins 1.'
+      }
+    }
+    // Galerie : chaque URL renseignée doit être valide (lignes vides ignorées).
+    for (const image of eventImages) {
+      if (!image.url.trim()) continue
+      try {
+        new URL(image.url)
+      } catch {
+        return "L'URL d'une photo de la galerie est invalide."
       }
     }
     return null
@@ -143,6 +197,11 @@ export function EventCreationForm({ onNavigateBack, initialData }: EventCreation
     startAt: startAt ? new Date(startAt) : undefined,
     endAt: endAt ? new Date(endAt) : undefined,
     posterUrl: posterUrl.trim() || undefined,
+    // Galerie : les lignes entièrement vides sont ignorées ; l'ordre du
+    // tableau détermine la position d'affichage (0 = première).
+    eventImages: eventImages
+      .filter((image) => image.url.trim().length > 0)
+      .map((image) => ({ url: image.url.trim(), alt: image.alt.trim() || undefined })),
     ticketTypes: ticketTypes.map((t) => ({
       name: t.name.trim(),
       price: Number(t.price),
@@ -305,6 +364,105 @@ export function EventCreationForm({ onNavigateBack, initialData }: EventCreation
                     type="url"
                   />
                 </Field>
+              </div>
+
+              {/* Galerie de photos (1 à 3) — l'affiche reste la « une » */}
+              <div className="rounded-xl border border-border bg-muted/30 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium">Galerie de photos</p>
+                    <p className="text-sm text-muted-foreground">
+                      Jusqu’à 3 photos descriptives (URL pour le MVP). {eventImages.length}/3
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addEventImage}
+                    disabled={eventImages.length >= 3}
+                    data-testid="add-event-image"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Ajouter une photo
+                  </Button>
+                </div>
+
+                {eventImages.length === 0 ? (
+                  <p className="mt-4 text-sm text-muted-foreground">
+                    Aucune photo pour le moment — l’affiche suffit.
+                  </p>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    {eventImages.map((image, index) => (
+                      <div
+                        key={image.key}
+                        data-testid="event-gallery-row"
+                        className="rounded-lg border border-border bg-background p-3"
+                      >
+                        <div className="mb-3 flex items-center justify-between">
+                          <span className="text-sm font-medium text-muted-foreground">
+                            Photo {index + 1}
+                          </span>
+                          {/* Réordonnancement (position) + suppression */}
+                          <div className="flex items-center gap-1">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => moveEventImage(index, -1)}
+                              disabled={index === 0}
+                              aria-label={`Déplacer la photo ${index + 1} vers le haut`}
+                              data-testid="event-gallery-move-up"
+                            >
+                              <ArrowUp className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => moveEventImage(index, 1)}
+                              disabled={index === eventImages.length - 1}
+                              aria-label={`Déplacer la photo ${index + 1} vers le bas`}
+                              data-testid="event-gallery-move-down"
+                            >
+                              <ArrowDown className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => removeEventImage(image.key)}
+                              aria-label={`Supprimer la photo ${index + 1}`}
+                              data-testid="event-gallery-remove"
+                            >
+                              <Trash className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="space-y-3">
+                          <Field label="URL de la photo">
+                            <Input
+                              value={image.url}
+                              onChange={(e) => updateEventImage(image.key, { url: e.target.value })}
+                              placeholder="https://.../photo.jpg"
+                              type="url"
+                              data-testid="event-gallery-url"
+                            />
+                          </Field>
+                          <Field label="Texte alternatif (optionnel)">
+                            <Input
+                              value={image.alt}
+                              onChange={(e) => updateEventImage(image.key, { alt: e.target.value })}
+                              placeholder="Ex. Scène principale en plein air"
+                              data-testid="event-gallery-alt"
+                            />
+                          </Field>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Types de billets */}

@@ -36,7 +36,9 @@ tests/
     landing.spec.ts      # Page d'accueil + navigation
     dashboard.spec.ts    # KPIs, liste, publication
     event-creation.spec.ts # Création / édition / suppression / validation
-    checkout.spec.ts     # Tunnel de réservation (maquette)
+    event-public.spec.ts # Page publique /e/[slug] (Phase 6.1 : galerie, 404)
+    vitrine.spec.ts      # Vitrine publique (Phase 9 : bandeau landing, listing, filtres)
+    checkout.spec.ts     # Tunnel de réservation (maquette, via /e/[slug])
     scanner.spec.ts      # Contrôle d'accès (maquette, 3 états)
 ```
 
@@ -70,6 +72,20 @@ Convention de nommage : **kebab-case en anglais**, préfixé par le domaine.
 | `add-ticket-type` | `event-creation/EventCreationForm.tsx` | Ajouter un type de billet |
 | `ticket-type-row` / `remove-ticket-type` | `event-creation/EventCreationForm.tsx` | Ligne de billet |
 | `form-error` / `form-success` | `event-creation/EventCreationForm.tsx` | Messages de formulaire |
+| `add-event-image` | `event-creation/EventCreationForm.tsx` | Ajouter une photo à la galerie (max 3) |
+| `event-gallery-row` / `event-gallery-url` / `event-gallery-alt` | `event-creation/EventCreationForm.tsx` | Ligne photo de la galerie |
+| `event-gallery-move-up` / `event-gallery-move-down` / `event-gallery-remove` | `event-creation/EventCreationForm.tsx` | Réordonnancement / suppression |
+| `event-public-title` | `event-public/EventPublicView.tsx` | Titre de la page publique `/e/[slug]` |
+| `event-public-buy` | `event-public/EventPublicView.tsx` | Bouton « Réserver maintenant » |
+| `event-public-ticket-type` | `event-public/EventPublicView.tsx` | Ligne de tarif par type de billet |
+| `event-public-share-whatsapp` / `event-public-share-copy` | `event-public/EventPublicView.tsx` | Partage WhatsApp / copie du lien |
+| `event-public-gallery` / `event-public-gallery-slide` | `event-public/EventPublicView.tsx` | Carrousel (affiche + galerie) |
+| `event-public-gallery-prev` / `event-public-gallery-next` / `event-public-gallery-dot` | `event-public/EventPublicView.tsx` | Navigation du carrousel |
+| `event-detail-public-link` | `dashboard/EventDetail.tsx` | Lien « Page publique » (événement publié) |
+| `upcoming-events` | `landing/LandingPage.tsx` | Bandeau « Événements à venir » (Phase 9) |
+| `public-event-card` | `events/EventCard.tsx` | Carte « talon » d'un événement public |
+| `listing-chip` / `listing-search` / `listing-sort` | `events/EventListing.tsx` | Filtres de la vitrine (Billetterie) |
+| `listing-retry` / `listing-skeleton` / `listing-count` | `events/EventListing.tsx` | États chargement / erreur / compteur |
 | `checkout-total`, `checkout-quantity`, `checkout-confirm-code` | `checkout/TicketCheckout.tsx` | Total / quantité / code |
 | `scanner-code-input`, `scan-result` | `scanner/Scanner.tsx` | Champ code / résultat |
 

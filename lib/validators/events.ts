@@ -29,6 +29,16 @@ export const ticketTypeSchema = z.object({
 // Type d'une ligne de type de billet validée (utilisé côté Server Actions).
 export type TicketTypeInput = z.infer<typeof ticketTypeSchema>
 
+// Photo descriptive de la galerie d'un événement (Phase 6.1) : URL obligatoire,
+// texte alternatif optionnel (accessibilité / SEO). La position dans le tableau
+// envoyé fait foi d'ordre d'affichage.
+export const eventImageSchema = z.object({
+  url: z.string().trim().url('URL d’image invalide.').max(2048, 'URL d’image trop longue.'),
+  alt: z.string().trim().max(255, 'Le texte alternatif est trop long (255 caractères max).').optional(),
+})
+
+export type EventImageInput = z.infer<typeof eventImageSchema>
+
 // Base commune des champs d'un événement (sans refine : Zod 4 interdit
 // `.partial()` sur un schéma qui contient un `.refine()` — on applique donc
 // la contrainte de dates sur chacun des schémas finaux).
@@ -43,6 +53,11 @@ const baseEventSchema = z.object({
   startAt: z.coerce.date({ error: 'Date de début invalide.' }).optional(),
   endAt: z.coerce.date({ error: 'Date de fin invalide.' }).optional(),
   posterUrl: z.union([z.url({ error: "URL de l'affiche invalide." }), z.literal('')]).optional(),
+  // Galerie de 1 à 3 photos descriptives (l'affiche reste la « une »).
+  eventImages: z
+    .array(eventImageSchema)
+    .max(3, 'La galerie est limitée à 3 photos.')
+    .optional(),
   ticketTypes: z.array(ticketTypeSchema).min(1, 'Ajoutez au moins un type de billet.'),
 })
 

@@ -86,7 +86,7 @@ Anti-patterns bannis : badges-pilules arrondis teintés, cartes `rounded-xl` + `
 - Mockup de billet « talon détachable » (carte sombre `Midnight Dark`, en-tête kinPass cyan, code `A4B-8K9` en mono, QR).
 - Section 3 fonctionnalités sur fond sombre (Scan QR instantané / Code de secours / Mobile Money), séparées par des filets pointillés.
 - Footer (copyright) séparé par un filet pointillé.
-- **État** : ✅ fait (refonte « billet/talon », cf. §1.5).
+- **État** : ✅ fait (refonte « billet/talon », cf. §1.5) + bandeau « Événements à venir » des événements publiés (Phase 9.2).
 
 ### 📄 Authentification — Routes `/auth/login` et `/auth/register` (À VENIR)
 
@@ -111,10 +111,11 @@ Anti-patterns bannis : badges-pilules arrondis teintés, cartes `rounded-xl` + `
 - Slug unique `/e/[slug]` généré depuis le titre.
 - **État** : ✅ fait (`components/features/event-creation/EventCreationForm.tsx` — persistance réelle via Server Actions, multi-types de billets dynamiques, validation Zod + client, mode édition pré-rempli ; navigation par état SPA, la vraie route `/events/new` viendra avec le passage au routing par URL).
 
-### 📄 Page publique événement — Route `/e/[slug]` (À VENIR, publique)
+### 📄 Page publique événement — Route `/e/[slug]` (EN COURS — 6.1)
 
 - Affiche (`poster_url`) + **galerie de 1 à 3 photos descriptives** (table `event_images`), description, tarifs, bouton d'achat.
 - Lien partageable WhatsApp/réseaux ; métadonnées SEO dynamiques (`og:image` = affiche).
+- **État** : ✅ fait (Phase 6.1 — page réelle `/e/[slug]` dans la coquille SPA, galerie en carrousel, SEO dynamique, partage WhatsApp + copie du lien ; checkout réel en 6.2).
 
 ### 📄 Tunnel d'achat & billetterie — Route `/e/[slug]/checkout` (À VENIR, publique)
 
@@ -146,15 +147,23 @@ Anti-patterns bannis : badges-pilules arrondis teintés, cartes `rounded-xl` + `
 - **Équipe / Scanneurs** : création et gestion des comptes de contrôle (cf. §4 Phase 7).
 - Blocage de la publication d'un événement si aucun compte de reversement n'est renseigné. Détail : §4.3.
 
-### 📄 Vitrine publique & listing — Landing + Route `/events` (À VENIR)
+### 📄 Vitrine publique & listing — Landing + Route `/events` (EN COURS — 9 faite)
 
 - La landing affiche les **événements publiés à venir/en cours** (cartes : affiche, titre, date, lieu, prix « à partir de X $ ») → `/e/[slug]`.
 - Filtres par catégorie et recherche ; page de listing `/events` (SEO). Détail : §4 Phase 9.
+- **État** : ✅ bandeau landing + rubrique « Billetterie » (vue SPA équivalente du listing, filtres/recherche/tri, `EventCard`) — Phase 9 faite ; la route `/events` (SEO) suivra le passage au routing par URL.
 
 ### 📄 Vérification de billet — Route `/verify` (À VENIR, publique)
 
 - Saisie du code du billet (6 caractères) → 3 états (valide / déjà utilisé / introuvable), réutilisant la sémantique scanner VERT/ORANGE/ROUGE.
 - Si valide : **re-téléchargement** (PDF/PNG/JPG) et **renvoi par email**. Détail : §4 Phase 12.
+
+### 📄 Page publique organisateur — Route `/o/[slug]` (FAIT — Phase 9.5)
+
+- Avatar (photo/Google ou initiales), nom, bio, site web, Instagram — section « Présence » du profil (Phase 4.3) — et liste des événements publiés à venir.
+- `users.slug` unique généré à la création du compte (stable, jamais régénéré) ; rattrapé à la première édition du profil pour les comptes antérieurs.
+- Liens d'accès : « par {nom} » sur les `EventCard` de la vitrine + « Organisé par {nom} » sur `/e/[slug]`.
+- **État** : ✅ fait (Phase 9.5 — badge « vérifié » réservé à la Phase 11).
 
 ### 📄 Monétisation & reversement — section du `/dashboard` (À VENIR, protégée)
 
@@ -336,15 +345,18 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 - [x] **Vue détail par événement** (`EventDetail` — clic « Détail » sur une carte) : KPIs dédiés, types de billets, 25 derniers billets (code, acheteur, statut) ; enrichie en Phase 13 (export PDF/CSV, ventes par type exactes).
 - [x] Données de démo : `scripts/seed-demo.mts` (organisateur de test + 2 événements, billets, scans ; option `--reset`).
 
-### ❌ Phase 6 — Billetterie publique & paiement (À VENIR)
+### 🟡 Phase 6 — Billetterie publique & paiement (EN COURS — 6.1 faite)
 
-#### 6.1 Page publique événement + galerie photos (1 à 3)
+#### 6.1 Page publique événement + galerie photos (1 à 3) ✅ FAITE
 
-- [ ] Route publique `/e/[slug]` : affiche, description, catégorie, dates, lieu, tarifs (types de billets), bouton d'achat, lien partageable WhatsApp/réseaux.
-- [ ] **Galerie de 1 à 3 photos descriptives** : nouvelle table `event_images` (id, event_id, url, alt, position, created_at) ; carrousel léger côté public ; `poster_url` reste la « une ».
-- [ ] Extension d'`EventCreationForm` : section « Visuels » permettant d'ajouter jusqu'à 3 images (URL au MVP, upload réel dès que le stockage est branché), avec suppression et réordonnancement (position).
-- [ ] Server Action `updateEvent` enrichie : gestion des `event_images` (ajout/suppression/ordre), validation d'un maximum de 3.
-- [ ] SEO : métadonnées dynamiques par événement (`title`, `description`, `og:image` = affiche).
+- [x] Route publique `/e/[slug]` : affiche, description, catégorie, dates, lieu, tarifs (types de billets), bouton d'achat, lien partageable WhatsApp/réseaux. La route est une **vraie URL App Router** (`app/e/[slug]/page.tsx`) rendue dans la coquille SPA (view `event` de `KinPassApp`) ; 404 française (`app/not-found.tsx`) pour un slug inconnu ou un brouillon.
+- [x] **Galerie de 1 à 3 photos descriptives** : table `event_images` (id, event_id, url, alt, position, created_at) appliquée en base ; **carrousel léger** côté public (affiche = 1re slide « une », flèches + points + navigation clavier) ; `poster_url` reste la « une ».
+- [x] Extension d'`EventCreationForm` : section « Galerie de photos » permettant d'ajouter jusqu'à 3 images (URL au MVP, upload réel dès que le stockage est branché), avec suppression et réordonnancement (position = ordre du tableau).
+- [x] Server Actions enrichies : `createEvent`/`updateEvent` gèrent les `event_images` (remplacement intégral si fournies, validation d'un maximum de 3 via Zod), `getEventById` renvoie la galerie ordonnée pour l'édition ; action **publique** `getPublicEventBySlug` (aucune session, champs marketing uniquement, dé-dupliquée par `react cache` entre métadonnées et page).
+- [x] SEO : métadonnées dynamiques par événement (`generateMetadata` : `title`, `description`, `og:image` = affiche ou 1re photo, canonical `NEXT_PUBLIC_APP_URL/e/[slug]`).
+- [x] Lien « Page publique » dans la vue détail du dashboard (`EventDetail`, événements publiés uniquement) ; helpers `lib/share.ts` (`buildEventUrl`, `buildShareText`, `buildWhatsAppShareUrl`) — le panneau de partage complet (QR…) reste en 6.7.
+- [ ] Bouton d'achat → vrai checkout (`/e/[slug]/checkout`, Phase 6.2) : aujourd'hui il ouvre la maquette de la coquille.
+- [ ] Tests E2E (`tests/e2e/event-public.spec.ts`) : **écrits, exécution sur demande** (règle §0.7).
 
 #### 6.2 Tunnel d'achat + commandes (`orders`)
 
@@ -458,18 +470,48 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 - [ ] Sécurisation des routes (validation billets / modification événements).
 - [ ] PWA (manifest + service worker) + export listes invités (reporté en Phase 13 pour l'export enrichi).
 
-### ❌ Phase 9 — Vitrine publique : événements sur la landing (À VENIR)
+### ✅ Phase 9 — Vitrine publique : événements à venir (landing + listing) (FAITE)
 
-**Objectif** : la landing doit afficher les **événements publiés en cours ou à venir**, pour transformer la page d'accueil en vitrine.
+**Objectif** : montrer les **événements publiés en cours ou à venir** à tous les visiteurs (sans connexion), en deux endroits complémentaires — un **bandeau de découverte** sur la landing ET une **vitrine complète** dans la rubrique « Billetterie » de l'application (et, à terme, la route `/events` pour le SEO).
 
-- [ ] Server Action `getPublicEvents` : événements `status = published` dont `start_at >= now` (ou en cours), triés par date, avec affiche, titre, lieu, prix minimum.
-- [ ] Section « Événements à venir » sur la landing : cartes (affiche, titre, date, lieu, prix « à partir de X $ »), clic → `/e/[slug]`.
-- [ ] Filtres simples : par catégorie (Concert/Conférence/Festival/Soirée privée/Autre) et/ou recherche par titre.
-- [ ] État vide élégant : « Aucun événement à venir pour le moment » + incitation à créer le sien.
-- [ ] Page listing publique `/events` (grille) — optionnel mais recommandé pour le SEO.
-- [ ] **Page publique organisateur** (ex. `/o/[slug]`) : identité de confiance — avatar, nom, bio, site web, Instagram, badge « vérifié » (cf. Phase 11) et liste de ses événements publiés (alimentée par la section « Présence » du profil, Phase 4.3).
-- [ ] Respect du langage visuel « billet/talon » : cartes angulaires, bordure, accent cyan, chiffres tabulaires.
-- [ ] Tests : la landing affiche les événements publiés du seed, masque les brouillons ; navigation carte → `/e/[slug]`.
+**Décision (validée)** : **une seule source de données** (`getPublicEvents`) partagée par la landing (3-4 événements mis en avant) et le listing complet (onglet Billetterie) — aucune duplication de logique. Règle d'affichage : **uniquement** les événements `published`, jamais les brouillons/terminés.
+
+#### 9.1 Couche de données partagée ✅ FAITE
+
+- [x] Server Action **publique** `getPublicEvents({ category?, search?, limit? })` : événements `status = 'published'` et pas encore passés (en cours inclus — `coalesce(end_at, start_at) >= now()`), triés par date croissante, avec : affiche, titre, slug, lieu, dates, catégorie, **prix minimum** par type (minimum des types **payants**), **disponibilité réelle** (agrégation des billets en base, jamais de chiffre inventé), badge « Entrée libre » si tous les prix = 0.
+- [x] Aucune session requise ; loader partagé `loadPublicEventCards` (même logique pour la landing, le listing et la page organisateur) ; chargement côté client au montage des vues SPA (états squelette/erreur inclus).
+- [x] Type partagé `PublicEventCard` consommé par landing ET listing (et la page organisateur) : prix min + devise, `isFree`, `isSoldOut` (capacité réelle atteinte uniquement), `organizerName`/`organizerSlug`.
+
+#### 9.2 Landing — section « Événements à venir » (bandeau découverte) ✅ FAITE
+
+- [x] Jusqu'à 3 cartes, sous le hero (avant « Comment ça marche ») ; clic → **route événement `/e/[slug]`** (Phase 6.1) — la page publique existe désormais, la bascule « maquette checkout » du plan est obsolète.
+- [x] En-tête de section : Eyebrow « À venir » + titre + lien « Voir tous les événements » → rubrique Billetterie.
+- [x] État vide landing : section entièrement masquée si aucun événement publié.
+
+#### 9.3 Listing complet — rubrique « Billetterie » (vitrine événements) ✅ FAITE
+
+- [x] La vue « Billetterie » de la coquille affiche « **Événements à venir** » : grille de cartes (1 col mobile → 2 → 3) + **filtres en chips** par catégorie (Concert / Conférence / Festival / Soirée privée / Autre + « Tous », `aria-checked`, clavier) + **recherche par titre** (champ avec icône Iconoir `Search`) + tri par date (croissante par défaut, décroissante au choix). Filtres clients sur la liste complète (réactifs, sans aller-retour serveur).
+- [x] La future route `/events` (SEO + URL partageable) est reportée au passage au routing par URL — la vue SPA en est l'équivalent fonctionnel (la Server Action accepte déjà `category`/`search` côté serveur).
+- [x] **États** : skeleton de chargement (cartes fantômes animées, pas de spinner), erreur réseau (message + bouton « Réessayer »), état vide « Aucun événement à venir pour le moment » + CTA « Être prévenu » (mailto placeholder) et, si organisateur connecté, « Créer un événement » ; état « Aucun résultat » distinct quand les filtres ne matchent rien.
+- [x] **Anti-abus** : aucun « plus que X places » inventé (seulement `soldCount` réel agrégé) ; « Complet » uniquement si `sold_count >= capacité` réelle.
+
+#### 9.4 Carte événement « talon premium » (composant partagé `EventCard`) ✅ FAITE
+
+- [x] Visuel : couverture (affiche `poster_url`, repli photo Pexels distribué par le parent, fallback trame de points de marque), **pastille de date** (jour en gros + mois), badge catégorie, statut « Entrée libre » (vert) / « Complet » (rouge) quand réel.
+- [x] Contenu : titre (`line-clamp-2`), lieu + localisation, date complète courte, prix « à partir de X $ » en `tabular-nums`/mono (ou mention gratuit), filet pointillé bas de carte (talon) + lien « par {organisateur} » séparé.
+- [x] Micro-interactions : apparition en cascade (`FadeIn`), élévation au survol, `prefers-reduced-motion` respecté (via `MotionConfig`/`FadeIn`), focus visible clavier (carte entière cliquable = lien `/e/[slug]`, lien organisateur en overlay séparé, pas d'ancre imbriquée).
+- [x] Click → **route événement `/e/[slug]`** (page publique réelle, Phase 6.1).
+
+#### 9.5 Page publique organisateur ✅ FAITE
+
+- [x] Route publique `/o/[slug]` : avatar (photo ou initiales), nom, bio, site web, Instagram — alimentée par la section « Présence » du profil (Phase 4.3) — + liste de ses événements publiés (mêmes règles que la vitrine). Badge « vérifié » en Phase 11 (absent ici).
+- [x] `users.slug` (unique, nullable) généré **une seule fois** à la création du compte (register email, création Google) — jamais régénéré (stabilité des liens publics) ; rattrapé automatiquement à la première édition du profil pour les comptes antérieurs (helper `generateUserSlug`).
+- [x] Liens : « par {nom} » sur chaque `EventCard` + « Organisé par {nom} » sur la page `/e/[slug]` (action publique enrichie : `organizerName`/`organizerSlug`).
+
+#### 9.6 Tests (écrits ; exécution sur demande)
+
+- [x] `tests/e2e/vitrine.spec.ts` : landing (seuls les publiés du seed, brouillon masqué, badge « Entrée libre »), listing (filtres par catégorie, recherche, tri asc/desc, navigation carte → `/e/[slug]`, clavier des chips).
+- [x] Specs existants adaptés : dashboard (KPIs 450 $ / 22 billets — seed enrichi — et publication sur un événement **jetable** pour préserver le brouillon de démo utilisé par `event-public.spec`), landing (CTA → Billetterie), checkout (mock atteint via `/e/[slug]` → « Réserver »).
 
 ### ❌ Phase 10 — Monétisation & reversement des revenus (À VENIR)
 
@@ -695,10 +737,10 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - **Phase 3** : ✅ TERMINÉE (logo ticket, dark/light, menu mobile).
 - **Phase 4 (auth + compte organisateur)** : 🟡 EN COURS — **4.1, 4.2 et 4.3 faites** (register/login + Google via Auth.js ; page « Mon profil » : avatar auto Google ou initiales, WhatsApp, adresse, comptes de reversement, blocage publication sans compte) ; reste : badge « Profil incomplet » sur le dashboard, upload avatar réel (stockage externe), rôle agent (Phase 7), exécution des tests E2E (sur demande).
 - **Phase 5 (événements)** : ✅ TERMINÉE — CRUD complet + publication, organisateur de test fixe (`lib/constants.ts`), à sécuriser par la session dès la Phase 4.
-- **Phase 6 (billetterie + paiement)** : ❌ À VENIR — page publique, commandes, remise du billet (email/PDF/PNG/JPG), galerie 1-3 photos, pages de confirmation, webhook Mobile Money, **lien partageable & diffusion (6.7)**.
+- **Phase 6 (billetterie + paiement)** : 🟡 EN COURS — **6.1 faite** (page publique `/e/[slug]` SEO + galerie `event_images` 1-3 photos + section « Galerie » du formulaire + actions enrichies + partage WhatsApp) ; reste : 6.2 commandes/checkout, 6.3 remise du billet, 6.4 paiement Mobile Money, 6.5 pages de confirmation, 6.7 partage enrichi.
 - **Phase 7 (scanner)** : ❌ À VENIR — interface de scan (caméra + saisie), **comptes scanneurs gérés par l'organisateur avec RBAC strict** (assignation par événement, aucun accès aux ventes/contrats).
 - **Phase 8 (polish)** : 🟡 EN COURS — tests E2E faits (15 scénarios) ; unitaires, PWA et export restent.
-- **Phase 9 (vitrine publique)** : ❌ À VENIR — événements à venir sur la landing + listing.
+- **Phase 9 (vitrine publique)** : ✅ TERMINÉE — `getPublicEvents` (source unique), bandeau « À venir » sur la landing (3 événements, jamais de brouillon), rubrique « Billetterie » = listing complet (chips catégories, recherche, tri, états chargement/erreur/vide), carte `EventCard` « talon » partagée (→ `/e/[slug]`), page publique organisateur `/o/[slug]` (`users.slug` auto-généré) ; route `/events` SEO reportée au routing par URL.
 - **Phase 10 (monétisation & reversement)** : ❌ À VENIR — commission kinPass, retrait à la demande, table `payouts`.
 - **Phase 11 (confiance & contrat)** : ❌ À VENIR — CGU, confidentialité, contrat de prestation, acceptation versionnée.
 - **Phase 12 (vérification billet)** : ❌ À VENIR — page `/verify` publique + re-téléchargement.
@@ -707,7 +749,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - **Phase 15 (innovations différenciantes)** : ❌ À VENIR — WhatsApp-first, QR dynamique anti-fraude, diaspora « je paie, un proche profite », paiement cash à l'entrée, affiliation des rabatteurs.
 - **Phase 16 (admin superadmin)** : ❌ À VENIR — back-office `/superadmin` du créateur : vue globale (KPIs), gestion des organisateurs/événements/billets/reversements, paramètres globaux, journal d'audit. Comptes provisionnés par seed (`SUPERADMIN_EMAILS`), rôle `superadmin`.
 
-**Avancement global estimé : ~40 %** (UI + fondations base de données + gestion des événements de bout en bout ; auth, billetterie publique, monétisation et scanner restent à faire).
+**Avancement global estimé : ~55 %** (UI + fondations base de données + gestion des événements de bout en bout ; auth, page publique événement ET vitrine publique en place — commandes/paiement, monétisation, scanner et back-office restent à faire).
 
 ---
 
@@ -717,10 +759,13 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 app/
   page.tsx            # Point d'entrée -> KinPassApp
   layout.tsx          # Layout racine + ThemeProvider + métadonnées
+  not-found.tsx       # 404 française (slugs publics inconnus/brouillons)
+  e/[slug]/page.tsx   # Page publique événement (SEO dynamique, Phase 6.1)
+  o/[slug]/page.tsx   # Page publique organisateur (Phase 9.5)
   globals.css         # Tokens Tailwind v4 (clair/sombre)
   api/pexels/route.ts # Proxy Pexels (clé API côté serveur uniquement)
 components/
-  KinPassApp.tsx      # Coquille SPA — navigation par état
+  KinPassApp.tsx      # Coquille SPA — navigation par état (+ vue 'event')
   layout/             # Composants de coquille (header)
     Logo.tsx          # Logo « ticket premium »
     ThemeToggle.tsx   # Bascule clair/sombre
@@ -728,19 +773,25 @@ components/
   features/           # Vues regroupées par domaine (1 dossier = 1 future route)
     landing/          # LandingPage
     dashboard/        # OrganizerDashboard
-    event-creation/   # EventCreationForm
+    event-creation/   # EventCreationForm (galerie 1-3 photos)
+    event-public/     # EventPublicView (page /e/[slug], galerie carrousel)
+    events/           # EventCard « talon » + EventListing (vitrine Phase 9)
     checkout/         # TicketCheckout
     scanner/          # Scanner
 lib/
-  actions/events.ts   # Server Actions CRUD événements (+ stats agrégées)
+  actions/events.ts   # Server Actions CRUD événements (+ stats + galerie + page publique + vitrine)
+  actions/organizers.ts # Server Actions publiques organisateur (/o/[slug])
+  actions/profile.ts  # Profil organisateur (comptes de reversement…)
   validators/events.ts # Schémas Zod (messages français) — séparés des actions
   constants.ts        # Organisateur de test temporaire + catégories/devises/statuts
+  share.ts            # Helpers de partage (URL /e/[slug], WhatsApp)
   slug.ts             # slugify + suffixe aléatoire (slug URL unique)
   pexels.ts           # Client API Pexels (serveur uniquement)
   hooks/use-pexels-images.ts  # Hook client de chargement des photos Pexels
   db/
-    schema.ts         # Schéma Drizzle (5 tables)
+    schema.ts         # Schéma Drizzle (users + slug, payout_methods, events, event_images, ticket_types, tickets, scans)
     index.ts          # Client Drizzle (singleton)
+    user-slug.ts      # Génération du slug public organisateur (/o/[slug])
   utils.ts            # cn()
 public/
   illustrations/      # SVG de marque (états vides, billet numérique)
@@ -748,7 +799,7 @@ public/
 scripts/
   seed-demo.mts       # Seed organisateur de test + données démo (--reset)
 tests/
-  e2e/                # Tests Playwright (landing, dashboard, événements, checkout, scanner)
+  e2e/                # Tests Playwright (landing, dashboard, événements, page publique, vitrine, checkout, scanner)
 playwright.config.ts  # Configuration Playwright
 drizzle.config.ts     # Config drizzle-kit
 .env.local            # DATABASE_URL (gitignoré)
@@ -765,7 +816,7 @@ drizzle.config.ts     # Config drizzle-kit
 | `AUTH_SECRET` | ✅          | Clé de signature des sessions JWT (≥ 32 caractères, base64url). |
 | `AUTH_GOOGLE_ID` | ❌ (si Google) | Client ID OAuth Google (Google Cloud Console). |
 | `AUTH_GOOGLE_SECRET` | ❌ (si Google) | Client secret OAuth Google. |
-| `NEXT_PUBLIC_APP_URL` | ✅ (partage/SEO) | URL publique du site (ex. `https://kinpass.app`) — construire les liens partageables et les aperçus OG. |
+| `NEXT_PUBLIC_APP_URL` | ✅ (partage/SEO) | URL publique du site (ex. `https://kinpass.app`) — construire les liens partageables (`/e/[slug]`) et les aperçus OG. Repli local : `http://localhost:3000`. |
 
 | Commande                     | Description                                                                |
 | :--------------------------- | :------------------------------------------------------------------------- |

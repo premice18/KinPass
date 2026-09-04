@@ -1,5 +1,5 @@
 // ────────────────────────────────────────────────────────────────────────────
-// Seed de démonstration — kinPass (Phase 5 + auth Phase 4.1)
+// Seed de démonstration — kinPass (Phase 5 + auth Phase 4.1, galerie 6.1)
 //
 // Crée l'organisateur de test (UUID fixe, voir `lib/constants.ts`) avec un
 // mot de passe réel (auth activée) puis, si la base est vide, un événement
@@ -21,7 +21,7 @@ import bcrypt from 'bcryptjs'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { eq } from 'drizzle-orm'
 
-import { events, payoutMethods, scans, tickets, ticketTypes, users } from '../lib/db/schema.ts'
+import { eventImages, events, payoutMethods, scans, tickets, ticketTypes, users } from '../lib/db/schema.ts'
 import { DEFAULT_ORGANIZER_ID } from '../lib/constants.ts'
 
 config({ path: '.env.local' })
@@ -45,12 +45,18 @@ await db
   .values({
     id: DEFAULT_ORGANIZER_ID,
     email: 'organisateur@kinpass.test',
+    // Slug public de l'organisateur (page /o/organisateur-demo, Phase 9.5).
+    slug: 'organisateur-demo',
     passwordHash: bcrypt.hashSync(DEMO_PASSWORD, 10),
     fullName: 'Organisateur de test',
   })
   .onConflictDoUpdate({
     target: users.id,
-    set: { passwordHash: bcrypt.hashSync(DEMO_PASSWORD, 10) },
+    set: {
+      passwordHash: bcrypt.hashSync(DEMO_PASSWORD, 10),
+      // Rattrape un compte seedé avant la Phase 9.5 (slug absent).
+      slug: 'organisateur-demo',
+    },
   })
 console.log('✓ Organisateur de test prêt (organisateur@kinpass.test / Demo@2026).')
 
@@ -88,6 +94,12 @@ await db.transaction(async (tx) => {
   })
 
   // ── Événement 1 : publié, avec des ventes et des scans ────────────────────
+  // Dates RELATIVES au moment du seed : l'événement reste « à venir » dans la
+  // vitrine publique (Phase 9) quelle que soit la date d'exécution.
+  const now = new Date()
+  const houseStart = new Date(now.getTime() + 9 * 24 * 60 * 60 * 1000)
+  houseStart.setHours(18, 0, 0, 0)
+
   const [houseEvent] = await tx
     .insert(events)
     .values({
@@ -99,12 +111,21 @@ await db.transaction(async (tx) => {
       category: 'Concert',
       venue: 'Galerie d’art moderne',
       location: 'Kinshasa, Gombe',
-      startAt: new Date('2026-09-20T18:00:00'),
-      endAt: new Date('2026-09-20T23:00:00'),
-      posterUrl: null,
+      startAt: houseStart,
+      endAt: new Date(houseStart.getTime() + 5 * 60 * 60 * 1000),
+      // Affiche + galerie (Phase 6.1) : URLs d'images de démonstration stables
+      // (placeholder). Remplacées par les vraies affiches/photos à l'upload.
+      posterUrl: 'https://picsum.photos/seed/kinpass-house-poster/1200/630',
       status: 'published',
     })
     .returning()
+
+  // Galerie : 1 à 3 photos descriptives (position = ordre d'affichage).
+  await tx.insert(eventImages).values([
+    { eventId: houseEvent.id, url: 'https://picsum.photos/seed/kinpass-house-1/900/1100', alt: 'Ateliers des artistes invités', position: 0 },
+    { eventId: houseEvent.id, url: 'https://picsum.photos/seed/kinpass-house-2/900/1100', alt: 'Espace d’exposition de la galerie', position: 1 },
+    { eventId: houseEvent.id, url: 'https://picsum.photos/seed/kinpass-house-3/900/1100', alt: 'Scène du concert live', position: 2 },
+  ])
 
   const [standard] = await tx
     .insert(ticketTypes)
@@ -163,7 +184,88 @@ await db.transaction(async (tx) => {
     }
   }
 
-  // ── Événement 2 : brouillon, sans vente (test du flux publication) ────────
+  // ── Événement 2 : Festival payant, publié, avec ventes (vitrine Phase 9) ──
+  const jazzStart = new Date(now.getTime() + 75 * 24 * 60 * 60 * 1000)
+  jazzStart.setHours(16, 0, 0, 0)
+
+  const [jazzEvent] = await tx
+    .insert(events)
+    .values({
+      organizerId: DEFAULT_ORGANIZER_ID,
+      title: 'Festival Jazz Kinshasa',
+      slug: 'festival-jazz-kinshasa',
+      description:
+        'Trois scènes, vingt artistes : le meilleur du jazz congolais et international dans les jardins de Kinshasa.',
+      category: 'Festival',
+      venue: 'Jardin botanique de Kinshasa',
+      location: 'Kinshasa, Limete',
+      startAt: jazzStart,
+      endAt: new Date(jazzStart.getTime() + 10 * 60 * 60 * 1000),
+      posterUrl: 'https://picsum.photos/seed/kinpass-jazz-poster/1200/630',
+      status: 'published',
+    })
+    .returning()
+
+  const [jazzStandard] = await tx
+    .insert(ticketTypes)
+    .values({
+      eventId: jazzEvent.id,
+      name: 'Standard',
+      price: '25.00',
+      currency: 'USD',
+      capacity: 120,
+      soldCount: 10,
+    })
+    .returning()
+
+  // 10 billets Standard valides (non scannés : aucune entrée à ce jour).
+  for (let i = 0; i < 10; i++) {
+    await tx.insert(tickets).values({
+      eventId: jazzEvent.id,
+      ticketTypeId: jazzStandard.id,
+      buyerName: `Festivalier démo ${i + 1}`,
+      buyerPhone: '+243 820 000 0' + ((i % 9) + 1),
+      buyerEmail: `festivalier${i + 1}@exemple.cd`,
+      code: makeCode(codeIndex++),
+      status: 'valid',
+      scannedAt: null,
+    })
+  }
+
+  // ── Événement 3 : Expo entrée libre, publiée, sans vente (vitrine Phase 9) ─
+  const expoStart = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+  expoStart.setHours(10, 0, 0, 0)
+
+  const [expoEvent] = await tx
+    .insert(events)
+    .values({
+      organizerId: DEFAULT_ORGANIZER_ID,
+      title: 'Expo Photo Gombe',
+      slug: 'expo-photo-gombe',
+      description:
+        'Exposition des regards émergents de la photographie kinoise : 40 tirages, une lecture du quotidien.',
+      category: 'Autre',
+      categoryCustom: 'Exposition',
+      venue: 'Centre culturel de Gombe',
+      location: 'Kinshasa, Gombe',
+      startAt: expoStart,
+      endAt: new Date(expoStart.getTime() + 8 * 60 * 60 * 1000),
+      posterUrl: 'https://picsum.photos/seed/kinpass-expo-poster/1200/630',
+      status: 'published',
+    })
+    .returning()
+
+  // Type à 0 $ → événement gratuit (« Entrée libre » sur les cartes).
+  await tx.insert(ticketTypes).values({
+    eventId: expoEvent.id,
+    name: 'Entrée libre',
+    price: '0.00',
+    currency: 'USD',
+    capacity: 200,
+    soldCount: 0,
+  })
+
+  // ── Événement 4 : brouillon, sans vente (test du flux publication) ────────
   const [draftEvent] = await tx
     .insert(events)
     .values({
@@ -190,7 +292,9 @@ await db.transaction(async (tx) => {
     soldCount: 0,
   })
 
-  console.log('✓ Données de démonstration créées (2 événements, 12 billets, 10 scans).')
+  console.log(
+    '✓ Données de démonstration créées (4 événements dont 3 publiés, 22 billets, 10 scans, galerie 3 photos).',
+  )
 })
 
 await client.end()
