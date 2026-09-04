@@ -30,9 +30,27 @@ async function findUserByEmail(email: string) {
 
 // Crée un utilisateur issu de Google (email inconnu) ou lie le compte Google
 // à un compte email existant (même email → même compte, pas de doublon).
-async function upsertGoogleUser(email: string, fullName: string | null | undefined, googleId?: string) {
+// À chaque connexion, la photo Google (`image`) rafraîchit `avatarUrl`.
+async function upsertGoogleUser(
+  email: string,
+  fullName: string | null | undefined,
+  googleId?: string,
+  image?: string | null | undefined,
+) {
   const existing = await findUserByEmail(email)
-  if (existing) return existing
+  if (existing) {
+    // Rafraîchit l'avatar (et l'id du provider) si Google en fournit un.
+    if (image || googleId) {
+      await db
+        .update(users)
+        .set({
+          avatarUrl: image ?? existing.avatarUrl,
+          providerId: googleId ?? existing.providerId,
+        })
+        .where(eq(users.id, existing.id))
+    }
+    return existing
+  }
 
   const [created] = await db
     .insert(users)
@@ -42,6 +60,8 @@ async function upsertGoogleUser(email: string, fullName: string | null | undefin
       passwordHash: null,
       provider: 'google',
       providerId: googleId ?? null,
+      // Avatar automatique : photo du compte Google (Phase 4.3).
+      avatarUrl: image ?? null,
     })
     .returning()
   return created
@@ -84,7 +104,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (account?.provider === 'google') {
           // Google : l'utilisateur n'existe pas forcément en base → création
           // ou liaison par email, puis on récupère l'id/le rôle kinPass.
-          const dbUser = await upsertGoogleUser(user.email ?? '', user.name, account.providerAccountId)
+          // La photo de profil Google est stockée/rafraîchie automatiquement.
+          const dbUser = await upsertGoogleUser(
+            user.email ?? '',
+            user.name,
+            account.providerAccountId,
+            user.image,
+          )
           token.id = dbUser.id
           token.role = dbUser.role
         } else {

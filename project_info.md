@@ -309,20 +309,22 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 
 **Objectif** : seul celui qui crée un événement a besoin d'un compte. Il doit pouvoir **finaliser son profil** (photo, WhatsApp, compte de reversement, adresse) dans une page de paramètres dédiée, avant de publier.
 
-- [ ] Page `/dashboard/settings` (ou `/settings`) avec sections :
-  - **Photo de profil** : upload → stockage (Supabase Storage / Vercel Blob), aperçu circulaire dans le header et le dashboard.
-  - **Avatar automatique Google** : à la connexion Google (Auth.js), `users.avatar_url` est **alimenté automatiquement** avec la photo du compte Google (`user.image`) — enregistrée à la création du compte **et rafraîchie à chaque connexion** (la photo reste à jour) ; affichée dans le header (menu utilisateur), la page profil et le dashboard ; **repli par défaut** quand il n'y a pas d'image : un cercle avec les **initiales** du nom ; l'upload manuel (rubrique précédente) reste disponible pour la remplacer.
-  - **Numéro WhatsApp** : `users.phone_whatsapp` (format international `+243…`), utilisé pour les notifications et le contact acheteurs.
+- [x] Page « Mon profil » (vue SPA `settings`, ex. `/dashboard/settings` à terme) avec sections :
+  - **Photo de profil** : aperçu circulaire dans le header, la page profil ; **upload depuis l'appareil** (image redimensionnée en 128 px côté client → data-URL webp légère, aucun stockage externe requis) **ou URL manuelle** (l'upload vers Supabase Storage / Vercel Blob arrivera avec le stockage externe).
+  - **Avatar automatique Google** : `users.avatar_url` alimenté automatiquement avec la photo Google (`user.image`) — enregistré à la création **et rafraîchi à chaque connexion** (auth.ts) ; **repli par défaut** : cercle avec les **initiales** du nom (header + menu mobile) ; l'URL manuelle reste disponible pour remplacer.
+  - **Présence « grandes compagnies »** : **bio courte** (300 car.), **site web**, **Instagram** — préparés pour le futur profil public d'organisateur (confiance).
+  - **Numéro WhatsApp** : `users.phone_whatsapp` (format international `+243…`).
   - **Adresse / ville / commune** : `users.address`.
-  - **Comptes de reversement** : 1 à N méthodes (M-Pesa / Airtel Money / Orange Money / virement bancaire) — table `payout_methods` (id, user_id, provider, libellé, numéro/téléphone, titulaire, is_default).
+  - **Comptes de reversement** : ajout / **modification inline** (corriger fournisseur, titulaire ou numéro sans supprimer) / suppression / « par défaut » — table `payout_methods` ; premier compte = défaut ; le dernier ne peut pas être supprimé.
   - **Équipe / Scanneurs** : création et gestion des comptes de contrôle (détail complet en Phase 7.2).
-- [ ] Server Action `updateProfile` (validation Zod, upload avatar, upsert des comptes de reversement).
-- [ ] Badge « Profil incomplet » affiché sur le dashboard tant que les champs obligatoires manquent ; **blocage de la publication d'un événement si aucun compte de reversement n'est renseigné** (message explicite : « Ajoutez un compte de reversement pour publier »).
-- [ ] Tests : complétion du profil, upload photo, ajout/suppression/choix du compte de reversement par défaut.
+- [x] Server Actions `lib/actions/profile.ts` : `getProfile`, `updateProfile` (validation Zod), `addPayoutMethod`, `updatePayoutMethod`, `removePayoutMethod`, `setDefaultPayoutMethod` — session organisateur requise.
+- [x] **Blocage de la publication** : `publishEvent` refuse si aucun compte de reversement (« Ajoutez un compte de reversement dans vos réglages pour publier ») ; seed démo enrichi d'un compte M-Pesa.
+- [ ] Badge « Profil incomplet » sur le dashboard (lien vers Mon profil) — à venir (avec l'indicateur de complétude visuelle).
+- [ ] Tests : complétion du profil, avatar (upload + Google), bio/site/réseaux, ajout/modification/suppression/par défaut des comptes (E2E écrits, exécution sur demande).
 
 #### 4.4 Modèle de données (ajouts)
 
-- `users` : `avatar_url text` (alimenté par la photo Google à la connexion, cf. 4.3), `phone_whatsapp varchar(30)`, `address text`.
+- `users` : `avatar_url text` (alimenté par la photo Google à la connexion, cf. 4.3), `phone_whatsapp varchar(30)`, `address varchar(255)`, `bio text`, `website varchar(255)`, `instagram varchar(100)`.
 - `users` (Google/Auth.js, cf. 4.2) : `provider varchar(20)` défaut `'email'` (`email` \| `google`), `provider_id varchar(255)` (sub Google), **`password_hash` devient nullable** (comptes Google sans mot de passe) ; contrainte **UNIQUE `(provider, provider_id)`** + index sur `email`.
 - Nouvelle table `payout_methods` (cf. ci-dessus), FK `user_id` → `users` ON DELETE CASCADE, index sur `user_id`.
 
@@ -465,6 +467,7 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 - [ ] Filtres simples : par catégorie (Concert/Conférence/Festival/Soirée privée/Autre) et/ou recherche par titre.
 - [ ] État vide élégant : « Aucun événement à venir pour le moment » + incitation à créer le sien.
 - [ ] Page listing publique `/events` (grille) — optionnel mais recommandé pour le SEO.
+- [ ] **Page publique organisateur** (ex. `/o/[slug]`) : identité de confiance — avatar, nom, bio, site web, Instagram, badge « vérifié » (cf. Phase 11) et liste de ses événements publiés (alimentée par la section « Présence » du profil, Phase 4.3).
 - [ ] Respect du langage visuel « billet/talon » : cartes angulaires, bordure, accent cyan, chiffres tabulaires.
 - [ ] Tests : la landing affiche les événements publiés du seed, masque les brouillons ; navigation carte → `/e/[slug]`.
 
@@ -563,6 +566,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 
 - [ ] Livraison du billet par **WhatsApp** (Business API) en plus de l'email : envoi du billet (image/PDF) + lien de téléchargement.
 - [ ] Rappels automatiques : J-3, J-1, J-2h avant l'événement (si l'organisateur active les rappels).
+- [ ] **Préférences de notifications de l'organisateur** (rubrique profil) : canaux email et/ou WhatsApp activables séparément (ventes, retraits, rappels).
 - [ ] Annulation / report d'événement : notification WhatsApp à tous les acheteurs (un seul clic côté organisateur).
 - [ ] Préférences : l'acheteur choisit email et/ou WhatsApp ; MVP = lien `wa.me` pré-rempli, production = WhatsApp Business Cloud API.
 - [ ] Tests E2E (écrits ; exécution sur demande) : parcours « recevoir par WhatsApp », rappel programmé.
@@ -689,7 +693,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - **Phase 1** : ✅ TERMINÉE (maquette UI des 5 vues).
 - **Phase 2** : ✅ TERMINÉE (base Neon + schéma Drizzle appliqué).
 - **Phase 3** : ✅ TERMINÉE (logo ticket, dark/light, menu mobile).
-- **Phase 4 (auth + compte organisateur)** : 🟡 EN COURS — **4.1 faite** (register/login email) et **4.2 faite** (migration Auth.js v5 : providers `credentials` + `google`, session Auth.js, bouton « Continuer avec Google », liaison de comptes, schéma `users` étendu) ; reste : validation OAuth réelle (navigateur), 4.3 profil (photo, WhatsApp, compte de reversement), rôle agent (Phase 7), exécution des tests E2E (sur demande).
+- **Phase 4 (auth + compte organisateur)** : 🟡 EN COURS — **4.1, 4.2 et 4.3 faites** (register/login + Google via Auth.js ; page « Mon profil » : avatar auto Google ou initiales, WhatsApp, adresse, comptes de reversement, blocage publication sans compte) ; reste : badge « Profil incomplet » sur le dashboard, upload avatar réel (stockage externe), rôle agent (Phase 7), exécution des tests E2E (sur demande).
 - **Phase 5 (événements)** : ✅ TERMINÉE — CRUD complet + publication, organisateur de test fixe (`lib/constants.ts`), à sécuriser par la session dès la Phase 4.
 - **Phase 6 (billetterie + paiement)** : ❌ À VENIR — page publique, commandes, remise du billet (email/PDF/PNG/JPG), galerie 1-3 photos, pages de confirmation, webhook Mobile Money, **lien partageable & diffusion (6.7)**.
 - **Phase 7 (scanner)** : ❌ À VENIR — interface de scan (caméra + saisie), **comptes scanneurs gérés par l'organisateur avec RBAC strict** (assignation par événement, aucun accès aux ventes/contrats).

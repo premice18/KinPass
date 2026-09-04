@@ -9,7 +9,8 @@
 // Auth (Phase 4.1) :
 // - À l'ouverture, la coquille interroge `/api/auth/me` pour connaître
 //   l'utilisateur connecté (cookie httpOnly illisible côté client).
-// - Header : « Se connecter » si déconnecté ; nom + « Déconnexion » sinon.
+// - Header : « Se connecter » si déconnecté ; avatar + nom + menu (Mon
+//   profil / Déconnexion) si connecté.
 // - `initialView='dashboard'` (posé après connexion) ouvre le dashboard si
 //   l'utilisateur est un organisateur.
 //
@@ -17,10 +18,10 @@
 // `MotionConfig reducedMotion="user"` respecte `prefers-reduced-motion`.
 // ────────────────────────────────────────────────────────────────────────────
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion'
 import { signOut } from 'next-auth/react'
-import { CardWallet, Dashboard, LogOut, PlusCircle, Scanning, SecurityPass } from 'iconoir-react'
+import { CardWallet, Dashboard, LogOut, PlusCircle, Scanning, SecurityPass, Settings } from 'iconoir-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { AnimatedMenuIcon } from '@/components/ui/animated-menu-icon'
 import { Logo } from '@/components/layout/Logo'
@@ -29,11 +30,12 @@ import { LandingPage } from '@/components/features/landing/LandingPage'
 import { OrganizerDashboard } from '@/components/features/dashboard/OrganizerDashboard'
 import { EventDetail } from '@/components/features/dashboard/EventDetail'
 import { EventCreationForm } from '@/components/features/event-creation/EventCreationForm'
+import { ProfileSettings } from '@/components/features/settings/ProfileSettings'
 import { TicketCheckout } from '@/components/features/checkout/TicketCheckout'
 import { Scanner } from '@/components/features/scanner/Scanner'
 import { getEventById, type EditableEvent } from '@/lib/actions/events'
 
-type View = 'home' | 'dashboard' | 'detail' | 'create' | 'checkout' | 'scanner'
+type View = 'home' | 'dashboard' | 'detail' | 'create' | 'settings' | 'checkout' | 'scanner'
 
 // Utilisateur exposé au client (sans données sensibles).
 export type SessionUser = {
@@ -41,6 +43,17 @@ export type SessionUser = {
   email: string
   fullName: string
   role: string
+  avatarUrl?: string | null
+}
+
+// Initiales du nom (avatar de repli).
+function initialsOf(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('')
 }
 
 const nav = [
@@ -141,6 +154,14 @@ export function KinPassApp({ initialView = 'home' }: KinPassAppProps) {
     navigate('create')
   }
 
+  // Recharge la session (après modification du profil, ex. avatar).
+  const refreshSession = useCallback(() => {
+    fetch('/api/auth/me')
+      .then((r) => r.json())
+      .then((data: { user: SessionUser | null }) => setUser(data.user))
+      .catch(() => undefined)
+  }, [])
+
   // Pendant que le menu est ouvert : touche Échap pour fermer + blocage du
   // scroll de la page (l'overlay est en position fixe par-dessus le contenu).
   useEffect(() => {
@@ -177,6 +198,8 @@ export function KinPassApp({ initialView = 'home' }: KinPassAppProps) {
         initialData={editingEvent ?? undefined}
         onNavigateBack={() => navigate('dashboard')}
       />
+    ) : view === 'settings' ? (
+      <ProfileSettings onBack={() => navigate('dashboard')} onProfileUpdated={refreshSession} />
     ) : view === 'checkout' ? (
       <TicketCheckout />
     ) : (
@@ -217,9 +240,22 @@ export function KinPassApp({ initialView = 'home' }: KinPassAppProps) {
               {authChecked &&
                 (user ? (
                   <div className="hidden items-center gap-1.5 md:flex">
-                    <span className="max-w-36 truncate text-sm text-muted-foreground">
-                      {user.fullName}
-                    </span>
+                    {/* Avatar (photo Google/URL ou initiales) + lien profil */}
+                    <button
+                      onClick={() => navigate('settings')}
+                      className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2 text-sm transition-colors hover:bg-muted"
+                      aria-label="Mon profil"
+                    >
+                      <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border border-border bg-muted text-xs font-bold">
+                        {user.avatarUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          initialsOf(user.fullName)
+                        )}
+                      </span>
+                      <span className="max-w-32 truncate text-foreground">{user.fullName}</span>
+                    </button>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -303,17 +339,38 @@ export function KinPassApp({ initialView = 'home' }: KinPassAppProps) {
                       </Button>
                     </motion.div>
                   ))}
-                  {/* Lien connexion / déconnexion en pied de menu mobile */}
+                  {/* Pied de menu mobile : avatar + profil / connexion */}
                   <motion.div variants={menuItemVariants} className="mt-1 border-t border-border pt-2">
                     {user ? (
-                      <Button
-                        variant="ghost"
-                        className="w-full justify-start text-muted-foreground"
-                        onClick={handleLogout}
-                      >
-                        <LogOut className="h-4 w-4" />
-                        Déconnexion ({user.fullName})
-                      </Button>
+                      <>
+                        <div className="mb-1 flex items-center gap-2 px-2 py-1">
+                          <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-border bg-muted text-xs font-bold">
+                            {user.avatarUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" />
+                            ) : (
+                              initialsOf(user.fullName)
+                            )}
+                          </span>
+                          <span className="min-w-0 truncate text-sm">{user.fullName}</span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start"
+                          onClick={() => navigate('settings')}
+                        >
+                          <Settings className="h-4 w-4" />
+                          Mon profil
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start text-muted-foreground"
+                          onClick={handleLogout}
+                        >
+                          <LogOut className="h-4 w-4" />
+                          Déconnexion
+                        </Button>
+                      </>
                     ) : (
                       <a
                         href="/auth/login"
