@@ -33,9 +33,11 @@ import { EventCreationForm } from '@/components/features/event-creation/EventCre
 import { ProfileSettings } from '@/components/features/settings/ProfileSettings'
 import { TicketCheckout } from '@/components/features/checkout/TicketCheckout'
 import { Scanner } from '@/components/features/scanner/Scanner'
-import { getEventById, type EditableEvent } from '@/lib/actions/events'
+import { EventPublicView } from '@/components/features/event-public/EventPublicView'
+import { EventListing } from '@/components/features/events/EventListing'
+import { getEventById, type EditableEvent, type PublicEvent } from '@/lib/actions/events'
 
-type View = 'home' | 'dashboard' | 'detail' | 'create' | 'settings' | 'checkout' | 'scanner'
+type View = 'home' | 'dashboard' | 'detail' | 'create' | 'settings' | 'checkout' | 'scanner' | 'event' | 'events'
 
 // Utilisateur exposé au client (sans données sensibles).
 export type SessionUser = {
@@ -60,7 +62,10 @@ const nav = [
   { id: 'home', label: 'Accueil', icon: SecurityPass },
   { id: 'dashboard', label: 'Tableau de bord', icon: Dashboard },
   { id: 'create', label: 'Créer', icon: PlusCircle },
-  { id: 'checkout', label: 'Billetterie', icon: CardWallet },
+  // Rubrique « Billetterie » : vitrine des événements publiés (Phase 9.3) —
+  // remplace le checkout maquette, désormais atteint via le CTA d'une page
+  // publique /e/[slug] (en attendant le vrai checkout, Phase 6.2).
+  { id: 'events', label: 'Billetterie', icon: CardWallet },
   { id: 'scanner', label: 'Scanner', icon: Scanning },
 ] as const
 
@@ -72,15 +77,25 @@ const menuItemVariants = {
 
 interface KinPassAppProps {
   initialView?: View
+  // Page publique d'un événement (`/e/[slug]`) : données injectées depuis le
+  // serveur (route `app/e/[slug]/page.tsx`, Phase 6.1) — aucun appel client.
+  initialEvent?: PublicEvent
 }
 
-export function KinPassApp({ initialView = 'home' }: KinPassAppProps) {
-  const [view, setView] = useState<View>('home')
+export function KinPassApp({ initialView = 'home', initialEvent }: KinPassAppProps) {
+  // Vue initiale immédiate (sans attendre le fetch de session) : page publique
+  // d'un événement dès le rendu serveur — le HTML livré contient le contenu
+  // (SEO, première impression), l'effet ci-dessous ne fait que confirmer.
+  const [view, setView] = useState<View>(
+    initialView === 'event' && initialEvent ? 'event' : 'home',
+  )
   const [menuOpen, setMenuOpen] = useState(false)
   // Événement chargé pour le mode édition du formulaire (null = mode création).
   const [editingEvent, setEditingEvent] = useState<EditableEvent | null>(null)
   // Événement consulté dans la vue détail.
   const [viewedEventId, setViewedEventId] = useState<string | null>(null)
+  // Événement public affiché dans la vue « event » (route /e/[slug]).
+  const [publicEvent, setPublicEvent] = useState<PublicEvent | null>(initialEvent ?? null)
   // Session (chargée au montage via /api/auth/me).
   const [user, setUser] = useState<SessionUser | null>(null)
   const [authChecked, setAuthChecked] = useState(false)
@@ -95,6 +110,11 @@ export function KinPassApp({ initialView = 'home' }: KinPassAppProps) {
         // Après connexion (?view=dashboard), ouvre le dashboard organisateur.
         if (data.user?.role === 'organizer' && initialView === 'dashboard') {
           setView('dashboard')
+        }
+        // Page publique d'un événement (/e/[slug]) : ouverte pour tous
+        // (connecté ou non), données déjà chargées côté serveur.
+        if (initialView === 'event' && initialEvent) {
+          setView('event')
         }
       })
       .catch(() => setAuthChecked(true))
@@ -180,7 +200,15 @@ export function KinPassApp({ initialView = 'home' }: KinPassAppProps) {
 
   const content =
     view === 'home' ? (
-      <LandingPage onGetStarted={() => navigate('dashboard')} onCheckout={() => navigate('checkout')} />
+      <LandingPage onGetStarted={() => navigate('dashboard')} onBrowse={() => navigate('events')} />
+    ) : view === 'event' && publicEvent ? (
+      /* Page publique d'un événement : le CTA d'achat mène au checkout de la
+         coquille (maquette) — remplacé par /e/[slug]/checkout en Phase 6.2. */
+      <EventPublicView event={publicEvent} onBuy={() => navigate('checkout')} />
+    ) : view === 'events' ? (
+      /* Vitrine « Billetterie » (Phase 9.3) : l'organisateur connecté dispose
+         du CTA « Créer un événement » dans l'état vide. */
+      <EventListing onCreateEvent={user?.role === 'organizer' ? openCreateEvent : undefined} />
     ) : view === 'dashboard' ? (
       <OrganizerDashboard
         onCreateEvent={openCreateEvent}

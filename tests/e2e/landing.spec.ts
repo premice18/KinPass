@@ -1,7 +1,9 @@
 // Tests end-to-end de la landing page (route `/`).
 //
-// La landing est une maquette statique : ces tests vérifient les éléments
-// marketing clés et la navigation vers les deux CTA principaux.
+// Depuis la Phase 9, la landing affiche le bandeau « Événements à venir »
+// (événements PUBLIÉS du seed) et le CTA « Voir un événement » mène à la
+// rubrique Billetterie (listing) — le checkout maquette est atteint depuis
+// une page publique /e/[slug] (cf. checkout.spec.ts).
 import { test, expect } from '@playwright/test'
 
 import { goTo, loginAsDemo } from './helpers'
@@ -24,6 +26,26 @@ test.describe('Landing page', () => {
     await expect(page.getByRole('heading', { name: 'Mobile Money' })).toBeVisible()
   })
 
+  test('affiche le bandeau des événements publiés à venir', async ({ page }) => {
+    await page.goto('/')
+
+    // Section « Événements à venir » (Phase 9.2)
+    const section = page.getByTestId('upcoming-events')
+    await expect(section).toBeVisible()
+
+    // Les 3 événements publiés du seed apparaissent en cartes
+    await expect(section.getByTestId('public-event-card')).toHaveCount(3)
+    await expect(section.getByText('Kin House : Open Studio')).toBeVisible()
+    await expect(section.getByText('Festival Jazz Kinshasa')).toBeVisible()
+    await expect(section.getByText('Expo Photo Gombe')).toBeVisible()
+
+    // Le brouillon du seed n'apparaît JAMAIS publiquement
+    await expect(section.getByText('Conférence Tech RDC')).toHaveCount(0)
+
+    // « Entrée libre » sur l'événement gratuit (données réelles)
+    await expect(section.getByTestId('public-event-card').filter({ hasText: 'Expo Photo Gombe' }).getByText('Entrée libre')).toBeVisible()
+  })
+
   test('le CTA « Créer un événement » mène au tableau de bord', async ({ page }) => {
     // Le dashboard exige une session (Phase 4.1) : connexion préalable.
     await loginAsDemo(page)
@@ -36,22 +58,22 @@ test.describe('Landing page', () => {
     await expect(page.getByText('ESPACE ORGANISATEUR')).toBeVisible()
   })
 
-  test('le CTA « Voir un événement » mène au tunnel de réservation', async ({ page }) => {
+  test('le CTA « Voir un événement » mène à la rubrique Billetterie', async ({ page }) => {
     await page.goto('/')
 
-    // CTA secondaire -> vue checkout
+    // CTA secondaire -> listing des événements à venir (Phase 9.3)
     await page.getByRole('button', { name: 'Voir un événement' }).click()
 
-    await expect(page.getByRole('heading', { name: 'Kin House : Open Studio' })).toBeVisible()
-    await expect(page.getByText('Réserver vos billets')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Événements à venir' })).toBeVisible()
+    await expect(page.getByTestId('public-event-card').first()).toBeVisible()
   })
 
   test('la navigation par le menu fonctionne', async ({ page }) => {
     await page.goto('/')
 
-    // Le menu « Billetterie » et « Scanner » restent accessibles depuis l'accueil
+    // Le menu « Billetterie » mène à la vitrine des événements (Phase 9)
     await goTo(page, 'Billetterie')
-    await expect(page.getByText('Réserver vos billets')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Événements à venir' })).toBeVisible()
 
     await goTo(page, 'Accueil')
     await expect(

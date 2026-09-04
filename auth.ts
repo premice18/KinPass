@@ -19,6 +19,7 @@ import { eq } from 'drizzle-orm'
 
 import { db } from '@/lib/db'
 import { users } from '@/lib/db/schema'
+import { generateUserSlug } from '@/lib/db/user-slug'
 import { verifyPassword } from '@/lib/password'
 import { authConfig } from '@/auth.config'
 
@@ -52,11 +53,14 @@ async function upsertGoogleUser(
     return existing
   }
 
+  const createdName = fullName?.trim() || email.split('@')[0] || 'Utilisateur Google'
   const [created] = await db
     .insert(users)
     .values({
       email,
-      fullName: fullName?.trim() || email.split('@')[0] || 'Utilisateur Google',
+      // Slug public unique (Phase 9.5) — généré à la création du compte.
+      slug: await generateUserSlug(createdName),
+      fullName: createdName,
       passwordHash: null,
       provider: 'google',
       providerId: googleId ?? null,
