@@ -37,6 +37,7 @@ import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { createOrder, type CreatedOrder } from '@/lib/actions/orders'
 import type { PublicEvent, PublicTicketType } from '@/lib/actions/events'
+import type { DeliveryMethod } from '@/lib/validators/orders'
 
 interface EventCheckoutProps {
   event: PublicEvent
@@ -68,6 +69,9 @@ export function EventCheckout({ event }: EventCheckoutProps) {
   const [buyerPhone, setBuyerPhone] = useState('')
   const [buyerEmail, setBuyerEmail] = useState('')
 
+  // ── Remise du billet (Phase 6.3) : téléchargement direct ou email ────────
+  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>('download')
+
   // ── Soumission (transition serveur) ───────────────────────────────────────
   const [isPending, startTransition] = useTransition()
   const [formError, setFormError] = useState('')
@@ -94,6 +98,9 @@ export function EventCheckout({ event }: EventCheckoutProps) {
     if (!/^\+?[0-9][0-9\s-]{7,19}$/.test(buyerPhone.trim())) {
       return 'Numéro de téléphone invalide (format +243 81 000 00 00).'
     }
+    if (deliveryMethod === 'email' && !buyerEmail.trim()) {
+      return 'L’adresse email est obligatoire pour recevoir vos billets par email.'
+    }
     if (buyerEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail.trim())) {
       return 'Adresse email invalide.'
     }
@@ -118,6 +125,7 @@ export function EventCheckout({ event }: EventCheckoutProps) {
         buyerName: buyerName.trim(),
         buyerPhone: buyerPhone.trim(),
         buyerEmail: buyerEmail.trim() || undefined,
+        deliveryMethod,
       })
       if (!result.success) {
         setFormError(result.error)
@@ -149,6 +157,10 @@ export function EventCheckout({ event }: EventCheckoutProps) {
                   value={formatPrice(Number(order.unitPrice), order.currency)}
                 />
                 <Row label="Total" value={formatPrice(Number(order.totalAmount), order.currency)} strong />
+                <Row
+                  label="Remise"
+                  value={order.deliveryMethod === 'email' ? 'Envoi par email' : 'Téléchargement direct'}
+                />
                 <Row label="Statut" value="En attente de paiement" />
               </div>
 
@@ -313,6 +325,59 @@ export function EventCheckout({ event }: EventCheckoutProps) {
                   </div>
                 </div>
 
+                {/* Remise du billet (Phase 6.3) */}
+                <fieldset>
+                  <legend className="text-sm font-medium">Comment recevoir vos billets</legend>
+                  <div className="mt-2.5 grid gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={deliveryMethod === 'download'}
+                      onClick={() => setDeliveryMethod('download')}
+                      data-testid="checkout-delivery-download"
+                      className={cn(
+                        'flex items-start gap-3 rounded-lg border p-3 text-left transition-colors',
+                        deliveryMethod === 'download'
+                          ? 'border-primary bg-primary/5 ring-2 ring-primary/30'
+                          : 'border-border bg-background hover:bg-muted/40',
+                      )}
+                    >
+                      <span aria-hidden="true" className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-border">
+                        {deliveryMethod === 'download' && <span className="h-2 w-2 rounded-full bg-primary" />}
+                      </span>
+                      <span>
+                        <span className="block font-medium">Télécharger maintenant</span>
+                        <span className="mt-0.5 block text-xs text-muted-foreground">
+                          PDF, PNG ou JPG à la confirmation
+                        </span>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={deliveryMethod === 'email'}
+                      onClick={() => setDeliveryMethod('email')}
+                      data-testid="checkout-delivery-email"
+                      className={cn(
+                        'flex items-start gap-3 rounded-lg border p-3 text-left transition-colors',
+                        deliveryMethod === 'email'
+                          ? 'border-primary bg-primary/5 ring-2 ring-primary/30'
+                          : 'border-border bg-background hover:bg-muted/40',
+                      )}
+                    >
+                      <span aria-hidden="true" className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-border">
+                        {deliveryMethod === 'email' && <span className="h-2 w-2 rounded-full bg-primary" />}
+                      </span>
+                      <span>
+                        <span className="block font-medium">Recevoir par email</span>
+                        <span className="mt-0.5 block text-xs text-muted-foreground">
+                          Votre billet en pièce jointe (PDF)
+                        </span>
+                      </span>
+                    </button>
+                  </div>
+                </fieldset>
+
                 {/* Coordonnées acheteur */}
                 <div className="space-y-4">
                   <Field label="Nom complet">
@@ -336,13 +401,20 @@ export function EventCheckout({ event }: EventCheckoutProps) {
                       data-testid="checkout-buyer-phone"
                     />
                   </Field>
-                  <Field label="Adresse email (optionnelle — pour recevoir vos billets)">
+                  <Field
+                    label={
+                      deliveryMethod === 'email'
+                        ? 'Adresse email (pour recevoir vos billets)'
+                        : 'Adresse email (optionnelle)'
+                    }
+                  >
                     <Input
                       value={buyerEmail}
                       onChange={(e) => setBuyerEmail(e.target.value)}
                       placeholder="jean@exemple.cd"
                       type="email"
                       autoComplete="email"
+                      aria-required={deliveryMethod === 'email'}
                       data-testid="checkout-buyer-email"
                     />
                   </Field>

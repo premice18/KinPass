@@ -74,6 +74,31 @@ test.describe('Tunnel d’achat /e/[slug]/checkout', () => {
     // Référence lisible (8 caractères) + récapitulatif VIP
     await expect(success.getByText(/[A-Z0-9]{8}/)).toBeVisible()
     await expect(success).toContainText('1 × VIP')
+    // Remise par défaut : téléchargement direct
+    await expect(success).toContainText('Téléchargement direct')
+  })
+
+  test('exige l’email quand la remise choisie est l’envoi par email', async ({ page }) => {
+    await page.goto(`/e/${PUBLISHED_SLUG}/checkout`)
+
+    await page.getByRole('radio', { name: /Standard/ }).click()
+    await page.getByTestId('checkout-buyer-name').fill('Jean-Marc Kabongo')
+    await page.getByTestId('checkout-buyer-phone').fill('+243 81 234 56 78')
+
+    // Remise par email… sans adresse : blocage
+    await page.getByTestId('checkout-delivery-email').click()
+    await page.getByTestId('checkout-submit').click()
+    await expect(page.getByTestId('form-error')).toContainText(
+      'L’adresse email est obligatoire pour recevoir vos billets par email.',
+    )
+
+    // Avec l'adresse : la commande part avec la remise « email »
+    await page.getByTestId('checkout-buyer-email').fill('jeanmarc@exemple.cd')
+    await page.getByTestId('checkout-submit').click()
+
+    const success = page.getByTestId('checkout-success')
+    await expect(success).toBeVisible()
+    await expect(success).toContainText('Envoi par email')
   })
 
   test('un événement terminé ou inconnu n’a pas de billetterie', async ({ page }) => {

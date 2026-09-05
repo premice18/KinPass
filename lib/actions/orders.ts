@@ -35,6 +35,7 @@ export type CreatedOrder = {
   totalAmount: string
   currency: string
   status: string
+  deliveryMethod: string
 }
 
 // Place une commande (statut `pending`) pour un événement publié.
@@ -98,6 +99,8 @@ export async function createOrder(input: CheckoutInput): Promise<OrderResult> {
           buyerEmail: data.buyerEmail?.trim() || null,
           totalAmount: total.toFixed(2),
           currency: type.currency,
+          // Mode de remise choisi à l'achat (Phase 6.3) : 'download' | 'email'.
+          deliveryMethod: data.deliveryMethod ?? 'download',
           status: 'pending',
         })
         .returning()
@@ -124,6 +127,7 @@ export async function createOrder(input: CheckoutInput): Promise<OrderResult> {
         totalAmount: total.toFixed(2),
         currency: type.currency,
         status: created.status,
+        deliveryMethod: created.deliveryMethod,
       },
     }
   } catch {

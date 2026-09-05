@@ -8,6 +8,11 @@
 
 import { z } from 'zod'
 
+// Modes de remise du billet (Phase 6.3) : téléchargement direct (défaut) ou
+// envoi par email — l'email de l'acheteur devient obligatoire dans ce cas.
+export const DELIVERY_METHODS = ['download', 'email'] as const
+export type DeliveryMethod = (typeof DELIVERY_METHODS)[number]
+
 // Numéro de téléphone Mobile Money (format international libre : chiffres,
 // +, espaces, tirets — 8 à 20 caractères significatifs).
 export const phoneSchema = z
@@ -33,12 +38,18 @@ export const checkoutSchema = z
       .min(2, 'Le nom complet est obligatoire.')
       .max(255, 'Le nom est trop long (255 caractères max).'),
     buyerPhone: phoneSchema,
-    // Email optionnel (reçu + re-téléchargement du billet).
+    // Email optionnel… sauf si la remise choisie est l'envoi par email.
     buyerEmail: z.union([z.string().trim().email('Adresse email invalide.'), z.literal('')]).optional(),
+    // 'download' (défaut) | 'email' — Phase 6.3.
+    deliveryMethod: z.enum(DELIVERY_METHODS, { error: 'Mode de remise invalide.' }).optional(),
   })
   .refine((data) => data.buyerName.split(/\s+/).filter(Boolean).length >= 2, {
     message: 'Indiquez votre nom et votre prénom.',
     path: ['buyerName'],
+  })
+  .refine((data) => data.deliveryMethod !== 'email' || (data.buyerEmail ?? '').trim().length > 0, {
+    message: 'L’adresse email est obligatoire pour recevoir vos billets par email.',
+    path: ['buyerEmail'],
   })
 
 export type CheckoutInput = z.infer<typeof checkoutSchema>

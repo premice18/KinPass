@@ -42,7 +42,7 @@ Trois profils utilisent la plateforme :
 | Page publique événement `/e/[slug]` | Terminé (Phase 6.1 : SEO dynamique, galerie carrousel, partage WhatsApp) |
 | Base de données (Neon + Drizzle) | Terminé                                                             |
 | Tests end-to-end (Playwright)    | Écrits (landing, dashboard, événements, page publique, vitrine, checkout, scanner) — exécution sur demande |
-| Tunnel d'achat / billetterie     | En cours (Phase 6.2 : commandes réelles `pending` — paiement Mobile Money en 6.4) |
+| Tunnel d'achat / billetterie     | En cours (6.2-6.3 : commandes `pending`, choix de la remise, moteur PDF — paiement en 6.4) |
 | Contrôle d'accès (scanner)       | En cours (saisie manuelle, scan caméra absent)                      |
 | Authentification                 | En cours (email/mot de passe + Google via Auth.js, profil à venir)  |
 | Paiement Mobile Money            | À venir                                                             |
@@ -74,6 +74,8 @@ L'interface intègre également :
 | ORM             | **Drizzle ORM** + **postgres** (postgres.js) + **drizzle-kit** | Requêtes typées, schéma, migrations                   |
 | Validation      | **Zod 4**                                                      | Validation côté serveur (messages en français)        |
 | Authentification| **Auth.js v5** (`next-auth`) + **bcryptjs**                    | Sessions (JWT), providers email/mot de passe et Google |
+| PDF billet      | **@react-pdf/renderer** + **qrcode** (node)                    | Billet PDF serveur + QR PNG (Phase 6.3) |
+| Emails          | **Resend** (optionnel, chargé à la volée)                      | Remise des billets par email (sinon simulé en dev) |
 | Thème           | **next-themes**                                                | Bascule clair / sombre                                |
 | Tests           | **Playwright** (`@playwright/test`)                            | Tests end-to-end                                      |
 | Analytics       | **@vercel/analytics**                                          | Mesure d'audience                                     |
@@ -116,6 +118,9 @@ La vitrine publique est visible sans connexion : bandeau de la landing, rubrique
 | `DATABASE_URL` | URL de connexion Neon (poolée), ex. `postgresql://...` |
 | `AUTH_SECRET`  | Clé de signature des sessions JWT (≥ 32 caractères). Générer : `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"` |
 | `PEXELS_API_KEY` | Clé API [Pexels](https://www.pexels.com/api/) (optionnelle) — photos libres de droits pour les fonds et couvertures. Sans clé, les composants affichent des fallbacks de marque. |
+| `NEXT_PUBLIC_APP_URL` | URL publique du site (partage WhatsApp + aperçus OG). Repli local : `http://localhost:3000` |
+| `RESEND_API_KEY` | Clé [Resend](https://resend.com) (optionnelle) — remise des billets par email. Sans clé : envoi simulé (log) en développement ; installer `pnpm add resend` dès activation. |
+| `MAIL_FROM` | Expéditeur des emails kinPass (défaut `kinPass <billets@kinpass.app>`) |
 
 ## Commandes
 
@@ -166,6 +171,8 @@ lib/
   actions/events.ts      # Server Actions (CRUD + stats + galerie + pages publiques + vitrine)
   actions/orders.ts      # Commandes (createOrder — tunnel d'achat)
   actions/organizers.ts  # Profil public organisateur (/o/[slug])
+  ticket/                # Moteur de billet : types, QR PNG, PDF (Phase 6.3)
+  mail.ts                # Envoi email (Resend optionnel, simulé en dev)
   validators/events.ts   # Schémas Zod
   constants.ts           # Constantes (catégories, devises, statuts, organisateur de test)
   share.ts               # Helpers de partage (URL /e/[slug], texte WhatsApp)
@@ -190,7 +197,8 @@ drizzle.config.ts        # Configuration drizzle-kit
 - **Création / édition d'événement** : informations générales, affiche (URL), **galerie de 1 à 3 photos** (URL, réordonnancement, suppression), multi-types de billets (prix, devise USD/CDF, capacité), slug unique généré depuis le titre, validation côté serveur et client.
 - **Page publique d'événement** (`/e/[slug]`) : en-tête sombre, affiche + galerie en carrousel, description, tarifs, partage WhatsApp / copie du lien, métadonnées SEO dynamiques (og:image = affiche). Les brouillons et slugs inconnus renvoient une 404.
 - **Vitrine publique (Phase 9)** : bandeau « Événements à venir » sur la landing ; rubrique « Billetterie » = listing complet (grille de cartes, filtres par catégorie, recherche par titre, tri par date, états chargement/erreur/vide) ; carte événement « talon » (pastille de date, prix réel « à partir de X $ », « Entrée libre »/« Complet » calculés) ; page publique organisateur `/o/[slug]` (avatar, bio, site, Instagram, événements publiés).
-- **Tunnel d'achat** (`/e/[slug]/checkout`, Phase 6.2) : choix du type de billet avec jauge réelle (places restantes), quantité, coordonnées (nom, téléphone Mobile Money, email optionnel), total calculé — la commande `pending` est créée en base (`orders`/`order_items`) avec prix et capacité re-vérifiés côté serveur. Accusé « Commande enregistrée » avec référence ; le paiement Mobile Money et la remise du billet arrivent en Phases 6.3-6.4.
+- **Tunnel d'achat** (`/e/[slug]/checkout`, Phase 6.2) : choix du type de billet avec jauge réelle (places restantes), quantité, coordonnées (nom, téléphone Mobile Money, email optionnel), total calculé — la commande `pending` est créée en base (`orders`/`order_items`) avec prix et capacité re-vérifiés côté serveur. Accusé « Commande enregistrée » avec référence.
+- **Remise du billet** (Phase 6.3) : choix « Télécharger » ou « Recevoir par email » à l'achat (email obligatoire dans ce cas, `delivery_method` persisté) ; moteur de billet PDF serveur + QR (`lib/ticket/`), aperçu via `/api/dev/ticket-preview`, envoi email Resend optionnel. L'émission du billet après paiement (codes + QR) arrive en Phase 6.4.
 - **Scanner** (maquette) : saisie manuelle du code avec retours VERT / ORANGE / ROUGE.
 - **Thème clair / sombre** et menu mobile responsive.
 
@@ -199,7 +207,7 @@ drizzle.config.ts        # Configuration drizzle-kit
 Le plan détaillé (avec spécifications par phase) est dans [`project_info.md`](./project_info.md). Les grandes étapes restantes :
 
 1. **Authentification & compte organisateur** : inscription/connexion, profil (photo, WhatsApp, compte de reversement), sécurisation des Server Actions.
-2. **Billetterie publique** : page événement, galerie, vitrine et tunnel d'achat (commandes `orders`) faits — restent : remise du billet (email / téléchargement PDF/PNG/JPG), paiement Mobile Money + webhook et pages de confirmation.
+2. **Billetterie publique** : page événement, galerie, vitrine, tunnel d'achat et moteur de billet PDF/QR faits — restent : paiement Mobile Money + webhook (émission des billets, 6.4), pages de confirmation (6.5) et boutons PNG/JPG.
 3. **Scanner** : caméra QR, comptes scanneurs gérés par l'organisateur (accès restreint aux seuls événements assignés), validation en base.
 4. **Vitrine publique (faite)** : événements publiés sur la landing et la rubrique « Billetterie » ; page publique organisateur `/o/[slug]` ; route `/events` SEO restante avec le routing par URL.
 5. **Monétisation & reversement** : commission kinPass, retrait à la demande vers le compte de l'organisateur.
