@@ -124,7 +124,7 @@ Anti-patterns bannis : badges-pilules arrondis teintés, cartes `rounded-xl` + `
 - **Paiement Mobile Money** : M-Pesa / Orange Money / Airtel Money (agrégateur ou flux simulé pour MVP) + webhook de confirmation (6.4).
 - **Billet numérique** : **QR Code dynamique** + **code alphanumérique unique de 6 caractères** (ex. `K9M-4X2`).
 - **Remise du billet** : au choix **envoi par email** (PDF en pièce jointe) **ou téléchargement direct** (PDF / PNG / JPG) ; pages de confirmation (`/success`) et d'annulation (`/cancel`).
-- **État** : ✅ 6.2 faite — route réelle `/e/[slug]/checkout`, choix du type (jauge réelle) + quantité, coordonnées validées (Zod), **commande `pending` créée en base** (`orders`/`order_items`, prix et jauge re-vérifiés serveur), accusé « Commande enregistrée » avec référence ; utilitaire de code billet prêt (`lib/ticket-code.ts`). Reste : 6.3 (remise email/téléchargement PDF/PNG/JPG), 6.4 (paiement Mobile Money + webhook → `paid`, émission billets codes+QR), 6.5 (pages success/cancel).
+- **État** : ✅ 6.2 faite — route réelle `/e/[slug]/checkout`, choix du type (jauge réelle) + quantité, coordonnées validées (Zod), **commande `pending` créée en base** (`orders`/`order_items`, prix et jauge re-vérifiés serveur), accusé « Commande enregistrée » avec référence ; utilitaire de code billet prêt (`lib/ticket-code.ts`). ✅ 6.3 — choix de la remise (email obligatoire si « par email »), `delivery_method` persisté, moteur de billet PDF + QR (`lib/ticket/`, route dev d'aperçu), socle email Resend (`lib/mail.ts`). Reste : 6.4 (paiement Mobile Money + webhook → `paid`, émission billets codes+QR, envoi email), 6.5 (pages success/cancel, boutons PDF/PNG/JPG).
 
 ### 📄 Contrôle d'accès — Route `/scan/[slug]` (À VENIR)
 
@@ -368,16 +368,15 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 - [x] Maquette `TicketCheckout` **supprimée** : le CTA « Réserver maintenant » de `/e/[slug]` est désormais un vrai lien vers `/e/[slug]/checkout`.
 - [ ] Confirmation de paiement (6.4) : la commande reste `pending`, l'écran affiche un accusé clair « Commande enregistrée » + rappel que le paiement arrive.
 
-#### 6.3 Choix de remise du billet : email OU téléchargement (PDF / PNG / JPG)
+#### 6.3 Choix de remise du billet : email OU téléchargement (PDF / PNG / JPG) 🟡 (choix + moteur PDF faits)
 
-- [ ] À l'achat, l'acheteur choisit la remise : « Recevoir par email » **OU** « Télécharger maintenant ».
-- [ ] `orders.delivery_method` : `email` | `download` (modifiable après paiement via la page de confirmation).
-- [ ] Génération du billet :
-  - **PDF** : rendu serveur (bibliothèque PDF, ex. `@react-pdf/renderer` ou Puppeteer) avec nom, type, événement, QR et code 6 caractères.
-  - **PNG / JPG** : rendu de la carte billet en image (SVG → PNG/JPG) pour partage et sauvegarde.
-- [ ] Email : envoi du billet en pièce jointe PDF + lien de téléchargement sécurisé (provider email configurable : Resend / SendGrid / Postmark).
-- [ ] Téléchargement direct : boutons « PDF », « PNG », « JPG » sur la page de confirmation.
-- [ ] Re-téléchargement / renvoi possible depuis « Vérifier mon billet » (Phase 12).
+- [x] À l'achat, l'acheteur choisit la remise : « **Télécharger maintenant** » (défaut) **OU** « **Recevoir par email** » (groupe radio dans le checkout) ; l'email devient **obligatoire** si la remise par email est choisie (validation client + serveur).
+- [x] `orders.delivery_method` : `email` | `download` **persisté à la création de la commande** (colonne existante, défaut `download`) et affiché dans l'accusé ; la modification après paiement (page de confirmation) arrivera avec 6.5.
+- [x] **Moteur de billet** (`lib/ticket/`) : `types.ts` (données 100 % sérialisables) + `qr.ts` (QR **PNG serveur**, `qrcode`, correction M) + `pdf.ts` — billet **PDF** horizontal 700×340 pt via `@react-pdf/renderer` : zone blanche (événement, date, lieu, type, acheteur) + talon sombre (code mono + QR), pièce jointe prête pour l'email et le téléchargement.
+- [x] Route dev `GET /api/dev/ticket-preview?code=…` : génère un PDF de démonstration avec le moteur de production (validation du rendu sans paiement).
+- [x] Email : `lib/mail.ts` (`sendTicketEmail`) — provider **Resend** si `RESEND_API_KEY` (chargé à la volée, aucun bundle alourdi), **simulation loggée en développement** sinon ; expéditeur configurable `MAIL_FROM`. L'envoi réel sera déclenché à la confirmation du paiement (Phase 6.4).
+- [ ] **PNG / JPG** : rendu de la carte billet en image (SVG → PNG/JPG) — sera consommé par les boutons de la page de confirmation (6.5) via un rendu DOM/canvas (aucune dépendance serveur) ; le re-téléchargement public viendra avec « Vérifier mon billet » (Phase 12).
+- [ ] Tests E2E écrits (choix de remise download/email) : **exécution sur demande** (règle §0.7).
 
 #### 6.4 Paiement Mobile Money + webhook de confirmation
 
@@ -740,7 +739,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - **Phase 3** : ✅ TERMINÉE (logo ticket, dark/light, menu mobile).
 - **Phase 4 (auth + compte organisateur)** : 🟡 EN COURS — **4.1, 4.2 et 4.3 faites** (register/login + Google via Auth.js ; page « Mon profil » : avatar auto Google ou initiales, WhatsApp, adresse, comptes de reversement, blocage publication sans compte) ; reste : badge « Profil incomplet » sur le dashboard, upload avatar réel (stockage externe), rôle agent (Phase 7), exécution des tests E2E (sur demande).
 - **Phase 5 (événements)** : ✅ TERMINÉE — CRUD complet + publication, organisateur de test fixe (`lib/constants.ts`), à sécuriser par la session dès la Phase 4.
-- **Phase 6 (billetterie + paiement)** : 🟡 EN COURS — **6.1 et 6.2 faites** (page publique `/e/[slug]` SEO + galerie `event_images` + formulaire galerie + partage WhatsApp ; tunnel d'achat réel `/e/[slug]/checkout` + tables `orders`/`order_items` + `tickets.order_id` + utilitaire de code billet) ; reste : 6.3 remise du billet (email/PDF/PNG/JPG), 6.4 paiement Mobile Money (webhook, émission des billets/QR), 6.5 pages de confirmation, 6.7 partage enrichi (panneau + QR).
+- **Phase 6 (billetterie + paiement)** : 🟡 EN COURS — **6.1, 6.2 et 6.3 faites** (page publique `/e/[slug]` SEO + galerie ; tunnel d'achat réel `/e/[slug]/checkout` + `orders`/`order_items` ; **choix de remise email/téléchargement + moteur de billet PDF/QR + socle email Resend**) ; reste : 6.4 paiement Mobile Money (webhook → `paid`, émission des billets/QR, envoi email), 6.5 pages de confirmation + boutons PNG/JPG, 6.7 partage enrichi.
 - **Phase 7 (scanner)** : ❌ À VENIR — interface de scan (caméra + saisie), **comptes scanneurs gérés par l'organisateur avec RBAC strict** (assignation par événement, aucun accès aux ventes/contrats).
 - **Phase 8 (polish)** : 🟡 EN COURS — tests E2E faits (15 scénarios) ; unitaires, PWA et export restent.
 - **Phase 9 (vitrine publique)** : ✅ TERMINÉE — `getPublicEvents` (source unique), bandeau « À venir » sur la landing (3 événements, jamais de brouillon), rubrique « Billetterie » = listing complet (chips catégories, recherche, tri, états chargement/erreur/vide), carte `EventCard` « talon » partagée (→ `/e/[slug]`), page publique organisateur `/o/[slug]` (`users.slug` auto-généré) ; route `/events` SEO reportée au routing par URL.
@@ -791,6 +790,8 @@ lib/
   share.ts            # Helpers de partage (URL /e/[slug], WhatsApp)
   slug.ts             # slugify + suffixe aléatoire (slug URL unique)
   ticket-code.ts      # Codes de billet 6 caractères (XXX-XXX, Phase 6.2)
+  ticket/             # Moteur de billet (Phase 6.3) : types, QR PNG, PDF
+  mail.ts             # Envoi email (Resend optionnel, simulation en dev)
   pexels.ts           # Client API Pexels (serveur uniquement)
   hooks/use-pexels-images.ts  # Hook client de chargement des photos Pexels
   db/
@@ -822,6 +823,8 @@ drizzle.config.ts     # Config drizzle-kit
 | `AUTH_GOOGLE_ID` | ❌ (si Google) | Client ID OAuth Google (Google Cloud Console). |
 | `AUTH_GOOGLE_SECRET` | ❌ (si Google) | Client secret OAuth Google. |
 | `NEXT_PUBLIC_APP_URL` | ✅ (partage/SEO) | URL publique du site (ex. `https://kinpass.app`) — construire les liens partageables (`/e/[slug]`) et les aperçus OG. Repli local : `http://localhost:3000`. |
+| `RESEND_API_KEY` | ❌ (email) | Clé Resend pour la remise des billets par email (Phase 6.3). Sans clé : envoi **simulé** (log) en développement ; installer `pnpm add resend` dès activation. |
+| `MAIL_FROM` | ❌ (email) | Expéditeur des emails kinPass (défaut `kinPass <billets@kinpass.app>`). |
 
 | Commande                     | Description                                                                |
 | :--------------------------- | :------------------------------------------------------------------------- |

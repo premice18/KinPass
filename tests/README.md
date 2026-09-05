@@ -90,6 +90,7 @@ Convention de nommage : **kebab-case en anglais**, préfixé par le domaine.
 | `checkout-type-option` | `checkout/EventCheckout.tsx` | Option de type de billet (radio) |
 | `checkout-buyer-name` / `checkout-buyer-phone` / `checkout-buyer-email` | `checkout/EventCheckout.tsx` | Coordonnées acheteur |
 | `checkout-total` / `checkout-quantity` / `checkout-submit` | `checkout/EventCheckout.tsx` | Total / quantité / soumission |
+| `checkout-delivery-download` / `checkout-delivery-email` | `checkout/EventCheckout.tsx` | Choix de la remise (Phase 6.3) |
 | `checkout-success` | `checkout/EventCheckout.tsx` | Accusé de réception de la commande |
 | `scanner-code-input`, `scan-result` | `scanner/Scanner.tsx` | Champ code / résultat |
 
