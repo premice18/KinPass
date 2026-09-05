@@ -375,6 +375,8 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 - [x] **Moteur de billet** (`lib/ticket/`) : `types.ts` (données 100 % sérialisables) + `qr.ts` (QR **PNG serveur**, `qrcode`, correction M) + `pdf.ts` — billet **PDF** horizontal 700×340 pt via `@react-pdf/renderer` : zone blanche (événement, date, lieu, type, acheteur) + talon sombre (code mono + QR), pièce jointe prête pour l'email et le téléchargement.
 - [x] Route dev `GET /api/dev/ticket-preview?code=…` : génère un PDF de démonstration avec le moteur de production (validation du rendu sans paiement).
 - [x] Email : `lib/mail.ts` (`sendTicketEmail`) — provider **Resend** si `RESEND_API_KEY` (chargé à la volée, aucun bundle alourdi), **simulation loggée en développement** sinon ; expéditeur configurable `MAIL_FROM`. L'envoi réel sera déclenché à la confirmation du paiement (Phase 6.4).
+- [x] **Template transactionnel dans le code** (`lib/email-templates.ts`) : HTML inline compatible Gmail/Outlook (en-tête kinPass, encart par billet type + code, rappel QR, lien événement) + version **texte brut** + échappement HTML. **Décision (validée)** : pas de template dashboard Resend (double source de vérité) — voir note ci-dessous.
+- [ ] **(Décision — à retenir)** Pour les futurs emails « branding » (rappel J-3/J-1/J-2h de la Phase 15.1, notifications de retrait Phase 10, confirmations enrichies), la bonne étape est **React Email** (`@react-email/components`) : composants typés dans le code, rendus par Resend (`react`) ou envoyés en `html` — même philosophie que le choix actuel (le code reste la source de vérité, versionné et testable). Pas de migration nécessaire pour la remise des billets (HTML inline existant suffit, avec pièce jointe PDF).
 - [ ] **PNG / JPG** : rendu de la carte billet en image (SVG → PNG/JPG) — sera consommé par les boutons de la page de confirmation (6.5) via un rendu DOM/canvas (aucune dépendance serveur) ; le re-téléchargement public viendra avec « Vérifier mon billet » (Phase 12).
 - [ ] Tests E2E écrits (choix de remise download/email) : **exécution sur demande** (règle §0.7).
 
@@ -613,7 +615,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 **Pourquoi ça démarque** : au Congo, WhatsApp est LE canal de communication. Les concurrents utilisent l'email, que la majorité n'ouvre pas.
 
 - [ ] Livraison du billet par **WhatsApp** (Business API) en plus de l'email : envoi du billet (image/PDF) + lien de téléchargement.
-- [ ] Rappels automatiques : J-3, J-1, J-2h avant l'événement (si l'organisateur active les rappels).
+- [ ] Rappels automatiques : J-3, J-1, J-2h avant l'événement (si l'organisateur active les rappels). Rendu email via **React Email** (cf. décision §6.3 — pas de template dashboard).
 - [ ] **Préférences de notifications de l'organisateur** (rubrique profil) : canaux email et/ou WhatsApp activables séparément (ventes, retraits, rappels).
 - [ ] Annulation / report d'événement : notification WhatsApp à tous les acheteurs (un seul clic côté organisateur).
 - [ ] Préférences : l'acheteur choisit email et/ou WhatsApp ; MVP = lien `wa.me` pré-rempli, production = WhatsApp Business Cloud API.

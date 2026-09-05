@@ -36,6 +36,7 @@ export type FulfillmentResult = {
   orderId: string
   orderReference: string
   eventTitle: string
+  eventSlug: string
   buyerName: string
   deliveryMethod: string
   buyerEmail: string | null
@@ -105,7 +106,7 @@ export async function fulfillPaidOrder(orderId: string, paymentRef?: string | nu
     if (order.status !== 'pending') return null
 
     const [event] = await db
-      .select({ title: events.title })
+      .select({ title: events.title, slug: events.slug })
       .from(events)
       .where(eq(events.id, order.eventId))
       .limit(1)
@@ -155,6 +156,7 @@ export async function fulfillPaidOrder(orderId: string, paymentRef?: string | nu
       orderId: order.id,
       orderReference: order.id.replace(/-/g, '').slice(0, 8).toUpperCase(),
       eventTitle: event.title,
+      eventSlug: event.slug,
       buyerName: order.buyerName,
       deliveryMethod: order.deliveryMethod,
       buyerEmail: order.buyerEmail,
@@ -209,7 +211,10 @@ export async function sendTicketsByEmail(result: FulfillmentResult): Promise<Ema
       to: result.buyerEmail,
       buyerName: result.buyerName,
       eventTitle: result.eventTitle,
+      tickets: result.tickets.map((t) => ({ ticketTypeName: t.ticketTypeName, code: t.code })),
       attachments,
+      // Lien « Voir l'événement » du récapitulatif (URL canonique publique).
+      eventUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/e/${result.eventSlug}`,
     })
     return delivery.ok ? 'sent' : 'failed'
   } catch (err) {
