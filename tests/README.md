@@ -93,6 +93,7 @@ Convention de nommage : **kebab-case en anglais**, préfixé par le domaine.
 | `checkout-delivery-download` / `checkout-delivery-email` | `checkout/EventCheckout.tsx` | Choix de la remise (Phase 6.3) |
 | `checkout-provider-mpesa` / `checkout-provider-orange` / `checkout-provider-airtel` | `checkout/EventCheckout.tsx` | Opérateur Mobile Money (Phase 6.4) |
 | `paid-ticket-code` | `checkout/EventCheckout.tsx` | Code d'un billet émis après paiement |
+| `paid-ticket` / `paid-ticket-qr` | `checkout/IssuedTicketCard.tsx` | Carte billet (QR + PDF/PNG/JPG) |
 | `checkout-check-status` / `checkout-retry` | `checkout/EventCheckout.tsx` | Vérifier / réessayer le paiement |
 | `checkout-success` | `checkout/EventCheckout.tsx` | Confirmation du paiement (billets) |
 | `scanner-code-input`, `scan-result` | `scanner/Scanner.tsx` | Champ code / résultat |

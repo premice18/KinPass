@@ -12,6 +12,8 @@
 
 import 'server-only'
 
+import { Resend } from 'resend'
+
 export type SendEmailResult =
   | { ok: true; id: string | null }
   | { ok: false; error: string }
@@ -43,24 +45,7 @@ export async function sendTicketEmail(payload: TicketEmailPayload): Promise<Send
   }
 
   try {
-    // Chargement paresseux par nom dynamique : le SDK n'est résolu ni par le
-    // bundler (Next) ni par TypeScript tant qu'il n'est pas installé —
-    // `pnpm add resend` dès qu'une clé RESEND_API_KEY est configurée.
-    const moduleName = 'resend'
-    const resendModule = (await import(moduleName)) as {
-      Resend: new (apiKey: string) => {
-        emails: {
-          send: (payload: {
-            from: string
-            to: string
-            subject: string
-            html: string
-            attachments?: Array<{ filename: string; content: Buffer }>
-          }) => Promise<{ data: { id: string } | null; error: { message: string } | null }>
-        }
-      }
-    }
-    const resend = new resendModule.Resend(apiKey)
+    const resend = new Resend(apiKey)
 
     const { data, error } = await resend.emails.send({
       from: process.env.MAIL_FROM ?? DEFAULT_FROM,
