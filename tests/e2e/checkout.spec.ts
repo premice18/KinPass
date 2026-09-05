@@ -78,12 +78,17 @@ test.describe('Tunnel d’achat /e/[slug]/checkout', () => {
     await expect(success.getByText('Paiement confirmé')).toBeVisible()
     await expect(success).toContainText(/Votre commande [A-Z0-9]{8}/)
 
-    // Deux billets émis (un par place), codes au format XXX-XXX
-    const codes = success.getByTestId('paid-ticket-code')
-    await expect(codes).toHaveCount(2)
+    // Deux billets émis (un par place), QR + code au format XXX-XXX
+    const cards = success.getByTestId('paid-ticket')
+    await expect(cards).toHaveCount(2)
     for (let i = 0; i < 2; i++) {
-      await expect(codes.nth(i)).toContainText(/^[A-Z2-9]{3}-[A-Z2-9]{3}$/)
-      await expect(codes.nth(i)).toContainText('VIP')
+      await expect(cards.nth(i)).toContainText('VIP')
+      await expect(cards.nth(i).getByTestId('paid-ticket-code')).toHaveText(/^[A-Z2-9]{3}-[A-Z2-9]{3}$/)
+      await expect(cards.nth(i).getByTestId('paid-ticket-qr')).toBeVisible()
+      // Téléchargements toujours proposés (PDF/PNG/JPG)
+      await expect(cards.nth(i).getByRole('button', { name: 'PDF' })).toBeVisible()
+      await expect(cards.nth(i).getByRole('button', { name: 'PNG' })).toBeVisible()
+      await expect(cards.nth(i).getByRole('button', { name: 'JPG' })).toBeVisible()
     }
 
     // Mention du mode démo (simulation, aucune clé KPay)
@@ -111,7 +116,9 @@ test.describe('Tunnel d’achat /e/[slug]/checkout', () => {
     const success = page.getByTestId('checkout-success')
     await expect(success).toBeVisible()
     await expect(success.getByText('Paiement confirmé')).toBeVisible()
-    await expect(success).toContainText('envoyés par email')
+    // Le téléchargement reste proposé même avec la remise « email »
+    await expect(success).toContainText(/email/)
+    await expect(success.getByTestId('paid-ticket').first().getByRole('button', { name: 'PDF' })).toBeVisible()
   })
 
   test('un événement gratuit est confirmé sans payer', async ({ page }) => {
@@ -124,7 +131,7 @@ test.describe('Tunnel d’achat /e/[slug]/checkout', () => {
 
     const success = page.getByTestId('checkout-success')
     await expect(success.getByText('Paiement confirmé')).toBeVisible()
-    await expect(success.getByTestId('paid-ticket-code')).toHaveCount(1)
+    await expect(success.getByTestId('paid-ticket')).toHaveCount(1)
   })
 
   test('un événement terminé ou inconnu n’a pas de billetterie', async ({ page }) => {

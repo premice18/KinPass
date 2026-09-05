@@ -39,7 +39,9 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Eyebrow } from '@/components/ui/eyebrow'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
+import { IssuedTicketCard } from '@/components/features/checkout/IssuedTicketCard'
 import { createOrder, getOrderStatus, initiatePayment, type CreatedOrder } from '@/lib/actions/orders'
+import type { EmailDeliveryStatus } from '@/lib/payments'
 import { KPAY_COD_PROVIDERS, type KpayCodProviderId } from '@/lib/kpay-providers'
 import type { PublicEvent, PublicTicketType } from '@/lib/actions/events'
 import type { DeliveryMethod } from '@/lib/validators/orders'
@@ -54,7 +56,7 @@ interface EventCheckoutProps {
 type Step = 'form' | 'awaiting' | 'paid' | 'failed'
 
 // Billet émis (affiché à l'acheteur).
-type PaidTicket = { code: string; ticketTypeName: string }
+export type PaidTicket = { code: string; ticketTypeName: string }
 
 // Formate un prix selon la devise (affichage acheteur).
 function formatPrice(price: number, currency: string): string {
@@ -97,6 +99,8 @@ export function EventCheckout({ event }: EventCheckoutProps) {
   // Résultat final (simulé ou via le webhook).
   const [paidTickets, setPaidTickets] = useState<PaidTicket[]>([])
   const [paidSimulated, setPaidSimulated] = useState(false)
+  // Statut de la remise email (informatif — le téléchargement reste dispo).
+  const [emailStatus, setEmailStatus] = useState<EmailDeliveryStatus | 'pending'>('pending')
 
   const selectedType = event.ticketTypes.find((type) => type.id === typeId) ?? null
   const isFreeEvent = event.ticketTypes.every((type) => Number(type.price) === 0)
@@ -165,6 +169,7 @@ export function EventCheckout({ event }: EventCheckoutProps) {
         // Paiement simulé : la commande est déjà payée (billets émis).
         setPaidSimulated(true)
         setPaidTickets(payment.data.tickets)
+        setEmailStatus(payment.data.emailStatus)
         setStep('paid')
       } else {
         // KPay réel : on attend la confirmation (webhook) sur le téléphone.
@@ -182,6 +187,8 @@ export function EventCheckout({ event }: EventCheckoutProps) {
     if (!result.success) return
     if (result.data.status === 'paid') {
       setPaidTickets(result.data.tickets ?? [])
+      // Confirmé par webhook : l'email a été déclenché côté serveur.
+      setEmailStatus(order.deliveryMethod === 'email' ? 'sent' : 'not-requested')
       setStep('paid')
     } else if (result.data.status === 'failed') {
       setStep('failed')
@@ -204,6 +211,7 @@ export function EventCheckout({ event }: EventCheckoutProps) {
       if (cancelled || !result.success) return
       if (result.data.status === 'paid') {
         setPaidTickets(result.data.tickets ?? [])
+        setEmailStatus(order.deliveryMethod === 'email' ? 'sent' : 'not-requested')
         setStep('paid')
         window.clearInterval(timer)
       } else if (result.data.status === 'failed') {
@@ -243,36 +251,48 @@ export function EventCheckout({ event }: EventCheckoutProps) {
                 <Badge variant="secondary">Mode démo — paiement simulé</Badge>
               )}
 
-              {/* Codes d'accès des billets émis */}
+              {/* Billets émis : QR + code + téléchargement PDF/PNG/JPG */}
               {paidTickets.length > 0 && (
-                <div className="w-full space-y-2 rounded-lg border border-dashed border-border bg-muted/30 p-4 text-left">
+                <div className="w-full space-y-3 text-left">
                   <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     Vos billets ({paidTickets.length})
                   </p>
                   {paidTickets.map((ticket) => (
-                    <div
+                    <IssuedTicketCard
                       key={ticket.code}
-                      data-testid="paid-ticket-code"
-                      className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2"
-                    >
-                      <span className="text-sm text-muted-foreground">{ticket.ticketTypeName}</span>
-                      <span className="font-mono text-base font-bold tracking-[0.2em]">{ticket.code}</span>
-                    </div>
+                      ticket={ticket}
+                      eventTitle={order.eventTitle}
+                      venue={[event.venue, event.location].filter(Boolean).join(' · ')}
+                      buyerName={buyerName}
+                    />
                   ))}
                 </div>
               )}
 
+              {/* Remise : email ou téléchargement (le téléchargement reste
+                  toujours disponible, même quand l'email a été choisi) */}
               <p className="text-sm text-muted-foreground">
-                {order.deliveryMethod === 'email'
-                  ? 'Les billets vous sont envoyés par email (PDF en pièce jointe).'
-                  : 'Présentez le code (ou le QR, bientôt) à l’entrée de l’événement.'}
+                {order.deliveryMethod === 'email' ? (
+                  emailStatus === 'unavailable' || emailStatus === 'failed' ? (
+                    <span className="flex items-center justify-center gap-1.5 text-amber-600 dark:text-amber-400">
+                      <WarningCircle className="h-4 w-4 shrink-0" />
+                      L'envoi par email n'a pas abouti — utilisez le téléchargement ci-dessus.
+                    </span>
+                  ) : emailStatus === 'sent' ? (
+                    `Les billets vous sont envoyés par email (PDF). Vous pouvez aussi les télécharger ci-dessus.`
+                  ) : (
+                    `Vos billets partent par email (PDF) — téléchargeables aussi ci-dessus.`
+                  )
+                ) : (
+                  "Présentez le QR (ou le code 6 caractères) à l'entrée de l'événement."
+                )}
               </p>
 
               <a
                 href={`/e/${order.eventSlug}`}
                 className={buttonVariants({ variant: 'outline', size: 'lg', className: 'mt-2 w-full' })}
               >
-                Retour à l’événement
+                Retour à l'événement
               </a>
             </CardContent>
           </Card>
