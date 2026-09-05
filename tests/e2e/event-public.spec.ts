@@ -56,9 +56,10 @@ test.describe('Page publique événement /e/[slug]', () => {
   test('le bouton d’achat mène au tunnel de réservation', async ({ page }) => {
     await page.goto(`/e/${PUBLISHED_SLUG}`)
 
+    // CTA → vraie route de checkout (Phase 6.2)
     await page.getByTestId('event-public-buy').click()
-    // La coquille ouvre le checkout (maquette en attendant la Phase 6.2).
-    await expect(page.getByRole('heading', { name: 'Réserver vos billets' })).toBeVisible()
+    await page.waitForURL(/\/checkout$/)
+    await expect(page.getByTestId('checkout-submit')).toBeVisible()
   })
 
   test('un événement brouillon reste introuvable (404)', async ({ page }) => {

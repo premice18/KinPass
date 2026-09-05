@@ -42,7 +42,7 @@ Trois profils utilisent la plateforme :
 | Page publique événement `/e/[slug]` | Terminé (Phase 6.1 : SEO dynamique, galerie carrousel, partage WhatsApp) |
 | Base de données (Neon + Drizzle) | Terminé                                                             |
 | Tests end-to-end (Playwright)    | Écrits (landing, dashboard, événements, page publique, vitrine, checkout, scanner) — exécution sur demande |
-| Tunnel d'achat / billetterie     | En cours (interface, paiement factice — vrai checkout en Phase 6.2) |
+| Tunnel d'achat / billetterie     | En cours (Phase 6.2 : commandes réelles `pending` — paiement Mobile Money en 6.4) |
 | Contrôle d'accès (scanner)       | En cours (saisie manuelle, scan caméra absent)                      |
 | Authentification                 | En cours (email/mot de passe + Google via Auth.js, profil à venir)  |
 | Paiement Mobile Money            | À venir                                                             |
@@ -160,16 +160,18 @@ components/
     event-creation/      #   EventCreationForm
     event-public/        #   EventPublicView (galerie, partage)
     events/              #   EventCard « talon » + EventListing (vitrine Phase 9)
-    checkout/            #   TicketCheckout
+    checkout/            #   EventCheckout (tunnel /e/[slug]/checkout, Phase 6.2)
     scanner/             #   Scanner
 lib/
   actions/events.ts      # Server Actions (CRUD + stats + galerie + pages publiques + vitrine)
+  actions/orders.ts      # Commandes (createOrder — tunnel d'achat)
   actions/organizers.ts  # Profil public organisateur (/o/[slug])
   validators/events.ts   # Schémas Zod
   constants.ts           # Constantes (catégories, devises, statuts, organisateur de test)
   share.ts               # Helpers de partage (URL /e/[slug], texte WhatsApp)
   slug.ts                # Génération de slug URL unique
-  db/schema.ts           # Schéma Drizzle (users, payout_methods, events, event_images, ticket_types, tickets, scans)
+  ticket-code.ts         # Codes de billet 6 caractères (XXX-XXX)
+  db/schema.ts           # Schéma Drizzle (users, payout_methods, events, event_images, ticket_types, orders, order_items, tickets, scans)
   db/user-slug.ts        # Slug public organisateur
   db/index.ts            # Client Drizzle (singleton)
   utils.ts               # utilitaire cn()
@@ -188,7 +190,7 @@ drizzle.config.ts        # Configuration drizzle-kit
 - **Création / édition d'événement** : informations générales, affiche (URL), **galerie de 1 à 3 photos** (URL, réordonnancement, suppression), multi-types de billets (prix, devise USD/CDF, capacité), slug unique généré depuis le titre, validation côté serveur et client.
 - **Page publique d'événement** (`/e/[slug]`) : en-tête sombre, affiche + galerie en carrousel, description, tarifs, partage WhatsApp / copie du lien, métadonnées SEO dynamiques (og:image = affiche). Les brouillons et slugs inconnus renvoient une 404.
 - **Vitrine publique (Phase 9)** : bandeau « Événements à venir » sur la landing ; rubrique « Billetterie » = listing complet (grille de cartes, filtres par catégorie, recherche par titre, tri par date, états chargement/erreur/vide) ; carte événement « talon » (pastille de date, prix réel « à partir de X $ », « Entrée libre »/« Complet » calculés) ; page publique organisateur `/o/[slug]` (avatar, bio, site, Instagram, événements publiés).
-- **Tunnel de réservation** (maquette) : sélection de quantité, coordonnées, paiement factice.
+- **Tunnel d'achat** (`/e/[slug]/checkout`, Phase 6.2) : choix du type de billet avec jauge réelle (places restantes), quantité, coordonnées (nom, téléphone Mobile Money, email optionnel), total calculé — la commande `pending` est créée en base (`orders`/`order_items`) avec prix et capacité re-vérifiés côté serveur. Accusé « Commande enregistrée » avec référence ; le paiement Mobile Money et la remise du billet arrivent en Phases 6.3-6.4.
 - **Scanner** (maquette) : saisie manuelle du code avec retours VERT / ORANGE / ROUGE.
 - **Thème clair / sombre** et menu mobile responsive.
 
@@ -197,7 +199,7 @@ drizzle.config.ts        # Configuration drizzle-kit
 Le plan détaillé (avec spécifications par phase) est dans [`project_info.md`](./project_info.md). Les grandes étapes restantes :
 
 1. **Authentification & compte organisateur** : inscription/connexion, profil (photo, WhatsApp, compte de reversement), sécurisation des Server Actions.
-2. **Billetterie publique** : page événement (faite), galerie 1-3 photos (faite) — commandes, remise du billet (email ou téléchargement PDF/PNG/JPG), paiement Mobile Money et pages de confirmation restent à faire.
+2. **Billetterie publique** : page événement, galerie, vitrine et tunnel d'achat (commandes `orders`) faits — restent : remise du billet (email / téléchargement PDF/PNG/JPG), paiement Mobile Money + webhook et pages de confirmation.
 3. **Scanner** : caméra QR, comptes scanneurs gérés par l'organisateur (accès restreint aux seuls événements assignés), validation en base.
 4. **Vitrine publique (faite)** : événements publiés sur la landing et la rubrique « Billetterie » ; page publique organisateur `/o/[slug]` ; route `/events` SEO restante avec le routing par URL.
 5. **Monétisation & reversement** : commission kinPass, retrait à la demande vers le compte de l'organisateur.

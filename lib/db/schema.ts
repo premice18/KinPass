@@ -13,7 +13,8 @@ import {
 
 // ---------------------------------------------------------------------------
 // Schéma PostgreSQL (Neon) — billetterie kinPass
-// Tables : users, events, ticket_types, tickets, scans
+// Tables : users, payout_methods, events, event_images, ticket_types, orders,
+//          order_items, tickets, scans
 // ---------------------------------------------------------------------------
 
 // Utilisateurs : organisateurs (créateurs d'événements) et agents de contrôle.
@@ -144,7 +145,60 @@ export const ticketTypes = pgTable(
   (table) => [index('ticket_types_event_idx').on(table.eventId)],
 )
 
+// Commandes d'achat (Phase 6.2) : un acheteur groupe ses achats en une
+// commande (1 à N types de billets via `order_items`). Le paiement n'est pas
+// encore effectué à la création : statut `pending` → `paid` à la confirmation
+// Mobile Money (webhook, Phase 6.4), puis les billets sont générés.
+export const orders = pgTable(
+  'orders',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    eventId: uuid('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    buyerName: varchar('buyer_name', { length: 255 }).notNull(),
+    // Téléphone Mobile Money de l'acheteur (format international libre).
+    buyerPhone: varchar('buyer_phone', { length: 30 }),
+    buyerEmail: varchar('buyer_email', { length: 255 }),
+    totalAmount: numeric('total_amount', { precision: 12, scale: 2 }).notNull().default('0'),
+    // USD | CDF — devise du total (celle du type de billet commandé).
+    currency: varchar('currency', { length: 10 }).notNull().default('USD'),
+    // email | download — choisi à l'achat (Phase 6.3), téléchargement par défaut.
+    deliveryMethod: varchar('delivery_method', { length: 20 }).notNull().default('download'),
+    // pending | paid | failed | expired (expiration après X minutes, Phase 6.4).
+    status: varchar('status', { length: 20 }).notNull().default('pending'),
+    // Référence de paiement renvoyée par l'agrégateur Mobile Money (webhook).
+    paymentRef: varchar('payment_ref', { length: 100 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('orders_event_idx').on(table.eventId),
+    index('orders_status_idx').on(table.status),
+  ],
+)
+
+// Lignes d'une commande : quantité × prix unitaire (gelé à l'achat) d'un type
+// de billet. Regroupement des achats multi-billets d'un même commanditaire.
+export const orderItems = pgTable(
+  'order_items',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    orderId: uuid('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'cascade' }),
+    ticketTypeId: uuid('ticket_type_id')
+      .notNull()
+      .references(() => ticketTypes.id, { onDelete: 'cascade' }),
+    quantity: integer('quantity').notNull().default(1),
+    // Prix unitaire au moment de l'achat (les tarifs peuvent changer après).
+    unitPrice: numeric('unit_price', { precision: 12, scale: 2 }).notNull().default('0'),
+  },
+  (table) => [index('order_items_order_idx').on(table.orderId)],
+)
+
 // Billets achetés. `code` = code alphanumérique unique de 6 caractères (indexé UNIQUE).
+// `orderId` rattache un billet à sa commande (Phase 6.2 ; nullable pour les
+// billets seedés avant les commandes).
 export const tickets = pgTable(
   'tickets',
   {
@@ -155,6 +209,8 @@ export const tickets = pgTable(
     ticketTypeId: uuid('ticket_type_id')
       .notNull()
       .references(() => ticketTypes.id, { onDelete: 'cascade' }),
+    // Lien vers la commande d'achat (nullable : billets du seed antérieurs).
+    orderId: uuid('order_id').references(() => orders.id, { onDelete: 'set null' }),
     buyerName: varchar('buyer_name', { length: 255 }).notNull(),
     buyerPhone: varchar('buyer_phone', { length: 30 }),
     buyerEmail: varchar('buyer_email', { length: 255 }),
@@ -204,6 +260,10 @@ export type TicketType = typeof ticketTypes.$inferSelect
 export type NewTicketType = typeof ticketTypes.$inferInsert
 export type Ticket = typeof tickets.$inferSelect
 export type NewTicket = typeof tickets.$inferInsert
+export type Order = typeof orders.$inferSelect
+export type NewOrder = typeof orders.$inferInsert
+export type OrderItem = typeof orderItems.$inferSelect
+export type NewOrderItem = typeof orderItems.$inferInsert
 export type Scan = typeof scans.$inferSelect
 export type NewScan = typeof scans.$inferInsert
 export type PayoutMethod = typeof payoutMethods.$inferSelect
