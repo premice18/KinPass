@@ -234,10 +234,10 @@ export async function initiatePayment(orderId: string, providerId: KpayCodProvid
       .limit(1)
 
     // Devise des billets (USD ou CDF) → montant CDF facturé par KPay COD.
-    const amountCdf = toKpayCdfAmount(Number(order.totalAmount), order.currency === 'CDF' ? 'CDF' : 'USD')
 
     const payment = await initKpayDeposit({
-      amountCdf,
+      // Montant en CDF (devise locale du provider COD) — KPay attend `amount`.
+      amount: toKpayCdfAmount(Number(order.totalAmount), order.currency === 'CDF' ? 'CDF' : 'USD'),
       provider: provider.provider,
       phoneNumber: normalizePhoneForKpay(order.buyerPhone ?? ''),
       // Idempotence KPay : le 409 bloque les doublons sur la même commande.
