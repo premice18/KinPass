@@ -46,7 +46,6 @@ import { KPAY_COD_PROVIDERS, type KpayCodProviderId } from '@/lib/kpay-providers
 import type { PublicEvent, PublicTicketType } from '@/lib/actions/events'
 import type { DeliveryMethod } from '@/lib/validators/orders'
 import paymentLoading from '@/public/lottie/payment-loading.json'
-import successCheck from '@/public/lottie/success-check.json'
 
 interface EventCheckoutProps {
   event: PublicEvent
@@ -180,6 +179,13 @@ export function EventCheckout({ event }: EventCheckoutProps) {
     })
   }
 
+  // Remonte en haut de page à chaque changement d'écran : le formulaire est
+  // long, sans quoi l'utilisateur arrive sur l'écran court (« Paiement
+  // confirmé ») avec un grand vide au-dessus (scroll resté en bas).
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [step])
+
   // Vérifie le statut de la commande (polling pendant l'attente du paiement).
   const checkStatus = async (): Promise<void> => {
     if (!order) return
@@ -235,12 +241,17 @@ export function EventCheckout({ event }: EventCheckoutProps) {
   // ── Écran : paiement confirmé (billets émis) ──────────────────────────────
   if (step === 'paid' && order) {
     return (
-      <main className="min-h-screen bg-background px-4 py-10 sm:px-8">
+      <main className="min-h-screen bg-background px-4 py-6 sm:px-8">
         <div className="mx-auto max-w-xl">
           <Card data-testid="checkout-success">
-            <CardContent className="flex flex-col items-center gap-4 p-8 text-center">
-              {/* Animation de succès (coche verte animée) */}
-              <Lottie src={successCheck} loop={false} className="h-24 w-24" />
+            <CardContent className="flex flex-col items-center gap-4 p-6 text-center sm:p-8">
+              {/* En-tête compact : pastille de succès (aucun vide parasite) */}
+              <span
+                aria-hidden="true"
+                className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/15"
+              >
+                <CheckCircle className="h-7 w-7 text-emerald-500" />
+              </span>
               <h1 className="text-2xl font-bold tracking-tight">Paiement confirmé</h1>
               <p className="text-muted-foreground">
                 Votre commande <span className="font-medium text-foreground">{order.reference}</span> pour{' '}
@@ -289,8 +300,15 @@ export function EventCheckout({ event }: EventCheckoutProps) {
               </p>
 
               <a
-                href={`/e/${order.eventSlug}`}
+                href={`/e/${order.eventSlug}/checkout/success?order=${order.orderId}`}
+                data-testid="checkout-open-success-page"
                 className={buttonVariants({ variant: 'outline', size: 'lg', className: 'mt-2 w-full' })}
+              >
+                Ouvrir ma page de confirmation
+              </a>
+              <a
+                href={`/e/${order.eventSlug}`}
+                className={buttonVariants({ variant: 'ghost', size: 'lg', className: 'mt-1 w-full' })}
               >
                 Retour à l'événement
               </a>

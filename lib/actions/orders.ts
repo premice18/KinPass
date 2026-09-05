@@ -310,3 +310,133 @@ export async function getOrderStatus(orderId: string): Promise<
     return { success: false, error: 'Impossible de lire le statut de la commande.' }
   }
 }
+
+// ── Page de confirmation publique (Phase 6.5) ───────────────────────────────
+
+// Résumé public d'une commande PAYÉE (route /e/[slug]/checkout/success).
+// Champs strictement utiles à l'acheteur — le paiement confirmé fait foi.
+export type OrderSuccessSummary = {
+  orderId: string
+  reference: string
+  status: string
+  totalAmount: string
+  currency: string
+  deliveryMethod: string
+  buyerName: string
+  // Email masqué (ex. j***@e***.cd) — l'adresse réelle reste côté serveur.
+  buyerEmailMasked: string | null
+  event: {
+    title: string
+    slug: string
+    venue: string | null
+    location: string | null
+    startAt: Date | null
+    endAt: Date | null
+  }
+  tickets: Array<{ code: string; ticketTypeName: string }>
+}
+
+export async function getOrderSuccessSummary(
+  orderId: string,
+): Promise<{ success: true; data: OrderSuccessSummary } | { success: false; error: string }> {
+  try {
+    const [order] = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .limit(1)
+    if (!order || order.status !== 'paid') return { success: false, error: 'Commande introuvable.' }
+
+    const [event] = await db
+      .select({ title: events.title, slug: events.slug, venue: events.venue, location: events.location, startAt: events.startAt, endAt: events.endAt })
+      .from(events)
+      .where(eq(events.id, order.eventId))
+      .limit(1)
+    if (!event) return { success: false, error: 'Commande introuvable.' }
+
+    const issued = await db
+      .select({ code: tickets.code, ticketTypeName: ticketTypes.name })
+      .from(tickets)
+      .innerJoin(ticketTypes, eq(ticketTypes.id, tickets.ticketTypeId))
+      .where(eq(tickets.orderId, orderId))
+      .orderBy(tickets.createdAt)
+
+    return {
+      success: true,
+      data: {
+        orderId: order.id,
+        reference: order.id.replace(/-/g, '').slice(0, 8).toUpperCase(),
+        status: order.status,
+        totalAmount: order.totalAmount,
+        currency: order.currency,
+        deliveryMethod: order.deliveryMethod,
+        buyerName: order.buyerName,
+        buyerEmailMasked: order.buyerEmail ? maskEmail(order.buyerEmail) : null,
+        event: {
+          title: event.title,
+          slug: event.slug,
+          venue: event.venue,
+          location: event.location,
+          startAt: event.startAt,
+          endAt: event.endAt,
+        },
+        tickets: issued,
+      },
+    }
+  } catch {
+    return { success: false, error: 'Commande introuvable.' }
+  }
+}
+
+// Masque une adresse email (j***@e***.cd) pour l'affichage public.
+function maskEmail(email: string): string {
+  const [local, domain] = email.split('@')
+  if (!domain) return '***'
+  const [host, ...rest] = domain.split('.')
+  return `${local.slice(0, 1)}***@${host.slice(0, 1)}***.${rest.join('.')}`
+}
+
+// Renvoie les billets par email depuis la page de confirmation (6.5).
+// N'exige aucune session : le code d'accès de la commande (UUID) sert de clé.
+export async function resendOrderTickets(
+  orderId: string,
+): Promise<{ success: boolean; emailStatus: EmailDeliveryStatus }> {
+  try {
+    const [order] = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .limit(1)
+    if (!order || order.status !== 'paid' || !order.buyerEmail) {
+      return { success: false, emailStatus: 'not-requested' }
+    }
+
+    const issued = await db
+      .select({ code: tickets.code, ticketTypeName: ticketTypes.name })
+      .from(tickets)
+      .innerJoin(ticketTypes, eq(ticketTypes.id, tickets.ticketTypeId))
+      .where(eq(tickets.orderId, orderId))
+      .orderBy(tickets.createdAt)
+
+    const [event] = await db
+      .select({ title: events.title, slug: events.slug })
+      .from(events)
+      .where(eq(events.id, order.eventId))
+      .limit(1)
+    if (!event || issued.length === 0) return { success: false, emailStatus: 'not-requested' }
+
+    const emailStatus = await sendTicketsByEmail({
+      orderId: order.id,
+      orderReference: order.id.replace(/-/g, '').slice(0, 8).toUpperCase(),
+      eventTitle: event.title,
+      eventSlug: event.slug,
+      buyerName: order.buyerName,
+      deliveryMethod: 'email',
+      buyerEmail: order.buyerEmail,
+      tickets: issued,
+    })
+    return { success: emailStatus === 'sent', emailStatus }
+  } catch {
+    return { success: false, emailStatus: 'failed' }
+  }
+}

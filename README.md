@@ -45,7 +45,7 @@ Trois profils utilisent la plateforme :
 | Tunnel d'achat / billetterie     | En cours (6.2-6.4 : commandes, remise email/PDF, paiement KPay ou simulé, billets émis) |
 | Contrôle d'accès (scanner)       | En cours (saisie manuelle, scan caméra absent)                      |
 | Authentification                 | En cours (email/mot de passe + Google via Auth.js, profil à venir)  |
-| Paiement Mobile Money            | En cours (Phase 6.4 : KPay COD + webhook signé, mode simulation sans clés — validation clés de test à faire) |
+| Paiement Mobile Money            | En cours (6.4-6.5 : KPay COD + webhook, pages success/cancel, calendrier — validation clés de test à faire) |
 | Monétisation & reversement       | À venir                                                             |
 
 > **Note** : depuis la Phase 4.1, les Server Actions sont sécurisées par session. Un **compte de démonstration** est créé par le seed : `organisateur@kinpass.test` / `Demo@2026` (voir Installation).
@@ -205,7 +205,8 @@ drizzle.config.ts        # Configuration drizzle-kit
 - **Page publique d'événement** (`/e/[slug]`) : en-tête sombre, affiche + galerie en carrousel, description, tarifs, partage WhatsApp / copie du lien, métadonnées SEO dynamiques (og:image = affiche). Les brouillons et slugs inconnus renvoient une 404.
 - **Vitrine publique (Phase 9)** : bandeau « Événements à venir » sur la landing ; rubrique « Billetterie » = listing complet (grille de cartes, filtres par catégorie, recherche par titre, tri par date, états chargement/erreur/vide) ; carte événement « talon » (pastille de date, prix réel « à partir de X $ », « Entrée libre »/« Complet » calculés) ; page publique organisateur `/o/[slug]` (avatar, bio, site, Instagram, événements publiés).
 - **Tunnel d'achat** (`/e/[slug]/checkout`, Phase 6.2) : choix du type de billet avec jauge réelle (places restantes), quantité, opérateur Mobile Money (M-Pesa Vodacom / Orange Money / Airtel Money), coordonnées, remise — la commande est créée en base avec prix/capacité re-vérifiés côté serveur.
-- **Paiement Mobile Money** (Phase 6.4) : intégration **KPay** (push USSD RD Congo, clés test `kpay_test_…`) + webhook sécurisé `/api/kpay/webhook` (signature HMAC, idempotent) → passage `paid`, **émission des billets** (codes 6 caractères), envoi par email (PDF). **Sans clés KPay : mode « Simuler le paiement »** (démo/E2E). Conversion USD → CDF via `KPAY_USD_CDF_RATE` (KPay COD sans paramètre de devise).
+- **Paiement Mobile Money** (Phase 6.4) : intégration **KPay** (push USSD RD Congo, clés test `kpay_test_…`) + webhook sécurisé `/api/kpay/webhook` (signature HMAC, idempotent) → passage `paid`, **émission des billets** (QR + codes), envoi par email (PDF). **Sans clés KPay : mode « Simuler le paiement »** (démo/E2E). Conversion USD → CDF via `KPAY_USD_CDF_RATE` (KPay COD sans paramètre de devise).
+- **Confirmation** (Phase 6.5) : pages `/e/[slug]/checkout/success` (récap commande payée, cartes billets QR + PDF/PNG/JPG, « Ajouter au calendrier » `.ics`, « Renvoyer par email ») et `/e/[slug]/checkout/cancel` (annulation + Réessayer).
 - **Scanner** (maquette) : saisie manuelle du code avec retours VERT / ORANGE / ROUGE.
 - **Thème clair / sombre** et menu mobile responsive.
 
