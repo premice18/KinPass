@@ -1,53 +1,48 @@
-// Tests end-to-end du contrôle d'accès (maquette Scanner).
+// Tests end-to-end des rubriques du menu pour les VISITEURS non connectés.
 //
-// Le scanner est encore une maquette : les codes sont codés en dur
-// (`A4B8K9` = valide, `X7PM3R` = déjà scanné). Les tests valident la
-// normalisation (casse, tirets) et les trois états visuels.
+// Depuis la refonte du menu (rôles) : « Tableau de bord », « Créer » et
+// « Scanner » ne sont plus des cul-de-sac pour un visiteur — ils mènent à des
+// pages d'explication qui présentent le compte organisateur (inscription
+// ~30 s) ou le futur outil de scan des agents (Phase 7).
 import { test, expect } from '@playwright/test'
 
-import { goTo } from './helpers'
+import { goTo, loginAsDemo } from './helpers'
 
-test.describe('Contrôle d’accès (maquette scanner)', () => {
-  // Chaque test démarre sur l'accueil, puis navigue via le menu (goTo).
-  test.beforeEach(async ({ page }) => {
+test.describe('Rubriques du menu selon le rôle', () => {
+  test('un visiteur qui clique « Tableau de bord » voit la page d’explication', async ({ page }) => {
     await page.goto('/')
+
+    await goTo(page, 'Tableau de bord')
+    await expect(
+      page.getByRole('heading', { name: 'Vendez et contrôlez vos billets, simplement.' }),
+    ).toBeVisible()
+    await expect(page.getByTestId('organizer-intro-register')).toHaveAttribute('href', '/auth/register')
   })
 
-  test('affiche VALIDE pour un code reconnu', async ({ page }) => {
-    await goTo(page, 'Scanner')
+  test('un visiteur qui clique « Créer » voit la même page d’explication', async ({ page }) => {
+    await page.goto('/')
 
-    await page.getByTestId('scanner-code-input').fill('A4B-8K9')
-    await page.getByRole('button', { name: 'Vérifier' }).click()
-
-    await expect(page.getByTestId('scan-result')).toContainText('VALIDE')
-    await expect(page.getByTestId('scan-result')).toContainText('Jean-Marc K.')
+    await goTo(page, 'Créer')
+    await expect(page.getByText('Inscription gratuite — environ 30 secondes, aucune carte requise')).toBeVisible()
   })
 
-  test('affiche DÉJÀ SCANNÉ pour un code déjà utilisé', async ({ page }) => {
+  test('un visiteur qui clique « Scanner » voit la page du contrôle d’accès', async ({ page }) => {
+    await page.goto('/')
+
     await goTo(page, 'Scanner')
-
-    await page.getByTestId('scanner-code-input').fill('X7PM3R')
-    await page.getByRole('button', { name: 'Vérifier' }).click()
-
-    await expect(page.getByTestId('scan-result')).toContainText('DÉJÀ SCANNÉ')
+    await expect(
+      page.getByRole('heading', { name: 'L’entrée de votre événement, sécurisée.' }),
+    ).toBeVisible()
+    await expect(page.getByText(/réservé aux agents de contrôle/)).toBeVisible()
+    await expect(page.getByTestId('scanner-intro-register')).toHaveAttribute('href', '/auth/register')
   })
 
-  test('affiche INVALIDE pour un code inconnu', async ({ page }) => {
-    await goTo(page, 'Scanner')
+  test('un organisateur connecté accède directement à ses outils', async ({ page }) => {
+    await loginAsDemo(page)
+    await page.goto('/')
 
-    await page.getByTestId('scanner-code-input').fill('ZZZZZZ')
-    await page.getByRole('button', { name: 'Vérifier' }).click()
-
-    await expect(page.getByTestId('scan-result')).toContainText('INVALIDE')
-  })
-
-  test('ignore les tirets et la casse lors de la saisie', async ({ page }) => {
-    await goTo(page, 'Scanner')
-
-    // Saisie en minuscules sans tirets : la normalisation doit la rendre valide.
-    await page.getByTestId('scanner-code-input').fill('a4b8k9')
-    await page.getByRole('button', { name: 'Vérifier' }).click()
-
-    await expect(page.getByTestId('scan-result')).toContainText('VALIDE')
+    // « Créer » ouvre le formulaire (et non la page d'explication).
+    await goTo(page, 'Créer')
+    await expect(page.getByRole('heading', { name: 'Créer un événement' })).toBeVisible()
   })
 })

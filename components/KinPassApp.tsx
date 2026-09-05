@@ -27,12 +27,13 @@ import { AnimatedMenuIcon } from '@/components/ui/animated-menu-icon'
 import { Logo } from '@/components/layout/Logo'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { LandingPage } from '@/components/features/landing/LandingPage'
+import { OrganizerIntro } from '@/components/features/landing/OrganizerIntro'
 import { OrganizerDashboard } from '@/components/features/dashboard/OrganizerDashboard'
 import { EventDetail } from '@/components/features/dashboard/EventDetail'
 import { EventCreationForm } from '@/components/features/event-creation/EventCreationForm'
 import { ProfileSettings } from '@/components/features/settings/ProfileSettings'
 import { EventCheckout } from '@/components/features/checkout/EventCheckout'
-import { Scanner } from '@/components/features/scanner/Scanner'
+import { ScannerIntro } from '@/components/features/scanner/ScannerIntro'
 import { EventPublicView } from '@/components/features/event-public/EventPublicView'
 import { EventListing } from '@/components/features/events/EventListing'
 import { getEventById, type EditableEvent, type PublicEvent } from '@/lib/actions/events'
@@ -43,10 +44,11 @@ type View =
   | 'detail'
   | 'create'
   | 'settings'
-  | 'scanner'
   | 'event'
   | 'event-checkout'
   | 'events'
+  | 'organizer-intro'
+  | 'scanner-intro'
 
 // Utilisateur exposé au client (sans données sensibles).
 export type SessionUser = {
@@ -152,6 +154,35 @@ export function KinPassApp({ initialView = 'home', initialEvent }: KinPassAppPro
     navigate('create')
   }
 
+  // CTA « Créer un événement » (landing) : un organisateur connecté rejoint
+  // directement son tableau de bord ; sinon, on présente d'abord la valeur
+  // (inscription organisateur ~30 s) avant d'envoyer vers /auth/register.
+  const handleGetStarted = () => {
+    if (user?.role === 'organizer') {
+      navigate('dashboard')
+    } else {
+      navigate('organizer-intro')
+    }
+  }
+
+  // Navigation du MENU, adaptée au rôle :
+  //  - « Tableau de bord » et « Créer » : l'organisateur accède à son espace ;
+  //    un visiteur atterrit sur la page d'explication (inscription ~30 s) ;
+  //  - « Scanner » : outil réservé aux agents de contrôle (Phase 7) — tout le
+  //    monde est aiguillé vers la page d'explication du contrôle d'accès.
+  const handleNav = (id: (typeof nav)[number]['id']) => {
+    const isOrganizer = user?.role === 'organizer'
+    if (id === 'dashboard') {
+      navigate(isOrganizer ? 'dashboard' : 'organizer-intro')
+    } else if (id === 'create') {
+      navigate(isOrganizer ? 'create' : 'organizer-intro')
+    } else if (id === 'scanner') {
+      navigate('scanner-intro')
+    } else {
+      navigate(id)
+    }
+  }
+
   // Ouvre le formulaire en mode édition : charge l'événement en base via la
   // Server Action, puis navigue vers la vue formulaire pré-remplie.
   const openEditEvent = async (eventId: string) => {
@@ -213,7 +244,15 @@ export function KinPassApp({ initialView = 'home', initialEvent }: KinPassAppPro
 
   const content =
     view === 'home' ? (
-      <LandingPage onGetStarted={() => navigate('dashboard')} onBrowse={() => navigate('events')} />
+      <LandingPage
+        onGetStarted={handleGetStarted}
+        onBrowse={() => navigate('events')}
+      />
+    ) : view === 'organizer-intro' ? (
+      /* Page de valeur « Pour les organisateurs » : atterrissage du CTA
+         « Créer un événement » pour un visiteur NON connecté — présente
+         l'inscription (30 s) puis aiguille vers /auth/register. */
+      <OrganizerIntro />
     ) : view === 'event' && publicEvent ? (
       /* Page publique d'un événement (Phase 6.1). */
       <EventPublicView event={publicEvent} />
@@ -243,9 +282,10 @@ export function KinPassApp({ initialView = 'home', initialEvent }: KinPassAppPro
       />
     ) : view === 'settings' ? (
       <ProfileSettings onBack={() => navigate('dashboard')} onProfileUpdated={refreshSession} />
-    ) : (
-      <Scanner />
-    )
+    ) : view === 'scanner-intro' ? (
+      /* Page d'explication « Contrôle d'accès » (agents, Phase 7). */
+      <ScannerIntro />
+    ) : null
 
   return (
     // Respecte `prefers-reduced-motion` pour toutes les animations de l'app.
@@ -268,7 +308,7 @@ export function KinPassApp({ initialView = 'home', initialEvent }: KinPassAppPro
                   key={id}
                   variant={view === id ? 'secondary' : 'ghost'}
                   size="sm"
-                  onClick={() => navigate(id)}
+                  onClick={() => handleNav(id)}
                 >
                   <Icon className="h-4 w-4" />
                   {label}
@@ -373,7 +413,7 @@ export function KinPassApp({ initialView = 'home', initialEvent }: KinPassAppPro
                       <Button
                         variant={view === id ? 'secondary' : 'ghost'}
                         className="w-full justify-start"
-                        onClick={() => navigate(id)}
+                        onClick={() => handleNav(id)}
                       >
                         <Icon className="h-4 w-4" />
                         {label}
@@ -432,3 +472,4 @@ export function KinPassApp({ initialView = 'home', initialEvent }: KinPassAppPro
     </MotionConfig>
   )
 }
+

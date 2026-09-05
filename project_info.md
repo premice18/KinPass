@@ -124,7 +124,7 @@ Anti-patterns bannis : badges-pilules arrondis teintés, cartes `rounded-xl` + `
 - **Paiement Mobile Money** : M-Pesa / Orange Money / Airtel Money (agrégateur ou flux simulé pour MVP) + webhook de confirmation (6.4).
 - **Billet numérique** : **QR Code dynamique** + **code alphanumérique unique de 6 caractères** (ex. `K9M-4X2`).
 - **Remise du billet** : au choix **envoi par email** (PDF en pièce jointe) **ou téléchargement direct** (PDF / PNG / JPG) ; pages de confirmation (`/success`) et d'annulation (`/cancel`).
-- **État** : ✅ 6.2-6.4 faites — route `/e/[slug]/checkout` (type + jauge + quantité + opérateur COD + coordonnées + remise), commande `pending`, paiement **KPay** (USSD, clés test) ou **simulé** sans clés, webhook `/api/kpay/webhook` sécurisé (signature + idempotence) → `paid` + **billets émis** (codes 6 caractères) + email (PDF), états `failed` gérés. Reste : `expired`, validation KPay en conditions réelles (clés de test), 6.5 (pages success/cancel + QR/PNG/JPG à l'écran).
+- **État** : ✅ 6.2-6.5 faites — route `/e/[slug]/checkout` (type + jauge + quantité + opérateur COD + coordonnées + remise), commande `pending`, paiement **KPay** (USSD, clés test) ou **simulé** sans clés, webhook `/api/kpay/webhook` sécurisé (signature + idempotence) → `paid` + **billets émis** (QR + PDF/PNG/JPG), email (PDF), états `failed` gérés ; pages **`/success`** (récap + calendrier .ics + renvoi email) et **`/cancel`**. Reste : `expired` (time-out des `pending`), validation KPay en conditions réelles.
 
 ### 📄 Contrôle d'accès — Route `/scan/[slug]` (À VENIR)
 
@@ -392,13 +392,14 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 
 #### 6.5 Pages de confirmation & redirection (acheteur)
 
-- [ ] Page `/e/[slug]/checkout/success` : récapitulatif (événement, billets, codes, QR), boutons de téléchargement (PDF/PNG/JPG), bouton « Envoyer par email », bouton « Ajouter au calendrier ».
-- [ ] Page `/e/[slug]/checkout/cancel` : message clair d'échec/annulation + bouton « Réessayer ».
-- [ ] Écran de redirection pendant le paiement : « Redirection vers Mobile Money… » (spinner, time-out).
+- [x] Page `/e/[slug]/checkout/success` : récapitulatif d'une commande **payée** (accès par `?order=<uuid>`, slug vérifié, 404 sinon, `noindex`) — cartes billets avec QR + téléchargements **PDF/PNG/JPG** (réutilisées du tunnel), bouton « **Ajouter au calendrier** » (fichier `.ics` généré côté client, `lib/ticket/ics.ts`), bouton « **Renvoyer par email** » (action `resendOrderTickets` — fonctionne quel que soit le mode de remise choisi à l'achat, email masqué affiché).
+- [x] Page `/e/[slug]/checkout/cancel` : message clair d'annulation/échec + boutons « Réessayer » (retour au tunnel) et retour à l'événement.
+- [x] Écran de redirection pendant le paiement : « Validez le paiement » (spinner + référence KPay, badge sandbox) — présent depuis la 6.4 avec **polling automatique** ; un **time-out** (état `expired`) reste à formaliser (nettoyage des `pending` orphelines).
+- [x] **UX corrigée (retours prod)** : remontée du scroll en haut à chaque changement d'écran du tunnel (fin du « grand vide » au-dessus de « Paiement confirmé ») ; champs à **16 px sur mobile** (fin du zoom iOS forcé → « pincer » l'écran) ; audit Playwright mobile 375 px sans débordement horizontal sur les pages publiques/listing/checkout.
 
-#### 6.6 Modèle de données (ajouts)
+#### 6.6 Modèle de données (ajouts) ✅ FAITE
 
-- Tables `event_images`, `orders`, `order_items` (cf. ci-dessus) ; `tickets.order_id` FK nullable.
+- Tables `event_images`, `orders`, `order_items` (cf. ci-dessus) ; `tickets.order_id` FK nullable — toutes appliquées en base (6.2). Aucun ajout requis pour 6.5 (les cartes billets lisent `tickets`/`order_items` existants).
 
 #### 6.7 Lien d'événement partageable & diffusion
 
@@ -495,6 +496,8 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 - [x] Jusqu'à 3 cartes, sous le hero (avant « Comment ça marche ») ; clic → **route événement `/e/[slug]`** (Phase 6.1) — la page publique existe désormais, la bascule « maquette checkout » du plan est obsolète.
 - [x] En-tête de section : Eyebrow « À venir » + titre + lien « Voir tous les événements » → rubrique Billetterie.
 - [x] État vide landing : section entièrement masquée si aucun événement publié.
+- [x] **Bandeau défilant `EventTicker`** sous le hero (teaser) : événements en marquee doux (pause hover/focus, `prefers-reduced-motion` → liste statique, moitié fantôme `aria-hidden`) ; **« peek » mobile** : hero compacté (`py-14`) pour que le bandeau affleure la ligne de flottaison (invitation au scroll).
+- [x] **CTA « Créer un événement » (visiteur non connecté)** → vue « Pour les organisateurs » (`OrganizerIntro`) : bénéfices + étapes + « inscription gratuite ~30 s » → `/auth/register` (plus d'atterrissage sur le dashboard en erreur) ; organisateur connecté → dashboard direct.
 
 #### 9.3 Listing complet — rubrique « Billetterie » (vitrine événements) ✅ FAITE
 
@@ -745,7 +748,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - **Phase 3** : ✅ TERMINÉE (logo ticket, dark/light, menu mobile).
 - **Phase 4 (auth + compte organisateur)** : 🟡 EN COURS — **4.1, 4.2 et 4.3 faites** (register/login + Google via Auth.js ; page « Mon profil » : avatar auto Google ou initiales, WhatsApp, adresse, comptes de reversement, blocage publication sans compte) ; reste : badge « Profil incomplet » sur le dashboard, upload avatar réel (stockage externe), rôle agent (Phase 7), exécution des tests E2E (sur demande).
 - **Phase 5 (événements)** : ✅ TERMINÉE — CRUD complet + publication, organisateur de test fixe (`lib/constants.ts`), à sécuriser par la session dès la Phase 4.
-- **Phase 6 (billetterie + paiement)** : 🟡 EN COURS — **6.1 → 6.4 faites** (page publique + galerie ; tunnel d'achat + `orders` ; remise email/téléchargement + moteur PDF/QR ; **paiement KPay COD + webhook sécurisé → `paid`, émission des billets, email ; mode simulation sans clés**) ; reste : validation KPay réelle (clés de test + callback Dépôts), état `expired`, 6.5 pages de confirmation (boutons PNG/JPG + QR à l'écran), 6.7 partage enrichi.
+- **Phase 6 (billetterie + paiement)** : 🟡 EN COURS — **6.1 → 6.6 faites** (page publique + galerie ; tunnel d'achat + `orders` ; remise email/téléchargement + moteur PDF/QR ; paiement KPay COD + webhook signé → `paid`, billets émis, mode simulation ; **pages `/success` et `/cancel` + ajout calendrier + renvoi email** ; fixs UX mobile) ; reste : validation KPay réelle (clés de test + callback Dépôts configuré), état `expired` (time-out des `pending`), 6.7 partage enrichi (panneau modal + QR organisateur).
 - **Phase 7 (scanner)** : ❌ À VENIR — interface de scan (caméra + saisie), **comptes scanneurs gérés par l'organisateur avec RBAC strict** (assignation par événement, aucun accès aux ventes/contrats).
 - **Phase 8 (polish)** : 🟡 EN COURS — tests E2E faits (15 scénarios) ; unitaires, PWA et export restent.
 - **Phase 9 (vitrine publique)** : ✅ TERMINÉE — `getPublicEvents` (source unique), bandeau « À venir » sur la landing (3 événements, jamais de brouillon), rubrique « Billetterie » = listing complet (chips catégories, recherche, tri, états chargement/erreur/vide), carte `EventCard` « talon » partagée (→ `/e/[slug]`), page publique organisateur `/o/[slug]` (`users.slug` auto-généré) ; route `/events` SEO reportée au routing par URL.
@@ -802,7 +805,9 @@ lib/
   kpay.ts             # Client KPay serveur (init paiement USSD, signature webhook)
   kpay-providers.ts   # Opérateurs Mobile Money RDC (choix au checkout)
   payments.ts         # Exécution commande payée (billets + sold_count + email)
+  ics.ts              # « Ajouter au calendrier » (.ics, Phase 6.5)
   mail.ts             # Envoi email (Resend optionnel, simulation en dev)
+  email-templates.ts  # Rendu HTML inline + texte brut (remise des billets)
   pexels.ts           # Client API Pexels (serveur uniquement)
   hooks/use-pexels-images.ts  # Hook client de chargement des photos Pexels
   db/

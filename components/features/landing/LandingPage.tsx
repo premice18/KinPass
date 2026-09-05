@@ -27,6 +27,7 @@ import { Eyebrow } from "@/components/ui/eyebrow";
 import { FadeIn } from "@/components/ui/motion";
 import { usePexelsImages } from "@/lib/hooks/use-pexels-images";
 import { EventCard } from '@/components/features/events/EventCard'
+import { EventTicker } from '@/components/features/landing/EventTicker'
 import { getPublicEvents, type PublicEventCard } from '@/lib/actions/events'
 
 interface LandingPageProps {
@@ -81,7 +82,11 @@ export function LandingPage({ onGetStarted, onBrowse }: LandingPageProps) {
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle,var(--border)_1px,transparent_1px)] [background-size:26px_26px] opacity-70"
         />
-        <div className="relative mx-auto grid max-w-6xl gap-14 px-4 py-20 sm:px-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center lg:py-28">
+        {/* Peek mobile : le hero est compact (py-14) pour que le bandeau
+            défilant (EventTicker) affleure la ligne de flottaison — coupé en
+            bas du premier écran, son mouvement invite au scroll sans voler
+            la vedette au message principal (cf. analyse UI/UX). */}
+        <div className="relative mx-auto grid max-w-6xl gap-12 px-4 py-14 sm:px-8 sm:gap-14 sm:py-20 lg:grid-cols-[1.15fr_0.85fr] lg:items-center lg:py-28">
           <FadeIn>
             <div>
               <Eyebrow>Billetterie sécurisée en RDC</Eyebrow>
@@ -164,6 +169,11 @@ export function LandingPage({ onGetStarted, onBrowse }: LandingPageProps) {
           </FadeIn>
         </div>
       </section>
+
+      {/* ── BANDEAU DÉFILANT (teaser « à la une », Proposition UI) ──────────
+          Défile sous le hero dès qu'il y a des événements : attire l'œil sans
+          scroll et pousse à découvrir le bandeau « À venir » plus bas. */}
+      {upcoming && upcoming.length > 0 && <EventTicker events={upcoming} />}
 
       {/* ── ÉVÉNEMENTS À VENIR (bandeau découverte, Phase 9.2) ───────────── */}
       {upcoming && upcoming.length > 0 && (
