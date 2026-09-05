@@ -166,10 +166,16 @@ export async function fulfillPaidOrder(orderId: string, paymentRef?: string | nu
   }
 }
 
+// Résultat de l'envoi des billets par email (affiché à l'acheteur).
+export type EmailDeliveryStatus = 'sent' | 'not-requested' | 'unavailable' | 'failed'
+
 // Envoie les billets par email (remise `email`) — un PDF par billet en pièce
 // jointe. Sans clé Resend (dev), l'envoi est simulé par un log (lib/mail).
-export async function sendTicketsByEmail(result: FulfillmentResult): Promise<void> {
-  if (result.deliveryMethod !== 'email' || !result.buyerEmail || result.tickets.length === 0) return
+export async function sendTicketsByEmail(result: FulfillmentResult): Promise<EmailDeliveryStatus> {
+  if (result.deliveryMethod !== 'email' || !result.buyerEmail) return 'not-requested'
+  if (result.tickets.length === 0) return 'not-requested'
+  // Sans clé Resend, aucun envoi possible : on prévient l'appelant.
+  if (!process.env.RESEND_API_KEY) return 'unavailable'
 
   try {
     // Informations d'événement pour habiller le PDF (date + lieu).
@@ -199,14 +205,16 @@ export async function sendTicketsByEmail(result: FulfillmentResult): Promise<voi
       }),
     )
 
-    await sendTicketEmail({
+    const delivery = await sendTicketEmail({
       to: result.buyerEmail,
       buyerName: result.buyerName,
       eventTitle: result.eventTitle,
       attachments,
     })
+    return delivery.ok ? 'sent' : 'failed'
   } catch (err) {
     // Un échec d'email ne doit pas faire échouer la confirmation de paiement.
     console.error('[tickets] Envoi email impossible :', err)
+    return 'failed'
   }
 }

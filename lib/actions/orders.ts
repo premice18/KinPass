@@ -17,7 +17,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { events, orderItems, orders, tickets, ticketTypes } from '@/lib/db/schema'
 import { checkoutSchema, firstZodErrorMessage, type CheckoutInput } from '@/lib/validators/orders'
-import { fulfillPaidOrder, sendTicketsByEmail } from '@/lib/payments'
+import { fulfillPaidOrder, sendTicketsByEmail, type EmailDeliveryStatus } from '@/lib/payments'
 import { initKpayDeposit, kpayConfigured, normalizePhoneForKpay, toKpayCdfAmount } from '@/lib/kpay'
 import { KPAY_COD_PROVIDERS, type KpayCodProviderId } from '@/lib/kpay-providers'
 
@@ -164,6 +164,8 @@ export type PaymentInitData =
       deliveryMethod: string
       buyerEmail: string | null
       tickets: Array<{ code: string; ticketTypeName: string }>
+      // Statut de la remise par email (informatif pour l'écran de succès).
+      emailStatus: EmailDeliveryStatus
     }
 
 // Lance le paiement d'une commande `pending` :
@@ -189,7 +191,7 @@ export async function initiatePayment(orderId: string, providerId: KpayCodProvid
     if (Number(order.totalAmount) <= 0) {
       const fulfilled = await fulfillPaidOrder(orderId, null)
       if (!fulfilled) return { success: false, error: 'Impossible de confirmer la commande.' }
-      await sendTicketsByEmail(fulfilled)
+      const emailStatus = await sendTicketsByEmail(fulfilled)
       return {
         success: true,
         mode: 'simulated',
@@ -201,6 +203,7 @@ export async function initiatePayment(orderId: string, providerId: KpayCodProvid
           deliveryMethod: fulfilled.deliveryMethod,
           buyerEmail: fulfilled.buyerEmail,
           tickets: fulfilled.tickets,
+          emailStatus,
         },
       }
     }
@@ -210,7 +213,7 @@ export async function initiatePayment(orderId: string, providerId: KpayCodProvid
       const fulfilled = await fulfillPaidOrder(orderId, 'SIMULE')
       if (!fulfilled) return { success: false, error: 'Impossible de confirmer la commande.' }
       // Remise par email : envoi (ou log en développement).
-      await sendTicketsByEmail(fulfilled)
+      const emailStatus = await sendTicketsByEmail(fulfilled)
       return {
         success: true,
         mode: 'simulated',
@@ -222,6 +225,7 @@ export async function initiatePayment(orderId: string, providerId: KpayCodProvid
           deliveryMethod: fulfilled.deliveryMethod,
           buyerEmail: fulfilled.buyerEmail,
           tickets: fulfilled.tickets,
+          emailStatus,
         },
       }
     }
@@ -270,7 +274,14 @@ export async function initiatePayment(orderId: string, providerId: KpayCodProvid
 // Statut d'une commande (interrogé par l'écran d'attente du paiement).
 // Quand la commande est `paid`, renvoie aussi les billets émis.
 export async function getOrderStatus(orderId: string): Promise<
-  | { success: true; data: { status: string; paymentRef: string | null; tickets?: Array<{ code: string; ticketTypeName: string }> } }
+  | {
+      success: true
+      data: {
+        status: string
+        paymentRef: string | null
+        tickets?: Array<{ code: string; ticketTypeName: string }>
+      }
+    }
   | { success: false; error: string }
 > {
   try {
