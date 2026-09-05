@@ -89,8 +89,11 @@ async function kpayFetch<T>(path: string, init: RequestInit & { body?: string })
 // Initie un paiement Mobile Money (mode USSD : push sur le téléphone du client).
 // `externalId` = identifiant d'idempotence kinPass (id de commande) — 409 si
 // une transaction active porte déjà ce même id.
+//
+// NB : le corps attendu par KPay utilise le champ `amount` (en devise locale
+// de l'opérateur, CDF pour le COD) — jamais de propriété supplémentaire.
 export async function initKpayDeposit(params: {
-  amountCdf: number
+  amount: number
   provider: string
   phoneNumber: string
   externalId: string
@@ -99,9 +102,11 @@ export async function initKpayDeposit(params: {
   customerEmail?: string
   metadata?: Record<string, string>
 }): Promise<KpayInitResult> {
+  const { amount, provider, phoneNumber, externalId, ...optional } = params
   return kpayFetch<KpayInitResult>('/api/v1/payments/init', {
     method: 'POST',
-    body: JSON.stringify(params),
+    // Champs dans l'ordre/la forme attendus par l'API KPay (aucune clé extra).
+    body: JSON.stringify({ amount, provider, phoneNumber, externalId, ...optional }),
   })
 }
 
