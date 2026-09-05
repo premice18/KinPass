@@ -42,10 +42,10 @@ Trois profils utilisent la plateforme :
 | Page publique événement `/e/[slug]` | Terminé (Phase 6.1 : SEO dynamique, galerie carrousel, partage WhatsApp) |
 | Base de données (Neon + Drizzle) | Terminé                                                             |
 | Tests end-to-end (Playwright)    | Écrits (landing, dashboard, événements, page publique, vitrine, checkout, scanner) — exécution sur demande |
-| Tunnel d'achat / billetterie     | En cours (6.2-6.3 : commandes `pending`, choix de la remise, moteur PDF — paiement en 6.4) |
+| Tunnel d'achat / billetterie     | En cours (6.2-6.4 : commandes, remise email/PDF, paiement KPay ou simulé, billets émis) |
 | Contrôle d'accès (scanner)       | En cours (saisie manuelle, scan caméra absent)                      |
 | Authentification                 | En cours (email/mot de passe + Google via Auth.js, profil à venir)  |
-| Paiement Mobile Money            | À venir                                                             |
+| Paiement Mobile Money            | En cours (Phase 6.4 : KPay COD + webhook signé, mode simulation sans clés — validation clés de test à faire) |
 | Monétisation & reversement       | À venir                                                             |
 
 > **Note** : depuis la Phase 4.1, les Server Actions sont sécurisées par session. Un **compte de démonstration** est créé par le seed : `organisateur@kinpass.test` / `Demo@2026` (voir Installation).
@@ -121,6 +121,9 @@ La vitrine publique est visible sans connexion : bandeau de la landing, rubrique
 | `NEXT_PUBLIC_APP_URL` | URL publique du site (partage WhatsApp + aperçus OG). Repli local : `http://localhost:3000` |
 | `RESEND_API_KEY` | Clé [Resend](https://resend.com) (optionnelle) — remise des billets par email. Sans clé : envoi simulé (log) en développement ; installer `pnpm add resend` dès activation. |
 | `MAIL_FROM` | Expéditeur des emails kinPass (défaut `kinPass <billets@kinpass.app>`) |
+| `KPAY_API_KEY` / `KPAY_SECRET_KEY` | Clés [KPay](https://admin.kpay.site) (Phase 6.4) : test `kpay_test_…`/`sk_test_…`, live `kpay_live_…`/`sk_live_…`. Sans clés : mode « Simuler le paiement » |
+| `KPAY_WEBHOOK_SECRET` | Secret du callback Webhook « Dépôts » KPay (vérification `X-KPAY-Signature`). Absent en dev : signature non vérifiée (avertissement) |
+| `KPAY_USD_CDF_RATE` | Taux USD → CDF pour facturer en CDF (KPay COD sans devise). Défaut `2800` |
 
 ## Commandes
 
@@ -154,6 +157,7 @@ Le détail (conventions de nommage, `data-testid`, ajout de tests) est dans [`te
 ```
 app/                     # Routes App Router (page + layout + styles globaux)
 app/e/[slug]/            # Page publique événement (SEO, Phase 6.1)
+app/e/[slug]/checkout/   # Tunnel d'achat (Phase 6.2-6.4)
 app/o/[slug]/            # Page publique organisateur (Phase 9.5)
 components/
   KinPassApp.tsx         # Coquille SPA (navigation par état)
@@ -169,9 +173,12 @@ components/
     scanner/             #   Scanner
 lib/
   actions/events.ts      # Server Actions (CRUD + stats + galerie + pages publiques + vitrine)
-  actions/orders.ts      # Commandes (createOrder — tunnel d'achat)
+  actions/orders.ts      # Commandes (createOrder, initiatePayment, statut)
   actions/organizers.ts  # Profil public organisateur (/o/[slug])
   ticket/                # Moteur de billet : types, QR PNG, PDF (Phase 6.3)
+  kpay.ts                # Client KPay serveur (init USSD, signature webhook)
+  kpay-providers.ts      # Opérateurs Mobile Money RDC (choix au checkout)
+  payments.ts            # Exécution commande payée (billets, jauge, email)
   mail.ts                # Envoi email (Resend optionnel, simulé en dev)
   validators/events.ts   # Schémas Zod
   constants.ts           # Constantes (catégories, devises, statuts, organisateur de test)
@@ -197,8 +204,8 @@ drizzle.config.ts        # Configuration drizzle-kit
 - **Création / édition d'événement** : informations générales, affiche (URL), **galerie de 1 à 3 photos** (URL, réordonnancement, suppression), multi-types de billets (prix, devise USD/CDF, capacité), slug unique généré depuis le titre, validation côté serveur et client.
 - **Page publique d'événement** (`/e/[slug]`) : en-tête sombre, affiche + galerie en carrousel, description, tarifs, partage WhatsApp / copie du lien, métadonnées SEO dynamiques (og:image = affiche). Les brouillons et slugs inconnus renvoient une 404.
 - **Vitrine publique (Phase 9)** : bandeau « Événements à venir » sur la landing ; rubrique « Billetterie » = listing complet (grille de cartes, filtres par catégorie, recherche par titre, tri par date, états chargement/erreur/vide) ; carte événement « talon » (pastille de date, prix réel « à partir de X $ », « Entrée libre »/« Complet » calculés) ; page publique organisateur `/o/[slug]` (avatar, bio, site, Instagram, événements publiés).
-- **Tunnel d'achat** (`/e/[slug]/checkout`, Phase 6.2) : choix du type de billet avec jauge réelle (places restantes), quantité, coordonnées (nom, téléphone Mobile Money, email optionnel), total calculé — la commande `pending` est créée en base (`orders`/`order_items`) avec prix et capacité re-vérifiés côté serveur. Accusé « Commande enregistrée » avec référence.
-- **Remise du billet** (Phase 6.3) : choix « Télécharger » ou « Recevoir par email » à l'achat (email obligatoire dans ce cas, `delivery_method` persisté) ; moteur de billet PDF serveur + QR (`lib/ticket/`), aperçu via `/api/dev/ticket-preview`, envoi email Resend optionnel. L'émission du billet après paiement (codes + QR) arrive en Phase 6.4.
+- **Tunnel d'achat** (`/e/[slug]/checkout`, Phase 6.2) : choix du type de billet avec jauge réelle (places restantes), quantité, opérateur Mobile Money (M-Pesa Vodacom / Orange Money / Airtel Money), coordonnées, remise — la commande est créée en base avec prix/capacité re-vérifiés côté serveur.
+- **Paiement Mobile Money** (Phase 6.4) : intégration **KPay** (push USSD RD Congo, clés test `kpay_test_…`) + webhook sécurisé `/api/kpay/webhook` (signature HMAC, idempotent) → passage `paid`, **émission des billets** (codes 6 caractères), envoi par email (PDF). **Sans clés KPay : mode « Simuler le paiement »** (démo/E2E). Conversion USD → CDF via `KPAY_USD_CDF_RATE` (KPay COD sans paramètre de devise).
 - **Scanner** (maquette) : saisie manuelle du code avec retours VERT / ORANGE / ROUGE.
 - **Thème clair / sombre** et menu mobile responsive.
 
@@ -207,7 +214,7 @@ drizzle.config.ts        # Configuration drizzle-kit
 Le plan détaillé (avec spécifications par phase) est dans [`project_info.md`](./project_info.md). Les grandes étapes restantes :
 
 1. **Authentification & compte organisateur** : inscription/connexion, profil (photo, WhatsApp, compte de reversement), sécurisation des Server Actions.
-2. **Billetterie publique** : page événement, galerie, vitrine, tunnel d'achat et moteur de billet PDF/QR faits — restent : paiement Mobile Money + webhook (émission des billets, 6.4), pages de confirmation (6.5) et boutons PNG/JPG.
+2. **Billetterie publique** : page événement, galerie, vitrine, tunnel d'achat, moteur PDF/QR et paiement KPay (webhook) faits — restent : pages de confirmation (6.5) avec boutons PNG/JPG + QR à l'écran, et la validation KPay avec clés de test.
 3. **Scanner** : caméra QR, comptes scanneurs gérés par l'organisateur (accès restreint aux seuls événements assignés), validation en base.
 4. **Vitrine publique (faite)** : événements publiés sur la landing et la rubrique « Billetterie » ; page publique organisateur `/o/[slug]` ; route `/events` SEO restante avec le routing par URL.
 5. **Monétisation & reversement** : commission kinPass, retrait à la demande vers le compte de l'organisateur.

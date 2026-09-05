@@ -1,21 +1,25 @@
 'use client'
 
 // ────────────────────────────────────────────────────────────────────────────
-// Tunnel d'achat (Phase 6.2) — route `/e/[slug]/checkout`.
+// Tunnel d'achat (Phase 6.2 → 6.4) — route `/e/[slug]/checkout`.
 //
-// L'acheteur choisit un type de billet (jauge réelle affichée : places
-// restantes calculées depuis la base), une quantité, puis saisit ses
-// coordonnées (nom, téléphone Mobile Money, email optionnel). Le total est
-// calculé côté client pour l'affichage MAIS les montants sont re-vérifiés par
-// la Server Action `createOrder` (prix et capacité relus en base).
+// Flux : formulaire (type de billet + jauge réelle, quantité, opérateur
+// Mobile Money, coordonnées, remise) → création de la commande `pending` →
+// paiement :
+//   - clés KPay configurées : push USSD réel (opérateur COD choisi), écran
+//     « Validez sur votre téléphone » avec vérification automatique du statut
+//     (le webhook `/api/kpay/webhook` marque la commande `paid` et émet les
+//     billets) ;
+//   - sans clés (démo/E2E) : mode « Simuler le paiement » — la commande est
+//     payée immédiatement avec les MÊMES règles (émission des billets + email).
 //
-// À la soumission : création d'une commande `pending` (order + order_items).
-// La confirmation de paiement (webhook Mobile Money, Phase 6.4) fera passer
-// la commande à `paid` et générera les billets (codes + QR) ; la remise
-// email/téléchargement (PDF/PNG/JPG) est la Phase 6.3.
+// Les montants ne sont JAMAIS pris au client : la Server Action relit prix,
+// capacité et devise en base avant d'initier le paiement.
 // ────────────────────────────────────────────────────────────────────────────
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { Lottie } from 'lottie-react'
 import {
   ArrowLeft,
   Calendar,
@@ -35,13 +39,22 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Eyebrow } from '@/components/ui/eyebrow'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import { createOrder, type CreatedOrder } from '@/lib/actions/orders'
+import { createOrder, getOrderStatus, initiatePayment, type CreatedOrder } from '@/lib/actions/orders'
+import { KPAY_COD_PROVIDERS, type KpayCodProviderId } from '@/lib/kpay-providers'
 import type { PublicEvent, PublicTicketType } from '@/lib/actions/events'
 import type { DeliveryMethod } from '@/lib/validators/orders'
+import paymentLoading from '@/public/lottie/payment-loading.json'
+import successCheck from '@/public/lottie/success-check.json'
 
 interface EventCheckoutProps {
   event: PublicEvent
 }
+
+// Étapes du tunnel.
+type Step = 'form' | 'awaiting' | 'paid' | 'failed'
+
+// Billet émis (affiché à l'acheteur).
+type PaidTicket = { code: string; ticketTypeName: string }
 
 // Formate un prix selon la devise (affichage acheteur).
 function formatPrice(price: number, currency: string): string {
@@ -64,7 +77,8 @@ export function EventCheckout({ event }: EventCheckoutProps) {
   const [typeId, setTypeId] = useState<string | null>(null)
   const [quantity, setQuantity] = useState(1)
 
-  // ── Coordonnées de l'acheteur ─────────────────────────────────────────────
+  // ── Opérateur Mobile Money (RDC) + coordonnées ────────────────────────────
+  const [providerId, setProviderId] = useState<KpayCodProviderId>('mpesa')
   const [buyerName, setBuyerName] = useState('')
   const [buyerPhone, setBuyerPhone] = useState('')
   const [buyerEmail, setBuyerEmail] = useState('')
@@ -72,10 +86,17 @@ export function EventCheckout({ event }: EventCheckoutProps) {
   // ── Remise du billet (Phase 6.3) : téléchargement direct ou email ────────
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>('download')
 
-  // ── Soumission (transition serveur) ───────────────────────────────────────
+  // ── Déroulement du paiement ───────────────────────────────────────────────
+  const [step, setStep] = useState<Step>('form')
   const [isPending, startTransition] = useTransition()
   const [formError, setFormError] = useState('')
   const [order, setOrder] = useState<CreatedOrder | null>(null)
+  // Référence KPay de l'init (écran d'attente).
+  const [paymentRef, setPaymentRef] = useState('')
+  const [paymentIsTest, setPaymentIsTest] = useState(false)
+  // Résultat final (simulé ou via le webhook).
+  const [paidTickets, setPaidTickets] = useState<PaidTicket[]>([])
+  const [paidSimulated, setPaidSimulated] = useState(false)
 
   const selectedType = event.ticketTypes.find((type) => type.id === typeId) ?? null
   const isFreeEvent = event.ticketTypes.every((type) => Number(type.price) === 0)
@@ -107,7 +128,7 @@ export function EventCheckout({ event }: EventCheckoutProps) {
     return null
   }
 
-  // Soumission : validation locale puis appel de la Server Action.
+  // Soumission : création de la commande puis lancement du paiement.
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setFormError('')
@@ -118,7 +139,7 @@ export function EventCheckout({ event }: EventCheckoutProps) {
     }
 
     startTransition(async () => {
-      const result = await createOrder({
+      const created = await createOrder({
         eventId: event.id,
         ticketTypeId: selectedType!.id,
         quantity,
@@ -127,46 +148,124 @@ export function EventCheckout({ event }: EventCheckoutProps) {
         buyerEmail: buyerEmail.trim() || undefined,
         deliveryMethod,
       })
-      if (!result.success) {
-        setFormError(result.error)
+      if (!created.success) {
+        setFormError(created.error)
         return
       }
-      setOrder(result.data)
+      setOrder(created.data)
+
+      const payment = await initiatePayment(created.data.orderId, providerId)
+      if (!payment.success) {
+        setFormError(payment.error)
+        setStep('failed')
+        return
+      }
+
+      if (payment.data.mode === 'simulated') {
+        // Paiement simulé : la commande est déjà payée (billets émis).
+        setPaidSimulated(true)
+        setPaidTickets(payment.data.tickets)
+        setStep('paid')
+      } else {
+        // KPay réel : on attend la confirmation (webhook) sur le téléphone.
+        setPaymentRef(payment.data.reference)
+        setPaymentIsTest(payment.data.isTest)
+        setStep('awaiting')
+      }
     })
   }
 
-  // ── Écran de confirmation (commande pending) ──────────────────────────────
-  if (order) {
+  // Vérifie le statut de la commande (polling pendant l'attente du paiement).
+  const checkStatus = async (): Promise<void> => {
+    if (!order) return
+    const result = await getOrderStatus(order.orderId)
+    if (!result.success) return
+    if (result.data.status === 'paid') {
+      setPaidTickets(result.data.tickets ?? [])
+      setStep('paid')
+    } else if (result.data.status === 'failed') {
+      setStep('failed')
+      setFormError('Le paiement a échoué ou a été annulé. Réessayez.')
+    }
+  }
+
+  // Polling automatique (toutes les 3 s, jusqu'à ~1 min 30) pendant l'attente.
+  useEffect(() => {
+    if (step !== 'awaiting' || !order) return
+    let cancelled = false
+    let attempts = 0
+    const timer = window.setInterval(async () => {
+      attempts += 1
+      if (cancelled || attempts > 30) {
+        window.clearInterval(timer)
+        return
+      }
+      const result = await getOrderStatus(order.orderId)
+      if (cancelled || !result.success) return
+      if (result.data.status === 'paid') {
+        setPaidTickets(result.data.tickets ?? [])
+        setStep('paid')
+        window.clearInterval(timer)
+      } else if (result.data.status === 'failed') {
+        setFormError('Le paiement a échoué ou a été annulé.')
+        setStep('failed')
+        window.clearInterval(timer)
+      }
+    }, 3000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [step, order])
+
+  // Retour au formulaire (après échec).
+  const backToForm = () => {
+    setStep('form')
+    setFormError('')
+  }
+
+  // ── Écran : paiement confirmé (billets émis) ──────────────────────────────
+  if (step === 'paid' && order) {
     return (
       <main className="min-h-screen bg-background px-4 py-10 sm:px-8">
         <div className="mx-auto max-w-xl">
           <Card data-testid="checkout-success">
             <CardContent className="flex flex-col items-center gap-4 p-8 text-center">
-              <CheckCircle className="h-12 w-12 text-emerald-500" />
-              <h1 className="text-2xl font-bold tracking-tight">Commande enregistrée</h1>
+              {/* Animation de succès (coche verte animée) */}
+              <Lottie src={successCheck} loop={false} className="h-24 w-24" />
+              <h1 className="text-2xl font-bold tracking-tight">Paiement confirmé</h1>
               <p className="text-muted-foreground">
                 Votre commande <span className="font-medium text-foreground">{order.reference}</span> pour{' '}
-                <span className="font-medium text-foreground">{order.eventTitle}</span> est bien reçue.
+                <span className="font-medium text-foreground">{order.eventTitle}</span> est payée.
               </p>
 
-              {/* Récapitulatif */}
-              <div className="w-full space-y-2 rounded-lg border border-dashed border-border bg-muted/30 p-4 text-left text-sm">
-                <Row label="Billet" value={`${order.quantity} × ${order.ticketTypeName}`} />
-                <Row
-                  label="Prix unitaire"
-                  value={formatPrice(Number(order.unitPrice), order.currency)}
-                />
-                <Row label="Total" value={formatPrice(Number(order.totalAmount), order.currency)} strong />
-                <Row
-                  label="Remise"
-                  value={order.deliveryMethod === 'email' ? 'Envoi par email' : 'Téléchargement direct'}
-                />
-                <Row label="Statut" value="En attente de paiement" />
-              </div>
+              {paidSimulated && (
+                <Badge variant="secondary">Mode démo — paiement simulé</Badge>
+              )}
 
-              <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
-                <SmartphoneDevice className="h-3.5 w-3.5" />
-                Le paiement Mobile Money et la remise de vos billets arrivent très bientôt.
+              {/* Codes d'accès des billets émis */}
+              {paidTickets.length > 0 && (
+                <div className="w-full space-y-2 rounded-lg border border-dashed border-border bg-muted/30 p-4 text-left">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Vos billets ({paidTickets.length})
+                  </p>
+                  {paidTickets.map((ticket) => (
+                    <div
+                      key={ticket.code}
+                      data-testid="paid-ticket-code"
+                      className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2"
+                    >
+                      <span className="text-sm text-muted-foreground">{ticket.ticketTypeName}</span>
+                      <span className="font-mono text-base font-bold tracking-[0.2em]">{ticket.code}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p className="text-sm text-muted-foreground">
+                {order.deliveryMethod === 'email'
+                  ? 'Les billets vous sont envoyés par email (PDF en pièce jointe).'
+                  : 'Présentez le code (ou le QR, bientôt) à l’entrée de l’événement.'}
               </p>
 
               <a
@@ -182,6 +281,81 @@ export function EventCheckout({ event }: EventCheckoutProps) {
     )
   }
 
+  // ── Écran : en attente de validation du paiement (KPay USSD) ──────────────
+  if (step === 'awaiting' && order) {
+    return (
+      <main className="min-h-screen bg-background px-4 py-10 sm:px-8">
+        <div className="mx-auto max-w-xl">
+          <Card>
+            <CardContent className="flex flex-col items-center gap-4 p-8 text-center">
+              <Lottie src={paymentLoading} loop className="h-20 w-20" />
+              <h1 className="text-2xl font-bold tracking-tight">Validez le paiement</h1>
+              <p className="text-muted-foreground">
+                Une demande de <span className="font-medium text-foreground">{formatPrice(total, selectedType?.currency ?? 'USD')}</span>{' '}
+                a été envoyée à <span className="font-medium text-foreground">{buyerPhone}</span>.
+              </p>
+              <p className="max-w-sm text-sm text-muted-foreground">
+                Confirmez la transaction sur votre téléphone (menu Mobile Money). La vérification est
+                automatique…
+              </p>
+              <div className="w-full rounded-lg border border-dashed border-border bg-muted/30 p-3 text-sm">
+                <span className="text-muted-foreground">Référence KPay : </span>
+                <span className="font-mono font-semibold">{paymentRef}</span>
+                {paymentIsTest && (
+                  <span className="mt-1 block text-xs text-cyan-600 dark:text-cyan-400">
+                    Environnement de test (sandbox KPay)
+                  </span>
+                )}
+              </div>
+              <Button variant="outline" className="w-full" onClick={checkStatus} data-testid="checkout-check-status">
+                <Refresh className="h-4 w-4" />
+                Vérifier maintenant
+              </Button>
+              <button
+                type="button"
+                onClick={backToForm}
+                className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+              >
+                Annuler et revenir au formulaire
+              </button>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    )
+  }
+
+  // ── Écran : échec / annulation ────────────────────────────────────────────
+  if (step === 'failed') {
+    return (
+      <main className="min-h-screen bg-background px-4 py-10 sm:px-8">
+        <div className="mx-auto max-w-xl">
+          <Card>
+            <CardContent className="flex flex-col items-center gap-4 p-8 text-center">
+              <WarningCircle className="h-12 w-12 text-destructive" />
+              <h1 className="text-2xl font-bold tracking-tight">Paiement non abouti</h1>
+              <p className="text-muted-foreground">{formError || 'La transaction a échoué.'}</p>
+              <div className="flex w-full flex-col gap-2">
+                <Button onClick={backToForm} data-testid="checkout-retry">
+                  Réessayer
+                </Button>
+                {order && (
+                  <a
+                    href={`/e/${order.eventSlug}`}
+                    className={buttonVariants({ variant: 'ghost', className: 'w-full' })}
+                  >
+                    Retour à l’événement
+                  </a>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    )
+  }
+
+  // ── Formulaire principal ──────────────────────────────────────────────────
   return (
     <main className="min-h-screen bg-background px-4 py-8 sm:px-8">
       <div className="mx-auto max-w-5xl">
@@ -325,6 +499,31 @@ export function EventCheckout({ event }: EventCheckoutProps) {
                   </div>
                 </div>
 
+                {/* Opérateur Mobile Money (RD Congo, Phase 6.4) */}
+                <fieldset>
+                  <legend className="text-sm font-medium">Payer avec</legend>
+                  <div className="mt-2.5 grid gap-2 sm:grid-cols-3">
+                    {KPAY_COD_PROVIDERS.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={providerId === p.id}
+                        onClick={() => setProviderId(p.id)}
+                        data-testid={`checkout-provider-${p.id}`}
+                        className={cn(
+                          'rounded-lg border p-3 text-center transition-colors',
+                          providerId === p.id
+                            ? 'border-primary bg-primary/5 ring-2 ring-primary/30'
+                            : 'border-border bg-background hover:bg-muted/40',
+                        )}
+                      >
+                        <span className="block text-sm font-medium">{p.shortLabel}</span>
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+
                 {/* Remise du billet (Phase 6.3) */}
                 <fieldset>
                   <legend className="text-sm font-medium">Comment recevoir vos billets</legend>
@@ -428,28 +627,38 @@ export function EventCheckout({ event }: EventCheckoutProps) {
                   </span>
                 </div>
 
-                <Button
-                  type="submit"
-                  size="lg"
-                  className="w-full"
-                  disabled={isPending || !selectedType}
-                  data-testid="checkout-submit"
-                >
-                  {isPending ? (
-                    <>
-                      <Refresh className="h-4 w-4 animate-spin" />
-                      Création de la commande…
-                    </>
-                  ) : (
-                    <>
-                      <SmartphoneDevice className="h-4 w-4" />
-                      {isFreeEvent ? 'Confirmer ma participation' : 'Payer via Mobile Money'}
-                    </>
-                  )}
-                </Button>
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.div
+                    key={step}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <Button
+                      type="submit"
+                      size="lg"
+                      className="w-full"
+                      disabled={isPending || !selectedType}
+                      data-testid="checkout-submit"
+                    >
+                      {isPending ? (
+                        <>
+                          <Refresh className="h-4 w-4 animate-spin" />
+                          {isFreeEvent ? 'Création de la commande…' : 'Initiation du paiement…'}
+                        </>
+                      ) : (
+                        <>
+                          <SmartphoneDevice className="h-4 w-4" />
+                          {isFreeEvent ? 'Confirmer ma participation' : 'Payer via Mobile Money'}
+                        </>
+                      )}
+                    </Button>
+                  </motion.div>
+                </AnimatePresence>
                 <p className="flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
                   <Clock className="h-3.5 w-3.5" />
-                  M-Pesa · Orange Money · Airtel Money
+                  M-Pesa (Vodacom) · Orange Money · Airtel Money — RD Congo
                 </p>
               </form>
             </CardContent>
@@ -457,16 +666,6 @@ export function EventCheckout({ event }: EventCheckoutProps) {
         </div>
       </div>
     </main>
-  )
-}
-
-// Ligne du récapitulatif de confirmation.
-function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <span className="text-muted-foreground">{label}</span>
-      <span className={cn('text-right font-mono', strong && 'text-base font-bold text-foreground')}>{value}</span>
-    </div>
   )
 }
 
