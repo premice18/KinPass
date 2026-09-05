@@ -31,13 +31,22 @@ import { OrganizerDashboard } from '@/components/features/dashboard/OrganizerDas
 import { EventDetail } from '@/components/features/dashboard/EventDetail'
 import { EventCreationForm } from '@/components/features/event-creation/EventCreationForm'
 import { ProfileSettings } from '@/components/features/settings/ProfileSettings'
-import { TicketCheckout } from '@/components/features/checkout/TicketCheckout'
+import { EventCheckout } from '@/components/features/checkout/EventCheckout'
 import { Scanner } from '@/components/features/scanner/Scanner'
 import { EventPublicView } from '@/components/features/event-public/EventPublicView'
 import { EventListing } from '@/components/features/events/EventListing'
 import { getEventById, type EditableEvent, type PublicEvent } from '@/lib/actions/events'
 
-type View = 'home' | 'dashboard' | 'detail' | 'create' | 'settings' | 'checkout' | 'scanner' | 'event' | 'events'
+type View =
+  | 'home'
+  | 'dashboard'
+  | 'detail'
+  | 'create'
+  | 'settings'
+  | 'scanner'
+  | 'event'
+  | 'event-checkout'
+  | 'events'
 
 // Utilisateur exposé au client (sans données sensibles).
 export type SessionUser = {
@@ -84,10 +93,14 @@ interface KinPassAppProps {
 
 export function KinPassApp({ initialView = 'home', initialEvent }: KinPassAppProps) {
   // Vue initiale immédiate (sans attendre le fetch de session) : page publique
-  // d'un événement dès le rendu serveur — le HTML livré contient le contenu
-  // (SEO, première impression), l'effet ci-dessous ne fait que confirmer.
+  // d'un événement (ou son tunnel d'achat) dès le rendu serveur — le HTML
+  // livré contient le contenu (SEO, première impression).
   const [view, setView] = useState<View>(
-    initialView === 'event' && initialEvent ? 'event' : 'home',
+    initialView === 'event' || initialView === 'event-checkout'
+      ? initialEvent
+        ? initialView
+        : 'home'
+      : 'home',
   )
   const [menuOpen, setMenuOpen] = useState(false)
   // Événement chargé pour le mode édition du formulaire (null = mode création).
@@ -111,10 +124,10 @@ export function KinPassApp({ initialView = 'home', initialEvent }: KinPassAppPro
         if (data.user?.role === 'organizer' && initialView === 'dashboard') {
           setView('dashboard')
         }
-        // Page publique d'un événement (/e/[slug]) : ouverte pour tous
-        // (connecté ou non), données déjà chargées côté serveur.
-        if (initialView === 'event' && initialEvent) {
-          setView('event')
+        // Pages publiques d'un événement (/e/[slug], /e/[slug]/checkout) :
+        // ouvertes pour tous (connecté ou non), données déjà côté serveur.
+        if ((initialView === 'event' || initialView === 'event-checkout') && initialEvent) {
+          setView(initialView)
         }
       })
       .catch(() => setAuthChecked(true))
@@ -202,9 +215,11 @@ export function KinPassApp({ initialView = 'home', initialEvent }: KinPassAppPro
     view === 'home' ? (
       <LandingPage onGetStarted={() => navigate('dashboard')} onBrowse={() => navigate('events')} />
     ) : view === 'event' && publicEvent ? (
-      /* Page publique d'un événement : le CTA d'achat mène au checkout de la
-         coquille (maquette) — remplacé par /e/[slug]/checkout en Phase 6.2. */
-      <EventPublicView event={publicEvent} onBuy={() => navigate('checkout')} />
+      /* Page publique d'un événement (Phase 6.1). */
+      <EventPublicView event={publicEvent} />
+    ) : view === 'event-checkout' && publicEvent ? (
+      /* Tunnel d'achat réel (Phase 6.2) — route /e/[slug]/checkout. */
+      <EventCheckout event={publicEvent} />
     ) : view === 'events' ? (
       /* Vitrine « Billetterie » (Phase 9.3) : l'organisateur connecté dispose
          du CTA « Créer un événement » dans l'état vide. */
@@ -228,8 +243,6 @@ export function KinPassApp({ initialView = 'home', initialEvent }: KinPassAppPro
       />
     ) : view === 'settings' ? (
       <ProfileSettings onBack={() => navigate('dashboard')} onProfileUpdated={refreshSession} />
-    ) : view === 'checkout' ? (
-      <TicketCheckout />
     ) : (
       <Scanner />
     )

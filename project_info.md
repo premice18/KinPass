@@ -117,14 +117,14 @@ Anti-patterns bannis : badges-pilules arrondis teintés, cartes `rounded-xl` + `
 - Lien partageable WhatsApp/réseaux ; métadonnées SEO dynamiques (`og:image` = affiche).
 - **État** : ✅ fait (Phase 6.1 — page réelle `/e/[slug]` dans la coquille SPA, galerie en carrousel, SEO dynamique, partage WhatsApp + copie du lien ; checkout réel en 6.2).
 
-### 📄 Tunnel d'achat & billetterie — Route `/e/[slug]/checkout` (À VENIR, publique)
+### 📄 Tunnel d'achat & billetterie — Route `/e/[slug]/checkout` (EN COURS — 6.2)
 
 - Sélection quantité + type de billet ; coordonnées acheteur (nom, téléphone Mobile Money, email optionnel) ; total calculé.
 - **Commandes** : tables `orders` / `order_items` (regroupement des achats multi-billets).
-- **Paiement Mobile Money** : M-Pesa / Orange Money / Airtel Money (agrégateur ou flux simulé pour MVP) + webhook de confirmation.
+- **Paiement Mobile Money** : M-Pesa / Orange Money / Airtel Money (agrégateur ou flux simulé pour MVP) + webhook de confirmation (6.4).
 - **Billet numérique** : **QR Code dynamique** + **code alphanumérique unique de 6 caractères** (ex. `K9M-4X2`).
 - **Remise du billet** : au choix **envoi par email** (PDF en pièce jointe) **ou téléchargement direct** (PDF / PNG / JPG) ; pages de confirmation (`/success`) et d'annulation (`/cancel`).
-- **État** : 🚧 maquette (`components/features/checkout/TicketCheckout.tsx` — prix codé en dur 38 $, paiement factice, code codé en dur `A4B-8K9`).
+- **État** : ✅ 6.2 faite — route réelle `/e/[slug]/checkout`, choix du type (jauge réelle) + quantité, coordonnées validées (Zod), **commande `pending` créée en base** (`orders`/`order_items`, prix et jauge re-vérifiés serveur), accusé « Commande enregistrée » avec référence ; utilitaire de code billet prêt (`lib/ticket-code.ts`). Reste : 6.3 (remise email/téléchargement PDF/PNG/JPG), 6.4 (paiement Mobile Money + webhook → `paid`, émission billets codes+QR), 6.5 (pages success/cancel).
 
 ### 📄 Contrôle d'accès — Route `/scan/[slug]` (À VENIR)
 
@@ -358,12 +358,15 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 - [ ] Bouton d'achat → vrai checkout (`/e/[slug]/checkout`, Phase 6.2) : aujourd'hui il ouvre la maquette de la coquille.
 - [ ] Tests E2E (`tests/e2e/event-public.spec.ts`) : **écrits, exécution sur demande** (règle §0.7).
 
-#### 6.2 Tunnel d'achat + commandes (`orders`)
+#### 6.2 Tunnel d'achat + commandes (`orders`) ✅ FAITE
 
-- [ ] Route `/e/[slug]/checkout` : sélection du type de billet + quantité, coordonnées acheteur (nom, téléphone Mobile Money, email optionnel), calcul du total (prix × quantité).
-- [ ] Table `orders` (id, event_id, buyer_name, buyer_phone, buyer_email, total_amount, currency, delivery_method, status, payment_ref, created_at) + `order_items` (id, order_id, ticket_type_id, quantity, unit_price) — regroupement des achats multi-billets.
-- [ ] Génération du **code alphanumérique unique de 6 caractères** par billet (fonction utilitaire + contrainte UNIQUE, retry en cas de collision) + **QR Code** (`qrcode.react`).
-- [ ] `tickets.order_id` → lien vers la commande (nullable pour rétro-compatibilité).
+- [x] Route publique **`/e/[slug]/checkout`** (`app/e/[slug]/checkout/page.tsx`, rendue dans la coquille — vue `event-checkout`) : sélection du **type de billet** (jauge réelle : places restantes / « Complet »), **quantité** (bornée aux places restantes, max 20), coordonnées acheteur (nom + prénom, téléphone Mobile Money, email optionnel), **total = prix × quantité** (prix relus en base par la Server Action — jamais de montant client). Événement terminé/brouillon/inconnu → 404 (`robots: noindex`).
+- [x] Tables **`orders`** (id, event_id, buyer_name, buyer_phone, buyer_email, total_amount, currency, delivery_method `download`, status `pending`, payment_ref, created_at) + **`order_items`** (order_id, ticket_type_id, quantity, unit_price) appliquées en base — regroupement des achats multi-billets (1 type par commande au MVP, le schéma gère déjà N lignes).
+- [x] **Server Action `createOrder`** (publique) : validation Zod, événement `published` requis, **prix/jauge re-lus en base**, création transactionnelle commande + ligne(s) ; retour d'un accusé avec référence lisible (8 caractères).
+- [x] Génération du code billet : utilitaire `lib/ticket-code.ts` — **6 caractères alphanumériques** au format `XXX-XXX` (alphabet sans ambiguïté 0/O/1/I, `crypto.getRandomValues`) + `normalizeTicketCode` (majuscules, tirets ignorés — réutilisé par le scan, Phase 7) ; la contrainte UNIQUE existe déjà (`tickets.code`), le retry anti-collision sera appliqué à la génération effective des billets (Phase 6.4). **QR Code (`qrcode.react`) reporté** à l'émission des billets (aucun QR rendu avant la Phase 6.4/6.5 — pas de dépendance morte).
+- [x] `tickets.order_id` → FK nullable vers `orders` (ON DELETE SET NULL) appliquée en base — les billets du seed antérieurs restent valides.
+- [x] Maquette `TicketCheckout` **supprimée** : le CTA « Réserver maintenant » de `/e/[slug]` est désormais un vrai lien vers `/e/[slug]/checkout`.
+- [ ] Confirmation de paiement (6.4) : la commande reste `pending`, l'écran affiche un accusé clair « Commande enregistrée » + rappel que le paiement arrive.
 
 #### 6.3 Choix de remise du billet : email OU téléchargement (PDF / PNG / JPG)
 
@@ -737,7 +740,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - **Phase 3** : ✅ TERMINÉE (logo ticket, dark/light, menu mobile).
 - **Phase 4 (auth + compte organisateur)** : 🟡 EN COURS — **4.1, 4.2 et 4.3 faites** (register/login + Google via Auth.js ; page « Mon profil » : avatar auto Google ou initiales, WhatsApp, adresse, comptes de reversement, blocage publication sans compte) ; reste : badge « Profil incomplet » sur le dashboard, upload avatar réel (stockage externe), rôle agent (Phase 7), exécution des tests E2E (sur demande).
 - **Phase 5 (événements)** : ✅ TERMINÉE — CRUD complet + publication, organisateur de test fixe (`lib/constants.ts`), à sécuriser par la session dès la Phase 4.
-- **Phase 6 (billetterie + paiement)** : 🟡 EN COURS — **6.1 faite** (page publique `/e/[slug]` SEO + galerie `event_images` 1-3 photos + section « Galerie » du formulaire + actions enrichies + partage WhatsApp) ; reste : 6.2 commandes/checkout, 6.3 remise du billet, 6.4 paiement Mobile Money, 6.5 pages de confirmation, 6.7 partage enrichi.
+- **Phase 6 (billetterie + paiement)** : 🟡 EN COURS — **6.1 et 6.2 faites** (page publique `/e/[slug]` SEO + galerie `event_images` + formulaire galerie + partage WhatsApp ; tunnel d'achat réel `/e/[slug]/checkout` + tables `orders`/`order_items` + `tickets.order_id` + utilitaire de code billet) ; reste : 6.3 remise du billet (email/PDF/PNG/JPG), 6.4 paiement Mobile Money (webhook, émission des billets/QR), 6.5 pages de confirmation, 6.7 partage enrichi (panneau + QR).
 - **Phase 7 (scanner)** : ❌ À VENIR — interface de scan (caméra + saisie), **comptes scanneurs gérés par l'organisateur avec RBAC strict** (assignation par événement, aucun accès aux ventes/contrats).
 - **Phase 8 (polish)** : 🟡 EN COURS — tests E2E faits (15 scénarios) ; unitaires, PWA et export restent.
 - **Phase 9 (vitrine publique)** : ✅ TERMINÉE — `getPublicEvents` (source unique), bandeau « À venir » sur la landing (3 événements, jamais de brouillon), rubrique « Billetterie » = listing complet (chips catégories, recherche, tri, états chargement/erreur/vide), carte `EventCard` « talon » partagée (→ `/e/[slug]`), page publique organisateur `/o/[slug]` (`users.slug` auto-généré) ; route `/events` SEO reportée au routing par URL.
@@ -776,20 +779,22 @@ components/
     event-creation/   # EventCreationForm (galerie 1-3 photos)
     event-public/     # EventPublicView (page /e/[slug], galerie carrousel)
     events/           # EventCard « talon » + EventListing (vitrine Phase 9)
-    checkout/         # TicketCheckout
+    checkout/         # EventCheckout (tunnel réel /e/[slug]/checkout, Phase 6.2)
     scanner/          # Scanner
 lib/
   actions/events.ts   # Server Actions CRUD événements (+ stats + galerie + page publique + vitrine)
+  actions/orders.ts   # Commandes (createOrder — tunnel d'achat Phase 6.2)
   actions/organizers.ts # Server Actions publiques organisateur (/o/[slug])
   actions/profile.ts  # Profil organisateur (comptes de reversement…)
   validators/events.ts # Schémas Zod (messages français) — séparés des actions
   constants.ts        # Organisateur de test temporaire + catégories/devises/statuts
   share.ts            # Helpers de partage (URL /e/[slug], WhatsApp)
   slug.ts             # slugify + suffixe aléatoire (slug URL unique)
+  ticket-code.ts      # Codes de billet 6 caractères (XXX-XXX, Phase 6.2)
   pexels.ts           # Client API Pexels (serveur uniquement)
   hooks/use-pexels-images.ts  # Hook client de chargement des photos Pexels
   db/
-    schema.ts         # Schéma Drizzle (users + slug, payout_methods, events, event_images, ticket_types, tickets, scans)
+    schema.ts         # Schéma Drizzle (users + slug, payout_methods, events, event_images, ticket_types, orders, order_items, tickets, scans)
     index.ts          # Client Drizzle (singleton)
     user-slug.ts      # Génération du slug public organisateur (/o/[slug])
   utils.ts            # cn()

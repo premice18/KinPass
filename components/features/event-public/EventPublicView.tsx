@@ -32,7 +32,7 @@ import {
 } from 'iconoir-react'
 
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Eyebrow } from '@/components/ui/eyebrow'
 import type { PublicEvent } from '@/lib/actions/events'
@@ -40,8 +40,6 @@ import { buildEventUrl, buildShareText, buildWhatsAppShareUrl } from '@/lib/shar
 
 interface EventPublicViewProps {
   event: PublicEvent
-  // Navigation par état de la coquille (acheminera vers le checkout réel en 6.2).
-  onBuy?: () => void
 }
 
 // Catégorie affichée : la valeur personnalisée prime si « Autre ».
@@ -66,7 +64,7 @@ function formatFullDate(value: Date | string | null): string {
   return `${day} à ${time}`
 }
 
-export function EventPublicView({ event, onBuy }: EventPublicViewProps) {
+export function EventPublicView({ event }: EventPublicViewProps) {
   // Slider : l'affiche reste la « une » (1re slide) quand elle existe, suivie
   // des photos de la galerie (1 à 3). Le carrousel n'apparaît que si 2 slides.
   const slides = [
@@ -339,21 +337,20 @@ export function EventPublicView({ event, onBuy }: EventPublicViewProps) {
                 )}
               </div>
 
-              {/* Bouton d'achat */}
+              {/* Bouton d'achat : vraie route de checkout (Phase 6.2) */}
               {isFinished ? (
                 <Button className="w-full" size="lg" disabled>
                   Billetterie terminée
                 </Button>
               ) : (
-                <Button
-                  className="w-full"
-                  size="lg"
-                  onClick={onBuy}
+                <a
+                  href={`/e/${event.slug}/checkout`}
                   data-testid="event-public-buy"
+                  className={buttonVariants({ variant: 'default', size: 'lg', className: 'w-full' })}
                 >
                   <CardWallet className="h-4 w-4" />
                   Réserver maintenant
-                </Button>
+                </a>
               )}
               <p className="flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
                 <SmartphoneDevice className="h-3.5 w-3.5" />
