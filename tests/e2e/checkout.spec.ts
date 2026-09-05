@@ -1,11 +1,8 @@
-// Tests end-to-end du tunnel d'achat (Phase 6.2) — route `/e/[slug]/checkout`.
+// Tests end-to-end du tunnel d'achat (Phase 6.2 → 6.4) — /e/[slug]/checkout.
 //
-// Le tunnel est réel : sélection du type de billet (jauge réelle), quantité,
-// coordonnées acheteur, création d'une commande `pending` en base (prix et
-// capacité re-vérifiés par la Server Action — jamais côté client). La
-// confirmation de paiement (Mobile Money) et la remise du billet arrivent
-// avec les Phases 6.3/6.4 ; le test vérifie donc l'écran « Commande
-// enregistrée ».
+// Sans clés KPay dans l'environnement de test, le checkout bascule en mode
+// « Simuler le paiement » : la commande est payée immédiatement et les
+// billets sont émis (codes 6 caractères) — mêmes règles que le webhook réel.
 import { test, expect } from '@playwright/test'
 
 // Slug de l'événement publié du seed (Kin House : Standard 10 $, VIP 50 $).
@@ -26,6 +23,11 @@ test.describe('Tunnel d’achat /e/[slug]/checkout', () => {
     await expect(standard).toBeVisible()
     await standard.click()
     await expect(standard).toHaveAttribute('aria-checked', 'true')
+
+    // L'opérateur M-Pesa est présélectionné ; Orange Money est proposé
+    await expect(page.getByTestId('checkout-provider-mpesa')).toHaveAttribute('aria-checked', 'true')
+    await page.getByTestId('checkout-provider-orange').click()
+    await expect(page.getByTestId('checkout-provider-orange')).toHaveAttribute('aria-checked', 'true')
   })
 
   test('calcule le total selon la quantité choisie', async ({ page }) => {
@@ -58,24 +60,34 @@ test.describe('Tunnel d’achat /e/[slug]/checkout', () => {
     await expect(page.getByTestId('checkout-submit')).toBeVisible()
   })
 
-  test('crée une commande pending et affiche l’accusé de réception', async ({ page }) => {
+  test('paie (mode simulation) et affiche les billets émis', async ({ page }) => {
     await page.goto(`/e/${PUBLISHED_SLUG}/checkout`)
 
+    // 2 × VIP (50 $) = 100 $
     await page.getByRole('radio', { name: /VIP/ }).click()
+    await page.getByRole('button', { name: 'Augmenter la quantité' }).click()
+    await expect(page.getByTestId('checkout-total')).toHaveText('100 $')
+
     await page.getByTestId('checkout-buyer-name').fill('Jean-Marc Kabongo')
     await page.getByTestId('checkout-buyer-phone').fill('+243 81 234 56 78')
-    await page.getByTestId('checkout-buyer-email').fill('jeanmarc@exemple.cd')
     await page.getByTestId('checkout-submit').click()
 
-    // Accusé de réception de la commande
+    // Confirmation du paiement + référence de commande
     const success = page.getByTestId('checkout-success')
     await expect(success).toBeVisible()
-    await expect(success.getByText('Commande enregistrée')).toBeVisible()
-    // Référence lisible (8 caractères) + récapitulatif VIP
-    await expect(success.getByText(/[A-Z0-9]{8}/)).toBeVisible()
-    await expect(success).toContainText('1 × VIP')
-    // Remise par défaut : téléchargement direct
-    await expect(success).toContainText('Téléchargement direct')
+    await expect(success.getByText('Paiement confirmé')).toBeVisible()
+    await expect(success).toContainText(/Votre commande [A-Z0-9]{8}/)
+
+    // Deux billets émis (un par place), codes au format XXX-XXX
+    const codes = success.getByTestId('paid-ticket-code')
+    await expect(codes).toHaveCount(2)
+    for (let i = 0; i < 2; i++) {
+      await expect(codes.nth(i)).toContainText(/^[A-Z2-9]{3}-[A-Z2-9]{3}$/)
+      await expect(codes.nth(i)).toContainText('VIP')
+    }
+
+    // Mention du mode démo (simulation, aucune clé KPay)
+    await expect(success.getByText(/Mode démo/)).toBeVisible()
   })
 
   test('exige l’email quand la remise choisie est l’envoi par email', async ({ page }) => {
@@ -98,7 +110,21 @@ test.describe('Tunnel d’achat /e/[slug]/checkout', () => {
 
     const success = page.getByTestId('checkout-success')
     await expect(success).toBeVisible()
-    await expect(success).toContainText('Envoi par email')
+    await expect(success.getByText('Paiement confirmé')).toBeVisible()
+    await expect(success).toContainText('envoyés par email')
+  })
+
+  test('un événement gratuit est confirmé sans payer', async ({ page }) => {
+    await page.goto('/e/expo-photo-gombe/checkout')
+
+    await page.getByRole('radio', { name: /Entrée libre/ }).click()
+    await page.getByTestId('checkout-buyer-name').fill('Jean-Marc Kabongo')
+    await page.getByTestId('checkout-buyer-phone').fill('+243 81 234 56 78')
+    await page.getByTestId('checkout-submit').click()
+
+    const success = page.getByTestId('checkout-success')
+    await expect(success.getByText('Paiement confirmé')).toBeVisible()
+    await expect(success.getByTestId('paid-ticket-code')).toHaveCount(1)
   })
 
   test('un événement terminé ou inconnu n’a pas de billetterie', async ({ page }) => {

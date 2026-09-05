@@ -124,7 +124,7 @@ Anti-patterns bannis : badges-pilules arrondis teintés, cartes `rounded-xl` + `
 - **Paiement Mobile Money** : M-Pesa / Orange Money / Airtel Money (agrégateur ou flux simulé pour MVP) + webhook de confirmation (6.4).
 - **Billet numérique** : **QR Code dynamique** + **code alphanumérique unique de 6 caractères** (ex. `K9M-4X2`).
 - **Remise du billet** : au choix **envoi par email** (PDF en pièce jointe) **ou téléchargement direct** (PDF / PNG / JPG) ; pages de confirmation (`/success`) et d'annulation (`/cancel`).
-- **État** : ✅ 6.2 faite — route réelle `/e/[slug]/checkout`, choix du type (jauge réelle) + quantité, coordonnées validées (Zod), **commande `pending` créée en base** (`orders`/`order_items`, prix et jauge re-vérifiés serveur), accusé « Commande enregistrée » avec référence ; utilitaire de code billet prêt (`lib/ticket-code.ts`). ✅ 6.3 — choix de la remise (email obligatoire si « par email »), `delivery_method` persisté, moteur de billet PDF + QR (`lib/ticket/`, route dev d'aperçu), socle email Resend (`lib/mail.ts`). Reste : 6.4 (paiement Mobile Money + webhook → `paid`, émission billets codes+QR, envoi email), 6.5 (pages success/cancel, boutons PDF/PNG/JPG).
+- **État** : ✅ 6.2-6.4 faites — route `/e/[slug]/checkout` (type + jauge + quantité + opérateur COD + coordonnées + remise), commande `pending`, paiement **KPay** (USSD, clés test) ou **simulé** sans clés, webhook `/api/kpay/webhook` sécurisé (signature + idempotence) → `paid` + **billets émis** (codes 6 caractères) + email (PDF), états `failed` gérés. Reste : `expired`, validation KPay en conditions réelles (clés de test), 6.5 (pages success/cancel + QR/PNG/JPG à l'écran).
 
 ### 📄 Contrôle d'accès — Route `/scan/[slug]` (À VENIR)
 
@@ -378,11 +378,15 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 - [ ] **PNG / JPG** : rendu de la carte billet en image (SVG → PNG/JPG) — sera consommé par les boutons de la page de confirmation (6.5) via un rendu DOM/canvas (aucune dépendance serveur) ; le re-téléchargement public viendra avec « Vérifier mon billet » (Phase 12).
 - [ ] Tests E2E écrits (choix de remise download/email) : **exécution sur demande** (règle §0.7).
 
-#### 6.4 Paiement Mobile Money + webhook de confirmation
+#### 6.4 Paiement Mobile Money + webhook de confirmation 🟡 (faite — validation KPay réelle à faire)
 
-- [ ] Intégration agrégateur (KPAY) **OU** flux simulé MVP (bouton « Simuler le paiement »).
-- [ ] Webhook de confirmation → passage de la commande et des billets au statut `paid`, génération des billets, envoi de l'email si demandé.
-- [ ] Gestion des états : `pending`, `paid`, `failed`, `expired` (expiration après X minutes).
+- [x] **Intégration KPay (agrégateur Mobile Money)** — `lib/kpay.ts` (client serveur : `POST /api/v1/payments/init` USSD, clés `X-API-Key`/`X-Secret-Key`, environnement test/live par préfixe) **+ bascule automatique en mode « Simuler le paiement »** quand aucune clé n'est configurée (démo/E2E) : la commande est payée immédiatement avec les mêmes règles de traitement.
+- [x] Checkout : sélection de l'**opérateur Mobile Money RDC** (M-Pesa Vodacom / Orange Money / Airtel Money → `VODACOM_MPESA_COD` / `ORANGE_COD` / `AIRTEL_COD`), numéro normalisé pour KPay. Écran d'attente « Validez sur votre téléphone » (référence KPay, badge sandbox) avec **vérification automatique** (poll 3 s) + bouton manuel.
+- [x] **Webhook de confirmation** `POST /api/kpay/webhook` (callback « Dépôts » du dashboard KPay) : signature `X-KPAY-Signature` vérifiée (HMAC-SHA256 corps brut, `KPAY_WEBHOOK_SECRET`, temps constant), réponse 200 rapide, réessais KPay respectés (500 → 3 tentatives), **idempotence** (une commande déjà traitée n'est jamais re-traitée).
+- [x] Passage `pending` → `paid` (webhook `payment.completed` / simulation) : **génération des billets** (codes 6 caractères `XXX-XXX`, retry anti-collision dans la transaction), `tickets.order_id` posé, **`sold_count` incrémenté** (jauge) ; **envoi email** si remise `email` (un PDF par billet, `lib/payments.ts` → `lib/mail.ts`). Échec/annulation → statut `failed` (écran « Paiement non abouti » + Réessayer).
+- [x] Devise : KPay COD n'accepte pas de paramètre de devise → montant **converti en CDF** via `KPAY_USD_CDF_RATE` (défaut 2800, env) pour les billets USD ; vrai taux dynamique en Phase 10. Montant 0 (entrée libre) : jamais d'appel KPay, payée d'office.
+- [ ] **États `expired`** : expiration après X minutes non implémentée (la commande `pending` non confirmée n'expire pas encore — à traiter avec 6.5 / nettoyage).
+- [ ] **Validation KPay réelle** : clés de test (`kpay_test_…` / `sk_test_…`) + callback « Dépôts » configuré sur le dashboard (URL publique `/api/kpay/webhook`, secret dans `KPAY_WEBHOOK_SECRET`) puis test avec un numéro sandbox RDC (`243813456789` → COMPLETED). Numéros COD : `243813456129` = SUBMITTED (polling), `243813456039` = refus, etc. (doc § test).
 
 #### 6.5 Pages de confirmation & redirection (acheteur)
 
@@ -739,7 +743,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - **Phase 3** : ✅ TERMINÉE (logo ticket, dark/light, menu mobile).
 - **Phase 4 (auth + compte organisateur)** : 🟡 EN COURS — **4.1, 4.2 et 4.3 faites** (register/login + Google via Auth.js ; page « Mon profil » : avatar auto Google ou initiales, WhatsApp, adresse, comptes de reversement, blocage publication sans compte) ; reste : badge « Profil incomplet » sur le dashboard, upload avatar réel (stockage externe), rôle agent (Phase 7), exécution des tests E2E (sur demande).
 - **Phase 5 (événements)** : ✅ TERMINÉE — CRUD complet + publication, organisateur de test fixe (`lib/constants.ts`), à sécuriser par la session dès la Phase 4.
-- **Phase 6 (billetterie + paiement)** : 🟡 EN COURS — **6.1, 6.2 et 6.3 faites** (page publique `/e/[slug]` SEO + galerie ; tunnel d'achat réel `/e/[slug]/checkout` + `orders`/`order_items` ; **choix de remise email/téléchargement + moteur de billet PDF/QR + socle email Resend**) ; reste : 6.4 paiement Mobile Money (webhook → `paid`, émission des billets/QR, envoi email), 6.5 pages de confirmation + boutons PNG/JPG, 6.7 partage enrichi.
+- **Phase 6 (billetterie + paiement)** : 🟡 EN COURS — **6.1 → 6.4 faites** (page publique + galerie ; tunnel d'achat + `orders` ; remise email/téléchargement + moteur PDF/QR ; **paiement KPay COD + webhook sécurisé → `paid`, émission des billets, email ; mode simulation sans clés**) ; reste : validation KPay réelle (clés de test + callback Dépôts), état `expired`, 6.5 pages de confirmation (boutons PNG/JPG + QR à l'écran), 6.7 partage enrichi.
 - **Phase 7 (scanner)** : ❌ À VENIR — interface de scan (caméra + saisie), **comptes scanneurs gérés par l'organisateur avec RBAC strict** (assignation par événement, aucun accès aux ventes/contrats).
 - **Phase 8 (polish)** : 🟡 EN COURS — tests E2E faits (15 scénarios) ; unitaires, PWA et export restent.
 - **Phase 9 (vitrine publique)** : ✅ TERMINÉE — `getPublicEvents` (source unique), bandeau « À venir » sur la landing (3 événements, jamais de brouillon), rubrique « Billetterie » = listing complet (chips catégories, recherche, tri, états chargement/erreur/vide), carte `EventCard` « talon » partagée (→ `/e/[slug]`), page publique organisateur `/o/[slug]` (`users.slug` auto-généré) ; route `/events` SEO reportée au routing par URL.
@@ -766,6 +770,8 @@ app/
   o/[slug]/page.tsx   # Page publique organisateur (Phase 9.5)
   globals.css         # Tokens Tailwind v4 (clair/sombre)
   api/pexels/route.ts # Proxy Pexels (clé API côté serveur uniquement)
+  api/kpay/webhook/route.ts # Webhook KPay « Dépôts » (Phase 6.4, signé + idempotent)
+  api/dev/ticket-preview/route.ts # Aperçu PDF d'un billet (développement)
 components/
   KinPassApp.tsx      # Coquille SPA — navigation par état (+ vue 'event')
   layout/             # Composants de coquille (header)
@@ -778,7 +784,7 @@ components/
     event-creation/   # EventCreationForm (galerie 1-3 photos)
     event-public/     # EventPublicView (page /e/[slug], galerie carrousel)
     events/           # EventCard « talon » + EventListing (vitrine Phase 9)
-    checkout/         # EventCheckout (tunnel réel /e/[slug]/checkout, Phase 6.2)
+    checkout/         # EventCheckout (tunnel /e/[slug]/checkout, 6.2-6.4)
     scanner/          # Scanner
 lib/
   actions/events.ts   # Server Actions CRUD événements (+ stats + galerie + page publique + vitrine)
@@ -791,6 +797,9 @@ lib/
   slug.ts             # slugify + suffixe aléatoire (slug URL unique)
   ticket-code.ts      # Codes de billet 6 caractères (XXX-XXX, Phase 6.2)
   ticket/             # Moteur de billet (Phase 6.3) : types, QR PNG, PDF
+  kpay.ts             # Client KPay serveur (init paiement USSD, signature webhook)
+  kpay-providers.ts   # Opérateurs Mobile Money RDC (choix au checkout)
+  payments.ts         # Exécution commande payée (billets + sold_count + email)
   mail.ts             # Envoi email (Resend optionnel, simulation en dev)
   pexels.ts           # Client API Pexels (serveur uniquement)
   hooks/use-pexels-images.ts  # Hook client de chargement des photos Pexels
@@ -825,6 +834,9 @@ drizzle.config.ts     # Config drizzle-kit
 | `NEXT_PUBLIC_APP_URL` | ✅ (partage/SEO) | URL publique du site (ex. `https://kinpass.app`) — construire les liens partageables (`/e/[slug]`) et les aperçus OG. Repli local : `http://localhost:3000`. |
 | `RESEND_API_KEY` | ❌ (email) | Clé Resend pour la remise des billets par email (Phase 6.3). Sans clé : envoi **simulé** (log) en développement ; installer `pnpm add resend` dès activation. |
 | `MAIL_FROM` | ❌ (email) | Expéditeur des emails kinPass (défaut `kinPass <billets@kinpass.app>`). |
+| `KPAY_API_KEY` / `KPAY_SECRET_KEY` | ❌ (paiement) | Clés KPay (Phase 6.4) : test `kpay_test_…`/`sk_test_…`, live `kpay_live_…`/`sk_live_…`. **Sans clés → mode « Simuler le paiement »** (démo/E2E). |
+| `KPAY_WEBHOOK_SECRET` | ❌ (paiement) | Secret du callback **Webhook « Dépôts »** du dashboard KPay (signature `X-KPAY-Signature`). Absent en dev : signature non vérifiée (avertissement). |
+| `KPAY_USD_CDF_RATE` | ❌ (paiement) | Taux USD → CDF appliqué pour facturer en CDF (KPay COD sans devise). Défaut `2800`. |
 
 | Commande                     | Description                                                                |
 | :--------------------------- | :------------------------------------------------------------------------- |
