@@ -70,7 +70,7 @@ export async function GET(_request: Request, { params }: TicketPdfParams) {
     orderReference,
   })
 
-  return new Response(pdf, {
+  return new Response(Buffer.from(pdf), {
     headers: {
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="kinpass-${ticket.code}.pdf"`,

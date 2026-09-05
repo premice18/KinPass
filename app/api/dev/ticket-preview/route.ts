@@ -28,7 +28,7 @@ export async function GET(request: Request) {
 
   try {
     const pdf = await buildTicketPdf(artwork)
-    return new Response(pdf, {
+    return new Response(Buffer.from(pdf), {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `inline; filename="kinpass-billet-${code}.pdf"`,
