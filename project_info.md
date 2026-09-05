@@ -185,32 +185,32 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 
 ### Table `users`
 
-| Colonne                     | Type         | Contrainte            | Description            |
-| :-------------------------- | :----------- | :-------------------- | :--------------------- |
-| `id`                        | uuid         | PK, defaultRandom     | Identifiant            |
-| `email`                     | varchar(255) | UNIQUE NOT NULL       | Connexion              |
+| Colonne                     | Type         | Contrainte            | Description                                    |
+| :-------------------------- | :----------- | :-------------------- | :--------------------------------------------- |
+| `id`                        | uuid         | PK, defaultRandom     | Identifiant                                    |
+| `email`                     | varchar(255) | UNIQUE NOT NULL       | Connexion                                      |
 | `password_hash`             | text         | nullable (Auth.js)    | Hash bcrypt — absent pour un compte Google pur |
-| `full_name`                 | varchar(255) | NOT NULL              | Nom complet            |
-| `role`                      | varchar(20)  | default `'organizer'` | `organizer` \| `agent` \| `superadmin` |
-| `provider`                  | varchar(20)  | default `'email'`     | `email` \| `google` (Auth.js, cf. §4.2) |
-| `provider_id`               | varchar(255) |                       | Identifiant du provider (sub Google) |
-| `created_at` / `updated_at` | timestamptz  | defaultNow            | Horodatage             |
+| `full_name`                 | varchar(255) | NOT NULL              | Nom complet                                    |
+| `role`                      | varchar(20)  | default `'organizer'` | `organizer` \| `agent` \| `superadmin`         |
+| `provider`                  | varchar(20)  | default `'email'`     | `email` \| `google` (Auth.js, cf. §4.2)        |
+| `provider_id`               | varchar(255) |                       | Identifiant du provider (sub Google)           |
+| `created_at` / `updated_at` | timestamptz  | defaultNow            | Horodatage                                     |
 
 ### Table `events`
 
-| Colonne               | Type         | Contrainte                   | Description                          |
-| :-------------------- | :----------- | :--------------------------- | :----------------------------------- |
-| `id`                  | uuid         | PK                           | Identifiant                          |
-| `organizer_id`        | uuid         | FK `users` ON DELETE CASCADE | Organisateur                         |
-| `title`               | varchar(255) | NOT NULL                     | Titre                                |
-| `slug`                | varchar(255) | UNIQUE (index)               | URL `/e/[slug]`                      |
-| `description`         | text         |                              | Description                          |
+| Colonne               | Type         | Contrainte                   | Description                              |
+| :-------------------- | :----------- | :--------------------------- | :--------------------------------------- |
+| `id`                  | uuid         | PK                           | Identifiant                              |
+| `organizer_id`        | uuid         | FK `users` ON DELETE CASCADE | Organisateur                             |
+| `title`               | varchar(255) | NOT NULL                     | Titre                                    |
+| `slug`                | varchar(255) | UNIQUE (index)               | URL `/e/[slug]`                          |
+| `description`         | text         |                              | Description                              |
 | `category`            | varchar(50)  |                              | Concert/Conférence/Festival/Soirée/Autre |
 | `category_custom`     | varchar(100) |                              | Type personnalisé si `category = 'Autre' |
-| `venue` / `location`  | varchar(255) |                              | Lieu                                 |
-| `start_at` / `end_at` | timestamptz  |                              | Dates                                |
-| `poster_url`          | text         |                              | Affiche                              |
-| `status`              | varchar(20)  | default `'draft'`            | `draft` \| `published` \| `finished` |
+| `venue` / `location`  | varchar(255) |                              | Lieu                                     |
+| `start_at` / `end_at` | timestamptz  |                              | Dates                                    |
+| `poster_url`          | text         |                              | Affiche                                  |
+| `status`              | varchar(20)  | default `'draft'`            | `draft` \| `published` \| `finished`     |
 
 ### Table `ticket_types`
 
@@ -406,6 +406,7 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 **Objectif** : permettre à l'organisateur de **partager facilement son événement** via un lien complet — WhatsApp (canal roi en RDC), réseaux sociaux, QR code physique, copie en un clic.
 
 **Décision (validée)** :
+
 - L'URL canonique est construite depuis le **slug existant** : `${NEXT_PUBLIC_APP_URL}/e/${slug}`. **Pas de raccourcisseur tiers au MVP** (Bitly…) : dépendance externe + coût + lien mort si le service ferme. Un éventuel lien court **interne** sera étudié plus tard (option, cf. plus bas).
 - Les **aperçus WhatsApp / réseaux** reposent sur les balises Open Graph (SEO déjà prévu en 6.1) : la page `/e/[slug]` doit exposer `og:title`, `og:description`, `og:image` (affiche) — indispensable pour un partage « riche ».
 - **Tracking des provenances reporté** (option) : mesurer les clics par source n'est pas un besoin MVP ; éviter la sur-ingénierie.
@@ -431,6 +432,10 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 
 - [ ] Réutiliser `users.role` (`organizer` | `agent`) ; ajouter `users.organizer_id` (uuid nullable, FK `users` ON DELETE SET NULL) pour rattacher un agent à son organisateur.
 - [ ] **Emails synthétiques uniques auto-générés** : au moment de créer un scanneur, l'UI génère `{slug}-{n}@kinpass.com` (n incrémental par événement) ; l'organisateur **ne saisit pas** l'email, il choisit uniquement le nom et le mot de passe. Le domaine `@kinpass.com` marque visuellement un compte interne.
+- [ ] **Contrôle d'accès** : chaque agent ne peut scanner que les événements auxquels il est assigné.
+- [ ] L'organisateur peut créer, voir, désactiver/réactiver, supprimer et réinitialiser le mot de passe d'un agent dans la section « Équipe / Scanneurs » de `/settings` (via Server Actions sécurisées).
+- [ ] Les scanneurs ont une page ou ils peuvent voir qui ilsont scannes , l'admin peut voir les scanneurs et leurs scans.
+- [ ] **RBAC strict** : un agent ne peut jamais accéder aux routes organisateur (`/dashboard`, `/settings`, `/events/*`, `/payouts`) ni aux Server Actions de gestion des ventes/contrats ; un organisateur ne peut jamais scanner (routes `/scan/*`).
 - [ ] Nouvelle table `agent_event_access` (id, agent_id FK `users` CASCADE, event_id FK `events` CASCADE, created_at) — index sur `agent_id` et `event_id` — pour définir **quels événements** un agent peut scanner.
 - [ ] Section « Équipe / Scanneurs » dans `/settings` : lister les agents (nom, email généré, événements assignés), bouton « Ajouter un scanneur » (nom + mot de passe + sélection des événements), désactivation/réactivation, suppression, réinitialisation du mot de passe.
 - [ ] Server Actions `createAgent`, `updateAgent`, `deactivateAgent`, `assignAgentToEvent`, `unassignAgentToEvent`, `resetAgentPassword` — toutes protégées par `role === 'organizer'` **et** `organizer_id === session.id` (défense en profondeur).
@@ -674,6 +679,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 **Objectif** : une interface réservée au **créateur de l'application** pour **tout voir et tout gérer** : paramètres globaux, organisateurs, événements, billets/scans, reversements, et un journal d'audit (« qui fait quoi »).
 
 **Décision (validée — amélioration de l'idée initiale)** :
+
 - **URL distincte** `/superadmin` + **page de connexion dédiée** `/superadmin/login` (branding back-office distinct, pas de page marketing).
 - **Pas de page d'inscription publique.** Les comptes superadmin sont **provisionnés par seed** (`scripts/seed-superadmin.mts`) ; les emails autorisés sont dans `.env.local` (`SUPERADMIN_EMAILS`). Zéro surface d'inscription = zéro risque de compte créé par un tiers. Un superadmin peut ajouter d'autres superadmins depuis le back-office.
 - **Un seul système d'authentification** : rôle `superadmin` ajouté à `users.role` (aux côtés de `organizer` et `agent`), même session/cookie. `/superadmin/login` n'accepte **que** le rôle `superadmin` (les autres reçoivent un message neutre « accès réservé ») ; `/auth/login` redirige un superadmin vers `/superadmin`.
@@ -831,19 +837,19 @@ drizzle.config.ts     # Config drizzle-kit
 
 ## 8. VARIABLES D'ENVIRONNEMENT & COMMANDES
 
-| Variable       | Obligatoire | Description                     |
-| :------------- | :---------- | :------------------------------ |
-| `DATABASE_URL` | ✅          | URL de connexion Neon (poolée). |
-| `PEXELS_API_KEY` | ❌ (optionnelle) | Clé API Pexels (photos pour fonds/couvertures). Sans clé, fallbacks de marque. |
-| `AUTH_SECRET` | ✅          | Clé de signature des sessions JWT (≥ 32 caractères, base64url). |
-| `AUTH_GOOGLE_ID` | ❌ (si Google) | Client ID OAuth Google (Google Cloud Console). |
-| `AUTH_GOOGLE_SECRET` | ❌ (si Google) | Client secret OAuth Google. |
-| `NEXT_PUBLIC_APP_URL` | ✅ (partage/SEO) | URL publique du site (ex. `https://kinpass.app`) — construire les liens partageables (`/e/[slug]`) et les aperçus OG. Repli local : `http://localhost:3000`. |
-| `RESEND_API_KEY` | ❌ (email) | Clé Resend pour la remise des billets par email (Phase 6.3). Sans clé : envoi **simulé** (log) en développement ; installer `pnpm add resend` dès activation. |
-| `MAIL_FROM` | ❌ (email) | Expéditeur des emails kinPass (défaut `kinPass <billets@kinpass.app>`). |
-| `KPAY_API_KEY` / `KPAY_SECRET_KEY` | ❌ (paiement) | Clés KPay (Phase 6.4) : test `kpay_test_…`/`sk_test_…`, live `kpay_live_…`/`sk_live_…`. **Sans clés → mode « Simuler le paiement »** (démo/E2E). |
-| `KPAY_WEBHOOK_SECRET` | ❌ (paiement) | Secret du callback **Webhook « Dépôts »** du dashboard KPay (signature `X-KPAY-Signature`). Absent en dev : signature non vérifiée (avertissement). |
-| `KPAY_USD_CDF_RATE` | ❌ (paiement) | Taux USD → CDF appliqué pour facturer en CDF (KPay COD sans devise). Défaut `2800`. |
+| Variable                           | Obligatoire      | Description                                                                                                                                                   |
+| :--------------------------------- | :--------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `DATABASE_URL`                     | ✅               | URL de connexion Neon (poolée).                                                                                                                               |
+| `PEXELS_API_KEY`                   | ❌ (optionnelle) | Clé API Pexels (photos pour fonds/couvertures). Sans clé, fallbacks de marque.                                                                                |
+| `AUTH_SECRET`                      | ✅               | Clé de signature des sessions JWT (≥ 32 caractères, base64url).                                                                                               |
+| `AUTH_GOOGLE_ID`                   | ❌ (si Google)   | Client ID OAuth Google (Google Cloud Console).                                                                                                                |
+| `AUTH_GOOGLE_SECRET`               | ❌ (si Google)   | Client secret OAuth Google.                                                                                                                                   |
+| `NEXT_PUBLIC_APP_URL`              | ✅ (partage/SEO) | URL publique du site (ex. `https://kinpass.app`) — construire les liens partageables (`/e/[slug]`) et les aperçus OG. Repli local : `http://localhost:3000`.  |
+| `RESEND_API_KEY`                   | ❌ (email)       | Clé Resend pour la remise des billets par email (Phase 6.3). Sans clé : envoi **simulé** (log) en développement ; installer `pnpm add resend` dès activation. |
+| `MAIL_FROM`                        | ❌ (email)       | Expéditeur des emails kinPass (défaut `kinPass <billets@kinpass.app>`).                                                                                       |
+| `KPAY_API_KEY` / `KPAY_SECRET_KEY` | ❌ (paiement)    | Clés KPay (Phase 6.4) : test `kpay_test_…`/`sk_test_…`, live `kpay_live_…`/`sk_live_…`. **Sans clés → mode « Simuler le paiement »** (démo/E2E).              |
+| `KPAY_WEBHOOK_SECRET`              | ❌ (paiement)    | Secret du callback **Webhook « Dépôts »** du dashboard KPay (signature `X-KPAY-Signature`). Absent en dev : signature non vérifiée (avertissement).           |
+| `KPAY_USD_CDF_RATE`                | ❌ (paiement)    | Taux USD → CDF appliqué pour facturer en CDF (KPay COD sans devise). Défaut `2800`.                                                                           |
 
 | Commande                     | Description                                                                |
 | :--------------------------- | :------------------------------------------------------------------------- |
