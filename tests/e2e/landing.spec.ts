@@ -46,6 +46,21 @@ test.describe('Landing page', () => {
     await expect(section.getByTestId('public-event-card').filter({ hasText: 'Expo Photo Gombe' }).getByText('Entrée libre')).toBeVisible()
   })
 
+  test('le CTA « Créer un événement » guide un visiteur non connecté', async ({ page }) => {
+    await page.goto('/')
+
+    // Non connecté : pas de dashboard (erreur), mais la page de valeur
+    // « Pour les organisateurs » qui mène à l'inscription.
+    await page.getByRole('button', { name: 'Créer un événement' }).click()
+
+    await expect(
+      page.getByRole('heading', { name: 'Vendez et contrôlez vos billets, simplement.' }),
+    ).toBeVisible()
+    const register = page.getByTestId('organizer-intro-register')
+    await expect(register).toHaveAttribute('href', '/auth/register')
+    await expect(page.getByText(/Inscription gratuite/)).toBeVisible()
+  })
+
   test('le CTA « Créer un événement » mène au tableau de bord', async ({ page }) => {
     // Le dashboard exige une session (Phase 4.1) : connexion préalable.
     await loginAsDemo(page)

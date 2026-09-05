@@ -39,7 +39,7 @@ tests/
     event-public.spec.ts # Page publique /e/[slug] (Phase 6.1 : galerie, 404)
     vitrine.spec.ts      # Vitrine publique (Phase 9 : bandeau landing, listing, filtres)
     checkout.spec.ts     # Tunnel d'achat /e/[slug]/checkout (6.2-6.4, paiement simulé sans clés KPay)
-    scanner.spec.ts      # Contrôle d'accès (maquette, 3 états)
+    scanner.spec.ts      # Rubriques du menu selon le rôle (pages d'explication visiteur)
 ```
 
 ## Conventions
@@ -83,6 +83,9 @@ Convention de nommage : **kebab-case en anglais**, préfixé par le domaine.
 | `event-public-gallery-prev` / `event-public-gallery-next` / `event-public-gallery-dot` | `event-public/EventPublicView.tsx` | Navigation du carrousel |
 | `event-detail-public-link` | `dashboard/EventDetail.tsx` | Lien « Page publique » (événement publié) |
 | `upcoming-events` | `landing/LandingPage.tsx` | Bandeau « Événements à venir » (Phase 9) |
+| `event-ticker` | `landing/EventTicker.tsx` | Bandeau défilant sous le hero |
+| `organizer-intro-register` | `landing/OrganizerIntro.tsx` | CTA d'inscription organisateur |
+| `scanner-intro-register` | `scanner/ScannerIntro.tsx` | CTA d'inscription (contrôle d'accès) |
 | `public-event-card` | `events/EventCard.tsx` | Carte « talon » d'un événement public |
 | `listing-chip` / `listing-search` / `listing-sort` | `events/EventListing.tsx` | Filtres de la vitrine (Billetterie) |
 | `listing-retry` / `listing-skeleton` / `listing-count` | `events/EventListing.tsx` | États chargement / erreur / compteur |
@@ -94,9 +97,10 @@ Convention de nommage : **kebab-case en anglais**, préfixé par le domaine.
 | `checkout-provider-mpesa` / `checkout-provider-orange` / `checkout-provider-airtel` | `checkout/EventCheckout.tsx` | Opérateur Mobile Money (Phase 6.4) |
 | `paid-ticket-code` | `checkout/EventCheckout.tsx` | Code d'un billet émis après paiement |
 | `paid-ticket` / `paid-ticket-qr` | `checkout/IssuedTicketCard.tsx` | Carte billet (QR + PDF/PNG/JPG) |
+| `checkout-open-success-page` | `checkout/EventCheckout.tsx` | Lien vers la page de confirmation |
+| `order-success-page` / `order-add-calendar` / `order-resend-email` | `checkout/OrderSuccessView.tsx` | Page /success (6.5) |
 | `checkout-check-status` / `checkout-retry` | `checkout/EventCheckout.tsx` | Vérifier / réessayer le paiement |
 | `checkout-success` | `checkout/EventCheckout.tsx` | Confirmation du paiement (billets) |
-| `scanner-code-input`, `scan-result` | `scanner/Scanner.tsx` | Champ code / résultat |
 
 ## Ajouter un test
 

@@ -163,4 +163,64 @@
        page en largeur (plus besoin de « pincer » l'écran sur mobile). */
     overflow-x: clip;
   }
+  /* Mobile first : sur petit écran, les champs passent à 16 px. En dessous de
+     16 px, iOS Safari zoome automatiquement au focus (l'utilisateur doit
+     « pincer » pour se dézoomer) — cette règle supprime ce comportement. */
+  @media (max-width: 640px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+  }
+}
+
+/* ── Bandeau défilant « Événements à venir » (landing, Phase 6.7+) ──────────
+   Marquee doux : défilement linéaire infini, piste en deux moitiés identiques
+   (translateX -50 % = boucle sans couture). Règles d'accessibilité :
+   - pause au survol (hover) ;
+   - animation coupée si prefers-reduced-motion (liste statique scrollable) ;
+   - moitié dupliquée masquée aux lecteurs d'écran (aria-hidden). */
+@keyframes kinpass-ticker {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.kinpass-ticker {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 8%,
+    black 92%,
+    transparent
+  );
+}
+
+.kinpass-ticker-track {
+  display: flex;
+  width: max-content;
+  animation: kinpass-ticker 55s linear infinite;
+  will-change: transform;
+}
+
+.kinpass-ticker:hover .kinpass-ticker-track,
+.kinpass-ticker:focus-within .kinpass-ticker-track {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kinpass-ticker-track {
+    animation: none;
+  }
+  /* Sous reduced-motion : une seule moitié, scrollable horizontalement. */
+  .kinpass-ticker-track > .kinpass-ticker-half:nth-child(n + 2) {
+    display: none;
+  }
+  .kinpass-ticker {
+    overflow-x: auto;
+  }
 }

@@ -93,6 +93,14 @@ test.describe('Tunnel d’achat /e/[slug]/checkout', () => {
 
     // Mention du mode démo (simulation, aucune clé KPay)
     await expect(success.getByText(/Mode démo/)).toBeVisible()
+
+    // La page de confirmation publique est accessible depuis l'accusé
+    await page.getByTestId('checkout-open-success-page').click()
+    await page.waitForURL(/\/checkout\/success\?order=/)
+    const pageConf = page.getByTestId('order-success-page')
+    await expect(pageConf.getByRole('heading', { name: 'Paiement confirmé' })).toBeVisible()
+    await expect(pageConf.getByTestId('paid-ticket')).toHaveCount(2)
+    await expect(pageConf.getByTestId('order-add-calendar')).toBeVisible()
   })
 
   test('exige l’email quand la remise choisie est l’envoi par email', async ({ page }) => {
@@ -137,5 +145,11 @@ test.describe('Tunnel d’achat /e/[slug]/checkout', () => {
   test('un événement terminé ou inconnu n’a pas de billetterie', async ({ page }) => {
     await page.goto('/e/conference-tech-rdc/checkout')
     await expect(page.getByRole('heading', { name: 'Page introuvable' })).toBeVisible()
+  })
+
+  test('la page d’annulation propose de réessayer', async ({ page }) => {
+    await page.goto('/e/kin-house-open-studio/checkout/cancel')
+    await expect(page.getByRole('heading', { name: 'Paiement annulé' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Réessayer' })).toHaveAttribute('href', /\/checkout$/)
   })
 })
