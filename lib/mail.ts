@@ -14,16 +14,22 @@ import 'server-only'
 
 import { Resend } from 'resend'
 
+import { renderTicketEmailHtml, renderTicketEmailText } from '@/lib/email-templates'
+
 export type SendEmailResult =
   | { ok: true; id: string | null }
   | { ok: false; error: string }
 
 interface TicketEmailPayload {
   to: string
-  eventTitle: string
   buyerName: string
+  eventTitle: string
+  // Lignes du récapitulatif (type + code de chaque billet).
+  tickets: Array<{ ticketTypeName: string; code: string }>
   // Un PDF par billet (pièces jointes).
   attachments: Array<{ fileName: string; pdfBuffer: Uint8Array }>
+  // Lien vers la page publique de l'événement (optionnel).
+  eventUrl?: string
 }
 
 // Expéditeur par défaut (à remplacer par un domaine vérifié en production).
@@ -47,17 +53,20 @@ export async function sendTicketEmail(payload: TicketEmailPayload): Promise<Send
   try {
     const resend = new Resend(apiKey)
 
+    // Rendu du corps (HTML inline + texte brut) depuis les données réelles.
+    const emailData = {
+      buyerName: payload.buyerName,
+      eventTitle: payload.eventTitle,
+      tickets: payload.tickets,
+      eventUrl: payload.eventUrl,
+    }
+
     const { data, error } = await resend.emails.send({
       from: process.env.MAIL_FROM ?? DEFAULT_FROM,
       to: payload.to,
       subject: `Vos billets — ${payload.eventTitle}`,
-      html: `
-        <p>Bonjour ${payload.buyerName},</p>
-        <p>Merci pour votre achat. Retrouvez vos billets pour
-        <strong>${payload.eventTitle}</strong> en pièces jointes.</p>
-        <p>Présentez le QR code (ou le code de 6 caractères) à l'entrée de
-        l'événement.</p>
-        <p>L'équipe kinPass</p>`,
+      html: renderTicketEmailHtml(emailData),
+      text: renderTicketEmailText(emailData),
       attachments: payload.attachments.map((attachment) => ({
         filename: attachment.fileName,
         content: Buffer.from(attachment.pdfBuffer),
