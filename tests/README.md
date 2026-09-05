@@ -38,7 +38,7 @@ tests/
     event-creation.spec.ts # Création / édition / suppression / validation
     event-public.spec.ts # Page publique /e/[slug] (Phase 6.1 : galerie, 404)
     vitrine.spec.ts      # Vitrine publique (Phase 9 : bandeau landing, listing, filtres)
-    checkout.spec.ts     # Tunnel d'achat /e/[slug]/checkout (Phase 6.2)
+    checkout.spec.ts     # Tunnel d'achat /e/[slug]/checkout (6.2-6.4, paiement simulé sans clés KPay)
     scanner.spec.ts      # Contrôle d'accès (maquette, 3 états)
 ```
 
@@ -91,7 +91,10 @@ Convention de nommage : **kebab-case en anglais**, préfixé par le domaine.
 | `checkout-buyer-name` / `checkout-buyer-phone` / `checkout-buyer-email` | `checkout/EventCheckout.tsx` | Coordonnées acheteur |
 | `checkout-total` / `checkout-quantity` / `checkout-submit` | `checkout/EventCheckout.tsx` | Total / quantité / soumission |
 | `checkout-delivery-download` / `checkout-delivery-email` | `checkout/EventCheckout.tsx` | Choix de la remise (Phase 6.3) |
-| `checkout-success` | `checkout/EventCheckout.tsx` | Accusé de réception de la commande |
+| `checkout-provider-mpesa` / `checkout-provider-orange` / `checkout-provider-airtel` | `checkout/EventCheckout.tsx` | Opérateur Mobile Money (Phase 6.4) |
+| `paid-ticket-code` | `checkout/EventCheckout.tsx` | Code d'un billet émis après paiement |
+| `checkout-check-status` / `checkout-retry` | `checkout/EventCheckout.tsx` | Vérifier / réessayer le paiement |
+| `checkout-success` | `checkout/EventCheckout.tsx` | Confirmation du paiement (billets) |
 | `scanner-code-input`, `scan-result` | `scanner/Scanner.tsx` | Champ code / résultat |
 
 ## Ajouter un test

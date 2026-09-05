@@ -20,9 +20,8 @@ interface TicketEmailPayload {
   to: string
   eventTitle: string
   buyerName: string
-  // PDF du billet (Uint8Array → Buffer pour la pièce jointe).
-  pdfBuffer: Uint8Array
-  fileName: string
+  // Un PDF par billet (pièces jointes).
+  attachments: Array<{ fileName: string; pdfBuffer: Uint8Array }>
 }
 
 // Expéditeur par défaut (à remplacer par un domaine vérifié en production).
@@ -35,8 +34,10 @@ export async function sendTicketEmail(payload: TicketEmailPayload): Promise<Send
 
   if (!apiKey) {
     // Développement : pas de vrai envoi, mais un log explicite et non muet.
+    const names = payload.attachments.map((a) => a.fileName).join(', ')
+    const bytes = payload.attachments.reduce((sum, a) => sum + a.pdfBuffer.byteLength, 0)
     console.warn(
-      `[mail] Email simulé (RESEND_API_KEY absente) → ${payload.to} — « ${payload.eventTitle} », pièce jointe ${payload.fileName} (${payload.pdfBuffer.byteLength} octets).`,
+      `[mail] Email simulé (RESEND_API_KEY absente) → ${payload.to} — « ${payload.eventTitle} », pièces jointes ${names} (${bytes} octets au total).`,
     )
     return { ok: false, error: 'Email non configuré (développement).' }
   }
@@ -61,19 +62,21 @@ export async function sendTicketEmail(payload: TicketEmailPayload): Promise<Send
     }
     const resend = new resendModule.Resend(apiKey)
 
-    const attachment = Buffer.from(payload.pdfBuffer)
     const { data, error } = await resend.emails.send({
       from: process.env.MAIL_FROM ?? DEFAULT_FROM,
       to: payload.to,
       subject: `Vos billets — ${payload.eventTitle}`,
       html: `
         <p>Bonjour ${payload.buyerName},</p>
-        <p>Merci pour votre achat. Retrouvez votre billet pour
-        <strong>${payload.eventTitle}</strong> en pièce jointe.</p>
+        <p>Merci pour votre achat. Retrouvez vos billets pour
+        <strong>${payload.eventTitle}</strong> en pièces jointes.</p>
         <p>Présentez le QR code (ou le code de 6 caractères) à l'entrée de
         l'événement.</p>
         <p>L'équipe kinPass</p>`,
-      attachments: [{ filename: payload.fileName, content: attachment }],
+      attachments: payload.attachments.map((attachment) => ({
+        filename: attachment.fileName,
+        content: Buffer.from(attachment.pdfBuffer),
+      })),
     })
 
     if (error) return { ok: false, error: error.message }
