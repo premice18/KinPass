@@ -1,58 +1,83 @@
-// Tests end-to-end du tunnel de réservation (maquette TicketCheckout).
+// Tests end-to-end du tunnel d'achat (Phase 6.2) — route `/e/[slug]/checkout`.
 //
-// Depuis la Phase 9, la rubrique « Billetterie » du menu affiche la vitrine
-// des événements ; le checkout maquette reste atteignable via le bouton
-// « Réserver maintenant » d'une page publique /e/[slug] (en attendant le vrai
-// checkout, Phase 6.2). Le mock garde son prix codé en dur (38 $), son
-// paiement factice et son code de confirmation (A4B-8K9).
+// Le tunnel est réel : sélection du type de billet (jauge réelle), quantité,
+// coordonnées acheteur, création d'une commande `pending` en base (prix et
+// capacité re-vérifiés par la Server Action — jamais côté client). La
+// confirmation de paiement (Mobile Money) et la remise du billet arrivent
+// avec les Phases 6.3/6.4 ; le test vérifie donc l'écran « Commande
+// enregistrée ».
 import { test, expect } from '@playwright/test'
 
-// Slug de l'événement publié du seed (page publique, Phase 6.1).
+// Slug de l'événement publié du seed (Kin House : Standard 10 $, VIP 50 $).
 const PUBLISHED_SLUG = 'kin-house-open-studio'
 
-// Ouvre la page publique de l'événement puis lance le checkout (maquette).
-async function openCheckout(page: import('@playwright/test').Page): Promise<void> {
-  await page.goto(`/e/${PUBLISHED_SLUG}`)
-  await page.getByTestId('event-public-buy').click()
-  await expect(page.getByText('Réserver vos billets')).toBeVisible()
-}
+test.describe('Tunnel d’achat /e/[slug]/checkout', () => {
+  test('ouvre le tunnel depuis la page publique et choisit un billet', async ({ page }) => {
+    await page.goto(`/e/${PUBLISHED_SLUG}`)
 
-test.describe('Tunnel de réservation (maquette)', () => {
-  test('affiche l’événement et le total initial', async ({ page }) => {
-    await openCheckout(page)
+    // CTA « Réserver maintenant » → vraie route checkout
+    await page.getByTestId('event-public-buy').click()
+    await page.waitForURL(/\/checkout$/)
 
-    await expect(page.getByRole('heading', { name: 'Kin House : Open Studio' })).toBeVisible()
-    await expect(page.getByTestId('checkout-total')).toHaveText('38 $')
+    await expect(page.getByTestId('checkout-title')).toHaveText('Kin House : Open Studio')
+
+    // Le type Standard (10 $) est proposé avec sa jauge réelle
+    const standard = page.getByRole('radio', { name: /Standard/ })
+    await expect(standard).toBeVisible()
+    await standard.click()
+    await expect(standard).toHaveAttribute('aria-checked', 'true')
   })
 
-  test('met à jour le total selon la quantité choisie', async ({ page }) => {
-    await openCheckout(page)
+  test('calcule le total selon la quantité choisie', async ({ page }) => {
+    await page.goto(`/e/${PUBLISHED_SLUG}/checkout`)
 
-    // Augmentation : 2 billets -> 76 $
+    // Sélection du Standard à 10 $ puis quantité 2 -> total 20 $
+    await page.getByRole('radio', { name: /Standard/ }).click()
+    await expect(page.getByTestId('checkout-total')).toHaveText('10 $')
+
     await page.getByRole('button', { name: 'Augmenter la quantité' }).click()
     await expect(page.getByTestId('checkout-quantity')).toHaveText('2')
-    await expect(page.getByTestId('checkout-total')).toHaveText('76 $')
+    await expect(page.getByTestId('checkout-total')).toHaveText('20 $')
 
-    // Diminution : retour à 1 billet -> 38 $
     await page.getByRole('button', { name: 'Diminuer la quantité' }).click()
     await expect(page.getByTestId('checkout-quantity')).toHaveText('1')
-    await expect(page.getByTestId('checkout-total')).toHaveText('38 $')
+    await expect(page.getByTestId('checkout-total')).toHaveText('10 $')
   })
 
-  test('simule le paiement et affiche la confirmation avec le code', async ({ page }) => {
-    await openCheckout(page)
+  test('valide les coordonnées avant de créer la commande', async ({ page }) => {
+    await page.goto(`/e/${PUBLISHED_SLUG}/checkout`)
 
-    await page.getByLabel('Nom complet').fill('Jean-Marc K.')
-    await page.getByLabel('Numéro de téléphone').fill('+243 81 000 00 00')
+    await page.getByRole('radio', { name: /Standard/ }).click()
+    // Nom trop court + téléphone invalide : blocage local
+    await page.getByTestId('checkout-buyer-name').fill('J')
+    await page.getByTestId('checkout-buyer-phone').fill('12')
+    await page.getByTestId('checkout-submit').click()
 
-    await page.getByRole('button', { name: 'Payer via Mobile Money' }).click()
+    await expect(page.getByTestId('form-error')).toBeVisible()
+    // Aucune commande n'a été créée (le formulaire est toujours là)
+    await expect(page.getByTestId('checkout-submit')).toBeVisible()
+  })
 
-    // Écran de confirmation
-    await expect(page.getByText('Billets confirmés')).toBeVisible()
-    await expect(page.getByTestId('checkout-confirm-code')).toHaveText('A4B-8K9')
+  test('crée une commande pending et affiche l’accusé de réception', async ({ page }) => {
+    await page.goto(`/e/${PUBLISHED_SLUG}/checkout`)
 
-    // Retour au tunnel de réservation
-    await page.getByRole('button', { name: 'Acheter un autre billet' }).click()
-    await expect(page.getByText('Réserver vos billets')).toBeVisible()
+    await page.getByRole('radio', { name: /VIP/ }).click()
+    await page.getByTestId('checkout-buyer-name').fill('Jean-Marc Kabongo')
+    await page.getByTestId('checkout-buyer-phone').fill('+243 81 234 56 78')
+    await page.getByTestId('checkout-buyer-email').fill('jeanmarc@exemple.cd')
+    await page.getByTestId('checkout-submit').click()
+
+    // Accusé de réception de la commande
+    const success = page.getByTestId('checkout-success')
+    await expect(success).toBeVisible()
+    await expect(success.getByText('Commande enregistrée')).toBeVisible()
+    // Référence lisible (8 caractères) + récapitulatif VIP
+    await expect(success.getByText(/[A-Z0-9]{8}/)).toBeVisible()
+    await expect(success).toContainText('1 × VIP')
+  })
+
+  test('un événement terminé ou inconnu n’a pas de billetterie', async ({ page }) => {
+    await page.goto('/e/conference-tech-rdc/checkout')
+    await expect(page.getByRole('heading', { name: 'Page introuvable' })).toBeVisible()
   })
 })

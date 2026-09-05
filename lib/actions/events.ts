@@ -73,8 +73,16 @@ export type EditableEvent = Event & { ticketTypes: TicketType[]; eventImages: Ev
 // Photo de la galerie exposée publiquement (champs strictement publics).
 export type PublicEventImage = { id: string; url: string; alt: string | null }
 
-// Type de billet exposé publiquement (tarif affiché sur la page).
-export type PublicTicketType = { id: string; name: string; price: string; currency: string }
+// Type de billet exposé publiquement : tarif + disponibilité réelle
+// (capacité et ventes depuis la colonne `sold_count` — jauge de l'achat).
+export type PublicTicketType = {
+  id: string
+  name: string
+  price: string
+  currency: string
+  capacity: number | null
+  soldCount: number
+}
 
 // Événement public (route `/e/[slug]`) : champs marketing uniquement —
 // aucun identifiant interne sensible (organizer_id, sold_count par type…).
@@ -565,7 +573,14 @@ export const getPublicEventBySlug = cache(async (slug: string): Promise<ActionRe
 
     // Tarifs affichés sur la page (prix par type, triés par ordre de création).
     const types = await db
-      .select({ id: ticketTypes.id, name: ticketTypes.name, price: ticketTypes.price, currency: ticketTypes.currency })
+      .select({
+        id: ticketTypes.id,
+        name: ticketTypes.name,
+        price: ticketTypes.price,
+        currency: ticketTypes.currency,
+        capacity: ticketTypes.capacity,
+        soldCount: ticketTypes.soldCount,
+      })
       .from(ticketTypes)
       .where(eq(ticketTypes.eventId, event.id))
       .orderBy(ticketTypes.createdAt)
@@ -599,7 +614,14 @@ export const getPublicEventBySlug = cache(async (slug: string): Promise<ActionRe
         endAt: event.endAt,
         posterUrl: event.posterUrl,
         status: event.status as EventStatus,
-        ticketTypes: types.map((t) => ({ id: t.id, name: t.name, price: t.price, currency: t.currency })),
+        ticketTypes: types.map((t) => ({
+          id: t.id,
+          name: t.name,
+          price: t.price,
+          currency: t.currency,
+          capacity: t.capacity,
+          soldCount: t.soldCount,
+        })),
         images: images.map((image) => ({ id: image.id, url: image.url, alt: image.alt })),
         organizerName: organizer?.fullName ?? null,
         organizerSlug: organizer?.slug ?? null,

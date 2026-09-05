@@ -38,7 +38,7 @@ tests/
     event-creation.spec.ts # Création / édition / suppression / validation
     event-public.spec.ts # Page publique /e/[slug] (Phase 6.1 : galerie, 404)
     vitrine.spec.ts      # Vitrine publique (Phase 9 : bandeau landing, listing, filtres)
-    checkout.spec.ts     # Tunnel de réservation (maquette, via /e/[slug])
+    checkout.spec.ts     # Tunnel d'achat /e/[slug]/checkout (Phase 6.2)
     scanner.spec.ts      # Contrôle d'accès (maquette, 3 états)
 ```
 
@@ -86,7 +86,11 @@ Convention de nommage : **kebab-case en anglais**, préfixé par le domaine.
 | `public-event-card` | `events/EventCard.tsx` | Carte « talon » d'un événement public |
 | `listing-chip` / `listing-search` / `listing-sort` | `events/EventListing.tsx` | Filtres de la vitrine (Billetterie) |
 | `listing-retry` / `listing-skeleton` / `listing-count` | `events/EventListing.tsx` | États chargement / erreur / compteur |
-| `checkout-total`, `checkout-quantity`, `checkout-confirm-code` | `checkout/TicketCheckout.tsx` | Total / quantité / code |
+| `checkout-title` | `checkout/EventCheckout.tsx` | Titre de l'événement sur le tunnel |
+| `checkout-type-option` | `checkout/EventCheckout.tsx` | Option de type de billet (radio) |
+| `checkout-buyer-name` / `checkout-buyer-phone` / `checkout-buyer-email` | `checkout/EventCheckout.tsx` | Coordonnées acheteur |
+| `checkout-total` / `checkout-quantity` / `checkout-submit` | `checkout/EventCheckout.tsx` | Total / quantité / soumission |
+| `checkout-success` | `checkout/EventCheckout.tsx` | Accusé de réception de la commande |
 | `scanner-code-input`, `scan-result` | `scanner/Scanner.tsx` | Champ code / résultat |
 
 ## Ajouter un test
