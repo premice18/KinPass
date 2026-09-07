@@ -1,18 +1,20 @@
 // ────────────────────────────────────────────────────────────────────────────
-// Scan d'un événement — `/scan/[slug]` (Phase 7.2, placeholder).
+// Scan d'un événement — `/scan/[slug]` (Phase 7.3, agent uniquement).
 //
-// L'interface complète (caméra QR + saisie manuelle + états VERT/ORANGE/
-// ROUGE + écriture des scans) arrive avec la Phase 7.3. Cette page vérifie
-// que l'agent connecté est bien assigné à l'événement, puis annonce la suite.
+// Vérifie (côté serveur ET middleware) que l'agent connecté est bien assigné
+// à cet événement, puis rend le panneau de scan : saisie manuelle du code
+// 6 caractères + caméra QR, retours VERT/ORANGE/ROUGE, journal des passages.
 // ────────────────────────────────────────────────────────────────────────────
 
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
-import { ArrowLeft, QrCode } from 'iconoir-react'
+import { ArrowLeft, Calendar, MapPin } from 'iconoir-react'
 
+import { ScanPanel } from '@/components/features/scanner/ScanPanel'
 import { Eyebrow } from '@/components/ui/eyebrow'
 import { buttonVariants } from '@/components/ui/button'
 import { getCurrentUser } from '@/lib/auth'
+import { getAgentAssignedEventBySlug } from '@/lib/actions/team'
 
 interface ScanEventPageProps {
   params: Promise<{ slug: string }>
@@ -23,27 +25,62 @@ export const metadata: Metadata = {
   robots: 'noindex, nofollow',
 }
 
+function formatFullDate(value: Date | null): string {
+  if (!value) return ''
+  const date = new Date(value)
+  const day = date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+  const time = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+  return `${day} à ${time}`
+}
+
 export default async function ScanEventPage({ params }: ScanEventPageProps) {
   const { slug } = await params
-  // Double protection (le middleware le fait déjà) : agent uniquement.
+  // Double protection : agent uniquement.
   const user = await getCurrentUser()
   if (!user || user.role !== 'agent') redirect('/scan')
 
+  // L'agent doit être assigné à CET événement.
+  const result = await getAgentAssignedEventBySlug(slug)
+  if (!result.success) redirect('/scan')
+  const event = result.data
+
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
-      <div className="w-full max-w-md rounded-lg border border-border bg-card p-8 text-center">
-        <QrCode className="mx-auto h-12 w-12 text-cyan-500" />
-        <Eyebrow className="justify-center">Contrôle d'accès</Eyebrow>
-        <h1 className="mt-3 text-2xl font-bold tracking-tight">{slug.replace(/-/g, ' ')}</h1>
-        <p className="mt-3 text-muted-foreground">
-          L'interface de scan de cet événement arrive très bientôt (Phase 7.3) : caméra QR, saisie du
-          code 6 caractères et validation en quelques secondes.
-        </p>
-        <a href="/scan" className={buttonVariants({ variant: 'ghost', className: 'mt-6' })}>
-          <ArrowLeft className="h-4 w-4" />
-          Retour à mes événements
-        </a>
-      </div>
-    </main>
+    <div className="min-h-screen bg-background">
+      {/* En-tête discret (l'espace agent a son propre cadre). */}
+      <header className="border-b border-border bg-background/95 backdrop-blur">
+        <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3 sm:px-6">
+          <a href="/scan" className={buttonVariants({ variant: 'ghost', size: 'sm', className: '-ml-2' })}>
+            <ArrowLeft className="h-4 w-4" />
+            Mes événements
+          </a>
+          <span className="text-sm font-semibold tracking-tight">{event.title}</span>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-2xl px-4 py-6 sm:px-6">
+        <Eyebrow>Contrôle d'accès</Eyebrow>
+        <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl" data-testid="scan-event-title">
+          {event.title}
+        </h1>
+        <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
+          {event.startAt && (
+            <span className="flex items-center gap-1.5">
+              <Calendar className="h-4 w-4" />
+              {formatFullDate(event.startAt)}
+            </span>
+          )}
+          {(event.venue || event.location) && (
+            <span className="flex items-center gap-1.5">
+              <MapPin className="h-4 w-4" />
+              {[event.venue, event.location].filter(Boolean).join(' · ')}
+            </span>
+          )}
+        </div>
+
+        <div className="mt-6">
+          <ScanPanel event={event} />
+        </div>
+      </main>
+    </div>
   )
 }

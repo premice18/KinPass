@@ -96,6 +96,11 @@ Convention de nommage : **kebab-case en anglais**, préfixé par le domaine.
 | `team-created-creds` / `team-creds-email` / `team-creds-password` / `team-creds-whatsapp` / `team-creds-copy` | `settings/TeamScanners.tsx` | Transmission des identifiants (une seule fois) |
 | `team-reset-password` / `team-reset-copy` | `settings/TeamScanners.tsx` | Mot de passe régénéré |
 | `agent-event-card` | `scanner/AgentHome.tsx` | Événement assigné (espace agent /scan) |
+| `scan-event-title` / `scan-code-input` / `scan-submit` | `scanner/ScanPanel.tsx` | Interface de scan (Phase 7.3) |
+| `scan-result-popup` / `scan-result-close` | `scanner/ScanPanel.tsx` | Pop-up de résultat (auto-fermeture) |
+| `scan-valid-icon` / `scan-used-icon` / `scan-invalid-icon` | `scanner/ScanPanel.tsx` | États VERT / ORANGE / ROUGE |
+| `scan-camera-toggle` / `scan-history` / `scan-history-toggle` | `scanner/ScanPanel.tsx` | Caméra + historique agent |
+| `team-agent-scans-open` / `team-agent-scans-panel` | `settings/TeamScanners.tsx` | Journal des scans (organisateur) |
 | `public-event-card` | `events/EventCard.tsx` | Carte « talon » d'un événement public |
 | `listing-chip` / `listing-search` / `listing-sort` | `events/EventListing.tsx` | Filtres de la vitrine (Billetterie) |
 | `listing-retry` / `listing-skeleton` / `listing-count` | `events/EventListing.tsx` | États chargement / erreur / compteur |
