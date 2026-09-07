@@ -43,7 +43,7 @@ Trois profils utilisent la plateforme :
 | Base de données (Neon + Drizzle) | Terminé                                                             |
 | Tests end-to-end (Playwright)    | Écrits (landing, dashboard, événements, page publique, vitrine, checkout, scanner) — exécution sur demande |
 | Tunnel d'achat / billetterie     | En cours (6.2-6.4 : commandes, remise email/PDF, paiement KPay ou simulé, billets émis) |
-| Contrôle d'accès (scanner)       | En cours (saisie manuelle, scan caméra absent)                      |
+| Contrôle d'accès (scanner)       | En cours (Phase 7.1 : comptes agents RBAC, emails auto-générés, assignation — scan réel en 7.3) |
 | Authentification                 | En cours (email/mot de passe + Google via Auth.js, profil à venir)  |
 | Paiement Mobile Money            | En cours (6.4-6.5 : KPay COD + webhook, pages success/cancel, calendrier — validation clés de test à faire) |
 | Monétisation & reversement       | À venir                                                             |
@@ -175,6 +175,7 @@ lib/
   actions/events.ts      # Server Actions (CRUD + stats + galerie + pages publiques + vitrine)
   actions/orders.ts      # Commandes (createOrder, initiatePayment, statut)
   actions/organizers.ts  # Profil public organisateur (/o/[slug])
+  actions/team.ts        # Équipe / Scanneurs (agents RBAC, Phase 7.1)
   ticket/                # Moteur de billet : types, QR PNG, PDF (Phase 6.3)
   kpay.ts                # Client KPay serveur (init USSD, signature webhook)
   kpay-providers.ts      # Opérateurs Mobile Money RDC (choix au checkout)
@@ -185,7 +186,7 @@ lib/
   share.ts               # Helpers de partage (URL /e/[slug], texte WhatsApp)
   slug.ts                # Génération de slug URL unique
   ticket-code.ts         # Codes de billet 6 caractères (XXX-XXX)
-  db/schema.ts           # Schéma Drizzle (users, payout_methods, events, event_images, ticket_types, orders, order_items, tickets, scans)
+  db/schema.ts           # Schéma Drizzle (users, payout_methods, events, event_images, ticket_types, orders, order_items, tickets, scans, agent_event_access)
   db/user-slug.ts        # Slug public organisateur
   db/index.ts            # Client Drizzle (singleton)
   utils.ts               # utilitaire cn()
@@ -208,6 +209,7 @@ drizzle.config.ts        # Configuration drizzle-kit
 - **Paiement Mobile Money** (Phase 6.4) : intégration **KPay** (push USSD RD Congo, clés test `kpay_test_…`) + webhook sécurisé `/api/kpay/webhook` (signature HMAC, idempotent) → passage `paid`, **émission des billets** (QR + codes), envoi par email (PDF). **Sans clés KPay : mode « Simuler le paiement »** (démo/E2E). Conversion USD → CDF via `KPAY_USD_CDF_RATE` (KPay COD sans paramètre de devise).
 - **Confirmation** (Phase 6.5) : pages `/e/[slug]/checkout/success` (récap commande payée, cartes billets QR + PDF/PNG/JPG, « Ajouter au calendrier » `.ics`, « Renvoyer par email ») et `/e/[slug]/checkout/cancel` (annulation + Réessayer).
 - **Partage d'événement** (Phase 6.7) : panneau modal « Partager » (page publique + vue Détail) — URL canonique copiable, QR code, WhatsApp / Telegram / X / Facebook, partage natif du système quand disponible.
+- **Équipe / Scanneurs** (Phase 7.1) : l'organisateur crée des comptes agents (email auto-généré `{slug}-{n}@kinpass.com`), les assigne à ses événements, les suspend/réactive, réinitialise leur mot de passe — accès scan uniquement.
 - **Scanner** (maquette) : saisie manuelle du code avec retours VERT / ORANGE / ROUGE.
 - **Thème clair / sombre** et menu mobile responsive.
 

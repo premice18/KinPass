@@ -424,25 +424,23 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 
 **Option (plus tard — hors MVP)** : lien court interne (`/s/{code}`) et comptage des clics par source (table `share_clicks` : event_id, source, referrer, count) pour mesurer l'efficacité des canaux de diffusion.
 
-### ❌ Phase 7 — Contrôle d'accès & comptes scanneurs (À VENIR)
+### 🟡 Phase 7 — Contrôle d'accès & comptes scanneurs (EN COURS — 7.1 faite)
 
 **Dépend de** : Phase 4 (authentification), Phase 5 (événements), Phase 6 (billets émis).
 
 **Décision (validée)** : les agents de contrôle disposent de **comptes dédiés créés par l'organisateur**, avec un **RBAC strict** (accès au seul scan des événements assignés, jamais aux ventes/contrats/réglages). **Option A retenue : emails synthétiques uniques auto-générés** (ex. `event1-01@kinpass.com`, `event1-02@kinpass.com`), un compte = un email unique, un mot de passe par scanneur.
 
-#### 7.1 Comptes scanneurs & restrictions (RBAC)
+#### 7.1 Comptes scanneurs & restrictions (RBAC) ✅ FAITE
 
-- [ ] Réutiliser `users.role` (`organizer` | `agent`) ; ajouter `users.organizer_id` (uuid nullable, FK `users` ON DELETE SET NULL) pour rattacher un agent à son organisateur.
-- [ ] **Emails synthétiques uniques auto-générés** : au moment de créer un scanneur, l'UI génère `{slug}-{n}@kinpass.com` (n incrémental par événement) ; l'organisateur **ne saisit pas** l'email, il choisit uniquement le nom et le mot de passe. Le domaine `@kinpass.com` marque visuellement un compte interne.
-- [ ] **Contrôle d'accès** : chaque agent ne peut scanner que les événements auxquels il est assigné.
-- [ ] L'organisateur peut créer, voir, désactiver/réactiver, supprimer et réinitialiser le mot de passe d'un agent dans la section « Équipe / Scanneurs » de `/settings` (via Server Actions sécurisées).
-- [ ] Les scanneurs ont une page ou ils peuvent voir qui ilsont scannes , l'admin peut voir les scanneurs et leurs scans.
-- [ ] **RBAC strict** : un agent ne peut jamais accéder aux routes organisateur (`/dashboard`, `/settings`, `/events/*`, `/payouts`) ni aux Server Actions de gestion des ventes/contrats ; un organisateur ne peut jamais scanner (routes `/scan/*`).
-- [ ] Nouvelle table `agent_event_access` (id, agent_id FK `users` CASCADE, event_id FK `events` CASCADE, created_at) — index sur `agent_id` et `event_id` — pour définir **quels événements** un agent peut scanner.
-- [ ] Section « Équipe / Scanneurs » dans `/settings` : lister les agents (nom, email généré, événements assignés), bouton « Ajouter un scanneur » (nom + mot de passe + sélection des événements), désactivation/réactivation, suppression, réinitialisation du mot de passe.
-- [ ] Server Actions `createAgent`, `updateAgent`, `deactivateAgent`, `assignAgentToEvent`, `unassignAgentToEvent`, `resetAgentPassword` — toutes protégées par `role === 'organizer'` **et** `organizer_id === session.id` (défense en profondeur).
-- [ ] Pas de « mot de passe oublié » pour un agent (email factice) : c'est l'organisateur qui réinitialise via `resetAgentPassword`.
-- [ ] `scans.agent_id` renseigné automatiquement avec l'agent connecté à chaque scan (traçabilité).
+- [x] `users.role` réutilisé (`organizer` | `agent`) ; **`users.organizer_id`** (uuid nullable, FK `users` ON DELETE SET NULL) rattache chaque agent à son organisateur ; **`users.active`** (désactivation douce) appliqués en base.
+- [x] **Emails synthétiques uniques auto-générés** `{slug}-{n}@kinpass.com` (n incrémental, vérifié sans collision) **et mot de passe auto-généré** (8 caractères, majuscules/chiffres, alphabet sans ambiguïté 0/O/1/I — généré côté serveur, renvoyé **une seule fois**, jamais stocké en clair) — l'organisateur ne choisit que le **nom** (+ événements) ; panneau de transmission immédiat : « Envoyer par WhatsApp » ou « Copier les identifiants ». Le domaine `@kinpass.com` marque visuellement un compte interne.
+- [x] Nouvelle table **`agent_event_access`** (agent_id FK CASCADE, event_id FK CASCADE, created_at) + index agent/event — seuls les événements assignés sont scannables.
+- [x] Section « **Équipe / Scanneurs** » : bouton « Équipe » du tableau de bord → vue dédiée (`TeamScanners`) — liste des agents (nom, email généré, événements assignés, statut), **Ajouter un scanneur** (nom + sélection des événements — identifiants auto-générés), **suspendre/réactiver**, **nouveau mot de passe** (généré et affiché une seule fois), **suppression**, **assigner/retirer des événements** (liste des siens uniquement). La rubrique migrera dans `/settings` au passage au routing par URL.
+- [x] Server Actions `lib/actions/team.ts` : `getTeam`, `createAgent`, `setAgentActive`, `resetAgentPassword`, `deleteAgent`, `assignAgentToEvent`, `unassignAgentFromEvent` — toutes protégées `role === 'organizer'` **et** `organizer_id === session.id` (défense en profondeur).
+- [x] Pas de « mot de passe oublié » pour un agent (email factice) : réinitialisation uniquement par l'organisateur (`resetAgentPassword`).
+- [x] **Connexion refusée** pour un agent suspendu (`active = false` → `authorize` refuse, message générique).
+- [x] Tests E2E écrits (création + email auto + assignation, suspension/réactivation, nettoyage) — exécution sur demande.
+- [ ] `scans.agent_id` renseigné automatiquement au scan (avec 7.3) ; page « qui j'ai scanné » côté agent + vue admin des scans (avec 7.3).
 
 #### 7.2 Flux de connexion (page unique + redirection par rôle)
 
@@ -757,7 +755,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - **Phase 4 (auth + compte organisateur)** : 🟡 EN COURS — **4.1, 4.2 et 4.3 faites** (register/login + Google via Auth.js ; page « Mon profil » : avatar auto Google ou initiales, WhatsApp, adresse, comptes de reversement, blocage publication sans compte) ; reste : badge « Profil incomplet » sur le dashboard, upload avatar réel (stockage externe), rôle agent (Phase 7), exécution des tests E2E (sur demande).
 - **Phase 5 (événements)** : ✅ TERMINÉE — CRUD complet + publication, organisateur de test fixe (`lib/constants.ts`), à sécuriser par la session dès la Phase 4.
 - **Phase 6 (billetterie + paiement)** : ✅ **TERMINÉE** (6.1 → 6.7) — page publique + galerie ; tunnel d'achat + `orders` ; remise email/téléchargement + moteur PDF/QR ; paiement KPay COD + webhook signé → `paid`, billets émis, mode simulation ; pages `/success` + `/cancel` (calendrier .ics, renvoi email) ; **partage enrichi 6.7** (panneau modal : copie, QR, WhatsApp/Telegram/X/Facebook, natif) ; fixs UX mobile. Restes hors phase : validation KPay réelle (clés de test + callback Dépôts), état `expired` (time-out des `pending`), lien court interne optionnel.
-- **Phase 7 (scanner)** : ❌ À VENIR — interface de scan (caméra + saisie), **comptes scanneurs gérés par l'organisateur avec RBAC strict** (assignation par événement, aucun accès aux ventes/contrats).
+- **Phase 7 (scanner)** : 🟡 EN COURS — **7.1 faite** (comptes agents RBAC : `users.organizer_id` + `active`, emails auto-générés `{slug}-{n}@kinpass.com`, table `agent_event_access`, section « Équipe / Scanneurs » — création/assignation/suspension/réinit/suppression, login refusé si suspendu) ; reste : 7.2 flux de connexion + redirection par rôle, 7.3 interface de scan réelle (caméra + saisie, états VERT/ORANGE/ROUGE, écriture `scans`), suivi des scans (agent + admin).
 - **Phase 8 (polish)** : 🟡 EN COURS — tests E2E faits (15 scénarios) ; unitaires, PWA et export restent.
 - **Phase 9 (vitrine publique)** : ✅ TERMINÉE — `getPublicEvents` (source unique), bandeau « À venir » sur la landing (3 événements, jamais de brouillon), rubrique « Billetterie » = listing complet (chips catégories, recherche, tri, états chargement/erreur/vide), carte `EventCard` « talon » partagée (→ `/e/[slug]`), page publique organisateur `/o/[slug]` (`users.slug` auto-généré) ; route `/events` SEO reportée au routing par URL.
 - **Phase 10 (monétisation & reversement)** : ❌ À VENIR — commission kinPass, retrait à la demande, table `payouts`.

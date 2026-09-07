@@ -9,6 +9,7 @@ import {
   uniqueIndex,
   uuid,
   varchar,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core'
 
 // ---------------------------------------------------------------------------
@@ -32,6 +33,12 @@ export const users = pgTable(
     fullName: varchar('full_name', { length: 255 }).notNull(),
     // 'organizer' | 'agent' | 'superadmin'
     role: varchar('role', { length: 20 }).notNull().default('organizer'),
+    // Organisateur propriétaire d'un agent (Phase 7.1) — null pour les
+    // organisateurs eux-mêmes ; ON DELETE SET NULL (orchestré par l'admin).
+    organizerId: uuid('organizer_id').references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
+    // Désactivation douce (agents suspendus par l'organisateur, Phase 7.1) :
+    // false = connexion refusée, sans supprimer l'historique des scans.
+    active: boolean('active').notNull().default(true),
     // 'email' | 'google' — Auth.js (cf. plan §4.2)
     provider: varchar('provider', { length: 20 }).notNull().default('email'),
     // Identifiant auprès du provider (ex. sub Google) — NULL pour email/password.
@@ -249,6 +256,26 @@ export const scans = pgTable(
   ],
 )
 
+// Assignations agent → événement (Phase 7.1) : un agent ne peut scanner QUE
+// les événements listés ici. Suppression en cascade avec l'agent ou l'événement.
+export const agentEventAccess = pgTable(
+  'agent_event_access',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    agentId: uuid('agent_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    eventId: uuid('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('agent_access_agent_idx').on(table.agentId),
+    index('agent_access_event_idx').on(table.eventId),
+  ],
+)
+
 // Types exportés pour un typage strict côté application.
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
@@ -266,4 +293,6 @@ export type OrderItem = typeof orderItems.$inferSelect
 export type NewOrderItem = typeof orderItems.$inferInsert
 export type Scan = typeof scans.$inferSelect
 export type NewScan = typeof scans.$inferInsert
+export type AgentEventAccess = typeof agentEventAccess.$inferSelect
+export type NewAgentEventAccess = typeof agentEventAccess.$inferInsert
 export type PayoutMethod = typeof payoutMethods.$inferSelect
