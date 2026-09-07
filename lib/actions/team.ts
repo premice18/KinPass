@@ -325,3 +325,46 @@ async function fetchAgent(agentId: string, organizerId: string): Promise<TeamAge
     events: accesses.map((access) => ({ id: access.eventId, title: access.title, status: access.status })),
   }
 }
+
+// ── Espace agent (Phase 7.2/7.3) ────────────────────────────────────────────
+
+// Événement assigné à un agent (carte de son espace de scan).
+export type AgentAssignedEvent = {
+  id: string
+  slug: string
+  title: string
+  startAt: Date | null
+  venue: string | null
+  location: string | null
+  status: string
+}
+
+// Liste les événements que l'AGENT CONNECTÉ est autorisé à scanner
+// (uniquement via `agent_event_access` — jamais un autre événement).
+export async function getAgentAssignedEvents(): Promise<ActionResult<AgentAssignedEvent[]>> {
+  const user = await getCurrentUser()
+  if (!user || user.role !== 'agent' || user.active === false) {
+    return { success: false, error: 'Accès réservé aux agents de contrôle.' }
+  }
+
+  try {
+    const rows = await db
+      .select({
+        id: events.id,
+        slug: events.slug,
+        title: events.title,
+        startAt: events.startAt,
+        venue: events.venue,
+        location: events.location,
+        status: events.status,
+      })
+      .from(agentEventAccess)
+      .innerJoin(events, eq(events.id, agentEventAccess.eventId))
+      .where(eq(agentEventAccess.agentId, user.id))
+      .orderBy(events.startAt)
+
+    return { success: true, data: rows }
+  } catch {
+    return { success: false, error: 'Impossible de charger vos événements.' }
+  }
+}

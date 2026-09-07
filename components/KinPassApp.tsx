@@ -117,6 +117,13 @@ export function KinPassApp({ initialView = 'home', initialEvent }: KinPassAppPro
   const [user, setUser] = useState<SessionUser | null>(null)
   const [authChecked, setAuthChecked] = useState(false)
 
+  // Menu adapté au rôle (Phase 7.2) : un agent ne voit jamais les entrées
+  // organisateur — son espace de travail est la route réelle /scan.
+  const visibleNav =
+    user?.role === 'agent'
+      ? nav.filter((item) => item.id === 'home' || item.id === 'events')
+      : nav
+
   // Charge la session au premier rendu.
   useEffect(() => {
     fetch('/api/auth/me')
@@ -309,7 +316,7 @@ export function KinPassApp({ initialView = 'home', initialEvent }: KinPassAppPro
             </button>
 
             <nav aria-label="Navigation principale" className="hidden items-center gap-1 md:flex">
-              {nav.map(({ id, label, icon: Icon }) => (
+              {visibleNav.map(({ id, label, icon: Icon }) => (
                 <Button
                   key={id}
                   variant={view === id ? 'secondary' : 'ghost'}
@@ -327,22 +334,25 @@ export function KinPassApp({ initialView = 'home', initialEvent }: KinPassAppPro
               {authChecked &&
                 (user ? (
                   <div className="hidden items-center gap-1.5 md:flex">
-                    {/* Avatar (photo Google/URL ou initiales) + lien profil */}
-                    <button
-                      onClick={() => navigate('settings')}
-                      className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2 text-sm transition-colors hover:bg-muted"
-                      aria-label="Mon profil"
-                    >
-                      <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border border-border bg-muted text-xs font-bold">
-                        {user.avatarUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" />
-                        ) : (
-                          initialsOf(user.fullName)
-                        )}
-                      </span>
-                      <span className="max-w-32 truncate text-foreground">{user.fullName}</span>
-                    </button>
+                    {/* Avatar (photo Google/URL ou initiales) + lien profil —
+                        masqué pour un agent (son espace est /scan). */}
+                    {user?.role !== 'agent' && (
+                      <button
+                        onClick={() => navigate('settings')}
+                        className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2 text-sm transition-colors hover:bg-muted"
+                        aria-label="Mon profil"
+                      >
+                        <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border border-border bg-muted text-xs font-bold">
+                          {user.avatarUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            initialsOf(user.fullName)
+                          )}
+                        </span>
+                        <span className="max-w-32 truncate text-foreground">{user.fullName}</span>
+                      </button>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"
@@ -414,7 +424,7 @@ export function KinPassApp({ initialView = 'home', initialEvent }: KinPassAppPro
                   variants={{ visible: { transition: { staggerChildren: 0.045 } } }}
                   className="flex flex-col gap-1"
                 >
-                  {nav.map(({ id, label, icon: Icon }) => (
+                  {visibleNav.map(({ id, label, icon: Icon }) => (
                     <motion.div key={id} variants={menuItemVariants}>
                       <Button
                         variant={view === id ? 'secondary' : 'ghost'}
@@ -441,14 +451,18 @@ export function KinPassApp({ initialView = 'home', initialEvent }: KinPassAppPro
                           </span>
                           <span className="min-w-0 truncate text-sm">{user.fullName}</span>
                         </div>
-                        <Button
-                          variant="ghost"
-                          className="w-full justify-start"
-                          onClick={() => navigate('settings')}
-                        >
-                          <Settings className="h-4 w-4" />
-                          Mon profil
-                        </Button>
+                        {/* « Mon profil » : réservé à l'organisateur (un agent
+                            travaille sur /scan et n'a pas de réglages ici). */}
+                        {user.role !== 'agent' && (
+                          <Button
+                            variant="ghost"
+                            className="w-full justify-start"
+                            onClick={() => navigate('settings')}
+                          >
+                            <Settings className="h-4 w-4" />
+                            Mon profil
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           className="w-full justify-start text-muted-foreground"
@@ -478,4 +492,5 @@ export function KinPassApp({ initialView = 'home', initialEvent }: KinPassAppPro
     </MotionConfig>
   )
 }
+
 

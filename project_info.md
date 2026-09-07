@@ -442,28 +442,26 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 - [x] Tests E2E écrits (création + email auto + assignation, suspension/réactivation, nettoyage) — exécution sur demande.
 - [ ] `scans.agent_id` renseigné automatiquement au scan (avec 7.3) ; page « qui j'ai scanné » côté agent + vue admin des scans (avec 7.3).
 
-#### 7.2 Flux de connexion (page unique + redirection par rôle)
+#### 7.2 Flux de connexion (page unique + redirection par rôle) ✅ FAITE
 
 **Objectif** : une seule page de connexion, aucune page séparée admin/scan ; la redirection se fait **en arrière-plan selon le rôle** stocké en base (jamais selon le format de l'email).
 
-1. [ ] **Une seule page** `/auth/login` (email + mot de passe), commune à tous les rôles.
-2. [ ] Server Action `login(email, password)` :
-   - Recherche `users` par `email` (index UNIQUE `users_email_idx`).
-   - Introuvable → erreur générique « Identifiants invalides » (pas d'énumération de compte).
-   - `bcrypt.compare(password, passwordHash)` ; échec → erreur générique + **rate-limit** (par email **et** par IP).
-   - `users.active === false` → « Compte désactivé ».
-3. [ ] Création de la session (cookie `httpOnly` + `secure` + `sameSite=lax`) avec `{ userId, role }`.
-4. [ ] **Redirection par rôle** (depuis `users.role`, PAS depuis le texte de l'email) :
-   - `organizer` → `/dashboard` ;
-   - `agent` → `/scan` (accueil scanneur : liste des événements assignés via `agent_event_access`, puis `/scan/[slug]`).
-5. [ ] **Middleware (double protection)** : `/dashboard`, `/settings`, `/events/*`, `/payouts` exigent `role === 'organizer'` ; `/scan/*` exige `role === 'agent'` (ou `organizer`) ; écart → redirection par rôle.
-6. [ ] Vérification serveur du rôle dans **chaque** Server Action d'organisation (revenus, contrats, exports, billets, gestion des scanneurs) : refuser tout accès `agent`.
+- [x] **Une seule page** `/auth/login` (email + mot de passe), commune à tous les rôles (déjà en place — Phase 4).
+- [x] Connexion Auth.js (`credentials`, bcrypt) : email introuvable/mauvais mot de passe → « Identifiants invalides » ; **agent suspendu (`active=false`) → refus** (même message générique). NB : le **rate-limit par email/IP** reste à poser (Phase 8 — robustesse).
+- [x] Session cookie JWT (`httpOnly` + `secure` + `sameSite=lax`) avec `{ userId, role }` (Auth.js — déjà en place).
+- [x] **Redirection par rôle** (depuis `users.role`, PAS depuis le texte de l'email) : après connexion, `LoginForm` lit `/api/auth/me` → `organizer` → dashboard (`/?view=dashboard`) ; `agent` → **`/scan`** (accueil scanneur : liste des événements assignés via `agent_event_access`).
+- [x] **Middleware (double protection)** (`auth.config.ts` + proxy) : `/dashboard`, `/settings`, `/events/*`, `/payouts` exigent `organizer` (agent → `/scan`) ; **`/scan*` exige `agent`** (organisateur → `/`) ; pages `/auth/*` déjà connecté → redirection selon le rôle. Vérification du rôle répétée **dans les pages serveur** (`app/scan/*`).
+- [x] Vérification serveur du rôle dans chaque Server Action d'organisation (déjà le cas : `getSessionOrganizer` refuse tout rôle ≠ organizer) ; nouvelles actions agent protégées `role === 'agent' && active`.
+- [x] **Espace agent `/scan`** : route réelle, en-tête discret (logo + déconnexion), liste « Mes événements » (cartes → `/scan/[slug]`), état vide clair ; page `/scan/[slug]` placeholder (interface de scan en 7.3). Le menu de la coquille et le profil sont masqués pour un agent.
+- [x] Tests E2E écrits (parcours complet : création agent → connexion agent → `/scan` → événement assigné → blocage `/dashboard` et `/auth/*` → nettoyage).
 
 #### 7.3 Interface de scan
 
 - [ ] Route `/scan/[slug]` : caméra QR (`html5-qrcode`) + champ de saisie manuelle (majuscules auto, tirets ignorés).
 - [ ] Validation en base < 500 ms (index UNIQUE `tickets.code`).
-- [ ] États VERT (valide, nom + type) / ORANGE (déjà scanné, heure du 1er passage) / ROUGE (invalide/étranger) + retour sonore.
+- [ ] États VERT (valide, affiche nom + type d'entrée via un pop-up stylee qui s'ouvre et disparais apres klk secondes ou en cliquant sur un bouton fermer le pop-up ) / ORANGE (déjà scanné, heure du 1er passage) / ROUGE (invalide/étranger) + retour sonore.
+- [ ] Effets sonores distinct pour chaque état (V/O/R) + vibration mobile (si disponible).
+- [ ] Historique des scans côté agent (dernier X billets scannés, avec nom + type + heure)
 - [ ] Écriture dans `scans` + mise à jour `tickets.status` (`valid` → `used`) + `scanned_at`.
 
 #### 7.4 Modèle de données (ajouts)
@@ -755,7 +753,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - **Phase 4 (auth + compte organisateur)** : 🟡 EN COURS — **4.1, 4.2 et 4.3 faites** (register/login + Google via Auth.js ; page « Mon profil » : avatar auto Google ou initiales, WhatsApp, adresse, comptes de reversement, blocage publication sans compte) ; reste : badge « Profil incomplet » sur le dashboard, upload avatar réel (stockage externe), rôle agent (Phase 7), exécution des tests E2E (sur demande).
 - **Phase 5 (événements)** : ✅ TERMINÉE — CRUD complet + publication, organisateur de test fixe (`lib/constants.ts`), à sécuriser par la session dès la Phase 4.
 - **Phase 6 (billetterie + paiement)** : ✅ **TERMINÉE** (6.1 → 6.7) — page publique + galerie ; tunnel d'achat + `orders` ; remise email/téléchargement + moteur PDF/QR ; paiement KPay COD + webhook signé → `paid`, billets émis, mode simulation ; pages `/success` + `/cancel` (calendrier .ics, renvoi email) ; **partage enrichi 6.7** (panneau modal : copie, QR, WhatsApp/Telegram/X/Facebook, natif) ; fixs UX mobile. Restes hors phase : validation KPay réelle (clés de test + callback Dépôts), état `expired` (time-out des `pending`), lien court interne optionnel.
-- **Phase 7 (scanner)** : 🟡 EN COURS — **7.1 faite** (comptes agents RBAC : `users.organizer_id` + `active`, emails auto-générés `{slug}-{n}@kinpass.com`, table `agent_event_access`, section « Équipe / Scanneurs » — création/assignation/suspension/réinit/suppression, login refusé si suspendu) ; reste : 7.2 flux de connexion + redirection par rôle, 7.3 interface de scan réelle (caméra + saisie, états VERT/ORANGE/ROUGE, écriture `scans`), suivi des scans (agent + admin).
+- **Phase 7 (scanner)** : 🟡 EN COURS — **7.1 et 7.2 faites** (comptes agents RBAC — `users.organizer_id` + `active`, emails + mots de passe auto-générés, `agent_event_access`, section « Équipe / Scanneurs », transmission WhatsApp/copie ; connexion unique + **redirection par rôle** — agent → `/scan`, middleware double protection, espace agent avec événements assignés) ; reste : **7.3 interface de scan réelle** (caméra + saisie, VERT/ORANGE/ROUGE, écriture `scans` + `agent_id`, suivi « qui j'ai scanné » agent/admin), rate-limit login (Phase 8).
 - **Phase 8 (polish)** : 🟡 EN COURS — tests E2E faits (15 scénarios) ; unitaires, PWA et export restent.
 - **Phase 9 (vitrine publique)** : ✅ TERMINÉE — `getPublicEvents` (source unique), bandeau « À venir » sur la landing (3 événements, jamais de brouillon), rubrique « Billetterie » = listing complet (chips catégories, recherche, tri, états chargement/erreur/vide), carte `EventCard` « talon » partagée (→ `/e/[slug]`), page publique organisateur `/o/[slug]` (`users.slug` auto-généré) ; route `/events` SEO reportée au routing par URL.
 - **Phase 10 (monétisation & reversement)** : ❌ À VENIR — commission kinPass, retrait à la demande, table `payouts`.

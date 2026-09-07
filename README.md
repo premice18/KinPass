@@ -43,7 +43,7 @@ Trois profils utilisent la plateforme :
 | Base de données (Neon + Drizzle) | Terminé                                                             |
 | Tests end-to-end (Playwright)    | Écrits (landing, dashboard, événements, page publique, vitrine, checkout, scanner) — exécution sur demande |
 | Tunnel d'achat / billetterie     | En cours (6.2-6.4 : commandes, remise email/PDF, paiement KPay ou simulé, billets émis) |
-| Contrôle d'accès (scanner)       | En cours (Phase 7.1 : comptes agents RBAC, emails auto-générés, assignation — scan réel en 7.3) |
+| Contrôle d'accès (scanner)       | En cours (7.1-7.2 : comptes agents RBAC, espace /scan, redirection par rôle — scan réel en 7.3) |
 | Authentification                 | En cours (email/mot de passe + Google via Auth.js, profil à venir)  |
 | Paiement Mobile Money            | En cours (6.4-6.5 : KPay COD + webhook, pages success/cancel, calendrier — validation clés de test à faire) |
 | Monétisation & reversement       | À venir                                                             |
@@ -209,7 +209,8 @@ drizzle.config.ts        # Configuration drizzle-kit
 - **Paiement Mobile Money** (Phase 6.4) : intégration **KPay** (push USSD RD Congo, clés test `kpay_test_…`) + webhook sécurisé `/api/kpay/webhook` (signature HMAC, idempotent) → passage `paid`, **émission des billets** (QR + codes), envoi par email (PDF). **Sans clés KPay : mode « Simuler le paiement »** (démo/E2E). Conversion USD → CDF via `KPAY_USD_CDF_RATE` (KPay COD sans paramètre de devise).
 - **Confirmation** (Phase 6.5) : pages `/e/[slug]/checkout/success` (récap commande payée, cartes billets QR + PDF/PNG/JPG, « Ajouter au calendrier » `.ics`, « Renvoyer par email ») et `/e/[slug]/checkout/cancel` (annulation + Réessayer).
 - **Partage d'événement** (Phase 6.7) : panneau modal « Partager » (page publique + vue Détail) — URL canonique copiable, QR code, WhatsApp / Telegram / X / Facebook, partage natif du système quand disponible.
-- **Équipe / Scanneurs** (Phase 7.1) : l'organisateur crée des comptes agents (email auto-généré `{slug}-{n}@kinpass.com`), les assigne à ses événements, les suspend/réactive, réinitialise leur mot de passe — accès scan uniquement.
+- **Équipe / Scanneurs** (Phase 7.1) : l'organisateur crée des comptes agents (email + mot de passe auto-générés, transmission WhatsApp/copie), les assigne à ses événements, les suspend/réactive — accès scan uniquement.
+- **Espace agent** (Phase 7.2) : connexion unique `/auth/login`, redirection par rôle — l'agent arrive sur `/scan` (événements assignés), le middleware le bloque hors du dashboard ; l'interface de scan arrive en 7.3.
 - **Scanner** (maquette) : saisie manuelle du code avec retours VERT / ORANGE / ROUGE.
 - **Thème clair / sombre** et menu mobile responsive.
 
