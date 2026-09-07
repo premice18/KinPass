@@ -45,12 +45,28 @@ test.describe('Page publique événement /e/[slug]', () => {
     await expect(slide).toHaveAttribute('alt', 'Affiche — Kin House : Open Studio')
   })
 
-  test('propose un partage WhatsApp avec le lien de l’événement', async ({ page }) => {
+  test('ouvre le panneau de partage (lien, canaux, QR)', async ({ page }) => {
     await page.goto(`/e/${PUBLISHED_SLUG}`)
 
-    const shareLink = page.getByTestId('event-public-share-whatsapp')
-    await expect(shareLink).toHaveAttribute('href', /^https:\/\/wa\.me\/\?text=/)
-    await expect(shareLink).toHaveAttribute('href', /kin-house-open-studio/)
+    await page.getByTestId('event-public-share-open').click()
+
+    const sheet = page.getByTestId('share-sheet')
+    await expect(sheet).toBeVisible()
+    // URL canonique correcte dans le champ en lecture seule
+    await expect(sheet.getByTestId('share-input')).toHaveValue(/\/e\/kin-house-open-studio$/)
+    // Canaux (WhatsApp pré-rempli avec le texte)
+    const whatsapp = sheet.getByTestId('share-whatsapp')
+    await expect(whatsapp).toHaveAttribute('href', /^https:\/\/wa\.me\/\?text=/)
+    await expect(whatsapp).toHaveAttribute('href', /kin-house-open-studio/)
+    await expect(sheet.getByTestId('share-telegram')).toBeVisible()
+    await expect(sheet.getByTestId('share-x')).toBeVisible()
+    await expect(sheet.getByTestId('share-facebook')).toBeVisible()
+    // QR généré
+    await expect(sheet.getByTestId('share-qr')).toBeVisible()
+
+    // Fermeture par Échap
+    await page.keyboard.press('Escape')
+    await expect(sheet).toHaveCount(0)
   })
 
   test('le bouton d’achat mène au tunnel de réservation', async ({ page }) => {

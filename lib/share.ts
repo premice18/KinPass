@@ -13,6 +13,15 @@
 // URL publique du site (base de tous les liens partageables et aperçus OG).
 export const APP_BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 
+// Donnée minimale d'un événement pour construire les liens de partage
+// (type structurel — aucune dépendance à la base).
+export type ShareableEvent = {
+  slug: string
+  title: string
+  startAt?: Date | string | null
+  venue?: string | null
+}
+
 // Construit l'URL publique d'un événement (`/e/[slug]`).
 export function buildEventUrl(event: { slug: string }): string {
   return `${APP_BASE_URL}/e/${event.slug}`
@@ -29,8 +38,8 @@ function formatShareDate(value: Date | string | null | undefined): string {
   return `${day} à ${time}`
 }
 
-// Construit le texte de partage (titre + date + lieu + URL) utilisé pour
-// WhatsApp et les réseaux sociaux.
+// Construit le texte de partage (titre + date + lieu) utilisé pour WhatsApp
+// et les réseaux sociaux.
 export function buildShareText(event: {
   title: string
   startAt?: Date | string | null
@@ -46,4 +55,21 @@ export function buildShareText(event: {
 // Lien de partage WhatsApp (canal roi en RDC) avec le texte pré-rempli.
 export function buildWhatsAppShareUrl(text: string): string {
   return `https://wa.me/?text=${encodeURIComponent(text)}`
+}
+
+// ── Canaux supplémentaires (Phase 6.7) ──────────────────────────────────────
+
+// X / Twitter : intent officiel (texte + URL en paramètres séparés).
+export function buildXShareUrl(text: string, url: string): string {
+  return `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`
+}
+
+// Facebook : partageur officiel (URL uniquement — l'aperçu OG fait le reste).
+export function buildFacebookShareUrl(url: string): string {
+  return `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`
+}
+
+// Telegram : partage d'URL avec texte optionnel.
+export function buildTelegramShareUrl(text: string, url: string): string {
+  return `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`
 }

@@ -207,6 +207,7 @@ drizzle.config.ts        # Configuration drizzle-kit
 - **Tunnel d'achat** (`/e/[slug]/checkout`, Phase 6.2) : choix du type de billet avec jauge réelle (places restantes), quantité, opérateur Mobile Money (M-Pesa Vodacom / Orange Money / Airtel Money), coordonnées, remise — la commande est créée en base avec prix/capacité re-vérifiés côté serveur.
 - **Paiement Mobile Money** (Phase 6.4) : intégration **KPay** (push USSD RD Congo, clés test `kpay_test_…`) + webhook sécurisé `/api/kpay/webhook` (signature HMAC, idempotent) → passage `paid`, **émission des billets** (QR + codes), envoi par email (PDF). **Sans clés KPay : mode « Simuler le paiement »** (démo/E2E). Conversion USD → CDF via `KPAY_USD_CDF_RATE` (KPay COD sans paramètre de devise).
 - **Confirmation** (Phase 6.5) : pages `/e/[slug]/checkout/success` (récap commande payée, cartes billets QR + PDF/PNG/JPG, « Ajouter au calendrier » `.ics`, « Renvoyer par email ») et `/e/[slug]/checkout/cancel` (annulation + Réessayer).
+- **Partage d'événement** (Phase 6.7) : panneau modal « Partager » (page publique + vue Détail) — URL canonique copiable, QR code, WhatsApp / Telegram / X / Facebook, partage natif du système quand disponible.
 - **Scanner** (maquette) : saisie manuelle du code avec retours VERT / ORANGE / ROUGE.
 - **Thème clair / sombre** et menu mobile responsive.
 
