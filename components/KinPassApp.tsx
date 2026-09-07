@@ -32,6 +32,7 @@ import { OrganizerDashboard } from '@/components/features/dashboard/OrganizerDas
 import { EventDetail } from '@/components/features/dashboard/EventDetail'
 import { EventCreationForm } from '@/components/features/event-creation/EventCreationForm'
 import { ProfileSettings } from '@/components/features/settings/ProfileSettings'
+import { TeamScanners } from '@/components/features/settings/TeamScanners'
 import { EventCheckout } from '@/components/features/checkout/EventCheckout'
 import { ScannerIntro } from '@/components/features/scanner/ScannerIntro'
 import { EventPublicView } from '@/components/features/event-public/EventPublicView'
@@ -44,6 +45,7 @@ type View =
   | 'detail'
   | 'create'
   | 'settings'
+  | 'team'
   | 'event'
   | 'event-checkout'
   | 'events'
@@ -268,7 +270,11 @@ export function KinPassApp({ initialView = 'home', initialEvent }: KinPassAppPro
         onCreateEvent={openCreateEvent}
         onEditEvent={openEditEvent}
         onViewEvent={openEventDetail}
+        onOpenTeam={() => navigate('team')}
       />
+    ) : view === 'team' ? (
+      /* Équipe / Scanneurs (Phase 7.1) : comptes agents + assignations. */
+      <TeamScanners onBack={() => navigate('dashboard')} />
     ) : view === 'detail' && viewedEventId ? (
       <EventDetail
         eventId={viewedEventId}

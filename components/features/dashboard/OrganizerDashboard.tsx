@@ -27,6 +27,7 @@ import {
   Send,
   StatsReport,
   Trash,
+  UserPlus,
   WarningCircle,
 } from "iconoir-react";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,8 @@ interface DashboardProps {
   onEditEvent: (eventId: string) => void;
   // Navigation par état : ouvre la vue détail d'un événement (id).
   onViewEvent: (eventId: string) => void;
+  // Ouvre la gestion « Équipe / Scanneurs » (Phase 7.1).
+  onOpenTeam: () => void;
 }
 
 // Formate un montant avec des milliers à la française et la devise RDC.
@@ -94,6 +97,7 @@ export function OrganizerDashboard({
   onCreateEvent,
   onEditEvent,
   onViewEvent,
+  onOpenTeam,
 }: DashboardProps) {
   const [events, setEvents] = useState<EventWithStats[]>([]);
   const [loading, setLoading] = useState(true);
@@ -206,6 +210,10 @@ export function OrganizerDashboard({
             <Button onClick={onCreateEvent}>
               <Plus className="h-4 w-4" />
               Créer un événement
+            </Button>
+            <Button variant="outline" size="sm" onClick={onOpenTeam} aria-label="Gérer les scanneurs">
+              <UserPlus className="h-4 w-4" />
+              Équipe
             </Button>
           </div>
         </div>

@@ -94,6 +94,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const user = await findUserByEmail(email)
         // Compte Google pur : pas de mot de passe → refus sur ce provider.
         if (!user || !user.passwordHash) return null
+        // Compte désactivé (agent suspendu par l'organisateur, Phase 7.1) :
+        // refus avec le même message générique (pas d'énumération).
+        if (user.active === false) return null
         if (!verifyPassword(password, user.passwordHash)) return null
 
         return { id: user.id, email: user.email, name: user.fullName, role: user.role }
