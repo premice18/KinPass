@@ -40,6 +40,7 @@ tests/
     vitrine.spec.ts      # Vitrine publique (Phase 9 : bandeau landing, listing, filtres)
     checkout.spec.ts     # Tunnel d'achat /e/[slug]/checkout (6.2-6.4, paiement simulé sans clés KPay)
     scanner.spec.ts      # Rubriques du menu selon le rôle (pages d'explication visiteur)
+    team.spec.ts         # Équipe / Scanneurs (Phase 7.1 : création agent, assignation, suspension)
 ```
 
 ## Conventions
@@ -89,6 +90,10 @@ Convention de nommage : **kebab-case en anglais**, préfixé par le domaine.
 | `event-ticker` | `landing/EventTicker.tsx` | Bandeau défilant sous le hero |
 | `organizer-intro-register` | `landing/OrganizerIntro.tsx` | CTA d'inscription organisateur |
 | `scanner-intro-register` | `scanner/ScannerIntro.tsx` | CTA d'inscription (contrôle d'accès) |
+| `team-create-button` / `team-create-name` / `team-create-event` / `team-create-submit` | `settings/TeamScanners.tsx` | Formulaire de création d'agent (nom seul) |
+| `team-agent-row` / `team-agent-deactivate` / `team-agent-activate` / `team-agent-reset` / `team-agent-delete` / `team-agent-assign` / `team-agent-event-remove` | `settings/TeamScanners.tsx` | Ligne agent (actions) |
+| `team-created-creds` / `team-creds-email` / `team-creds-password` / `team-creds-whatsapp` / `team-creds-copy` | `settings/TeamScanners.tsx` | Transmission des identifiants (une seule fois) |
+| `team-reset-password` / `team-reset-copy` | `settings/TeamScanners.tsx` | Mot de passe régénéré |
 | `public-event-card` | `events/EventCard.tsx` | Carte « talon » d'un événement public |
 | `listing-chip` / `listing-search` / `listing-sort` | `events/EventListing.tsx` | Filtres de la vitrine (Billetterie) |
 | `listing-retry` / `listing-skeleton` / `listing-count` | `events/EventListing.tsx` | États chargement / erreur / compteur |
