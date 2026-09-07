@@ -64,7 +64,12 @@ export function LoginForm() {
         setError('Identifiants invalides.')
         return
       }
-      router.push(next ?? `/?view=${view ?? 'dashboard'}`)
+
+      // Redirection PAR RÔLE (Phase 7.2) : jamais selon le format de l'email.
+      // Un agent rejoint son espace de scan ; un organisateur son dashboard.
+      const me = await fetch('/api/auth/me').then((r) => r.json().catch(() => null))
+      const isAgent = me?.user?.role === 'agent'
+      router.push(isAgent ? '/scan' : (next ?? `/?view=${view ?? 'dashboard'}`))
       router.refresh()
     })
   }

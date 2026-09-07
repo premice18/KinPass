@@ -15,5 +15,12 @@ export default NextAuth(authConfig).auth
 
 // Ne fait tourner le proxy que sur les chemins concernés.
 export const config = {
-  matcher: ['/dashboard/:path*', '/events/:path*', '/scan/:path*', '/auth/:path*'],
+  matcher: [
+    '/dashboard/:path*',
+    '/events/:path*',
+    '/settings/:path*',
+    '/payouts/:path*',
+    '/scan/:path*',
+    '/auth/:path*',
+  ],
 }
