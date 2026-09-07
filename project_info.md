@@ -185,32 +185,32 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 
 ### Table `users`
 
-| Colonne                     | Type         | Contrainte            | Description            |
-| :-------------------------- | :----------- | :-------------------- | :--------------------- |
-| `id`                        | uuid         | PK, defaultRandom     | Identifiant            |
-| `email`                     | varchar(255) | UNIQUE NOT NULL       | Connexion              |
+| Colonne                     | Type         | Contrainte            | Description                                    |
+| :-------------------------- | :----------- | :-------------------- | :--------------------------------------------- |
+| `id`                        | uuid         | PK, defaultRandom     | Identifiant                                    |
+| `email`                     | varchar(255) | UNIQUE NOT NULL       | Connexion                                      |
 | `password_hash`             | text         | nullable (Auth.js)    | Hash bcrypt — absent pour un compte Google pur |
-| `full_name`                 | varchar(255) | NOT NULL              | Nom complet            |
-| `role`                      | varchar(20)  | default `'organizer'` | `organizer` \| `agent` \| `superadmin` |
-| `provider`                  | varchar(20)  | default `'email'`     | `email` \| `google` (Auth.js, cf. §4.2) |
-| `provider_id`               | varchar(255) |                       | Identifiant du provider (sub Google) |
-| `created_at` / `updated_at` | timestamptz  | defaultNow            | Horodatage             |
+| `full_name`                 | varchar(255) | NOT NULL              | Nom complet                                    |
+| `role`                      | varchar(20)  | default `'organizer'` | `organizer` \| `agent` \| `superadmin`         |
+| `provider`                  | varchar(20)  | default `'email'`     | `email` \| `google` (Auth.js, cf. §4.2)        |
+| `provider_id`               | varchar(255) |                       | Identifiant du provider (sub Google)           |
+| `created_at` / `updated_at` | timestamptz  | defaultNow            | Horodatage                                     |
 
 ### Table `events`
 
-| Colonne               | Type         | Contrainte                   | Description                          |
-| :-------------------- | :----------- | :--------------------------- | :----------------------------------- |
-| `id`                  | uuid         | PK                           | Identifiant                          |
-| `organizer_id`        | uuid         | FK `users` ON DELETE CASCADE | Organisateur                         |
-| `title`               | varchar(255) | NOT NULL                     | Titre                                |
-| `slug`                | varchar(255) | UNIQUE (index)               | URL `/e/[slug]`                      |
-| `description`         | text         |                              | Description                          |
+| Colonne               | Type         | Contrainte                   | Description                              |
+| :-------------------- | :----------- | :--------------------------- | :--------------------------------------- |
+| `id`                  | uuid         | PK                           | Identifiant                              |
+| `organizer_id`        | uuid         | FK `users` ON DELETE CASCADE | Organisateur                             |
+| `title`               | varchar(255) | NOT NULL                     | Titre                                    |
+| `slug`                | varchar(255) | UNIQUE (index)               | URL `/e/[slug]`                          |
+| `description`         | text         |                              | Description                              |
 | `category`            | varchar(50)  |                              | Concert/Conférence/Festival/Soirée/Autre |
 | `category_custom`     | varchar(100) |                              | Type personnalisé si `category = 'Autre' |
-| `venue` / `location`  | varchar(255) |                              | Lieu                                 |
-| `start_at` / `end_at` | timestamptz  |                              | Dates                                |
-| `poster_url`          | text         |                              | Affiche                              |
-| `status`              | varchar(20)  | default `'draft'`            | `draft` \| `published` \| `finished` |
+| `venue` / `location`  | varchar(255) |                              | Lieu                                     |
+| `start_at` / `end_at` | timestamptz  |                              | Dates                                    |
+| `poster_url`          | text         |                              | Affiche                                  |
+| `status`              | varchar(20)  | default `'draft'`            | `draft` \| `published` \| `finished`     |
 
 ### Table `ticket_types`
 
@@ -401,23 +401,26 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 
 - Tables `event_images`, `orders`, `order_items` (cf. ci-dessus) ; `tickets.order_id` FK nullable — toutes appliquées en base (6.2). Aucun ajout requis pour 6.5 (les cartes billets lisent `tickets`/`order_items` existants).
 
-#### 6.7 Lien d'événement partageable & diffusion
+#### 6.7 Lien d'événement partageable & diffusion ✅ FAITE
 
 **Objectif** : permettre à l'organisateur de **partager facilement son événement** via un lien complet — WhatsApp (canal roi en RDC), réseaux sociaux, QR code physique, copie en un clic.
 
 **Décision (validée)** :
+
 - L'URL canonique est construite depuis le **slug existant** : `${NEXT_PUBLIC_APP_URL}/e/${slug}`. **Pas de raccourcisseur tiers au MVP** (Bitly…) : dépendance externe + coût + lien mort si le service ferme. Un éventuel lien court **interne** sera étudié plus tard (option, cf. plus bas).
 - Les **aperçus WhatsApp / réseaux** reposent sur les balises Open Graph (SEO déjà prévu en 6.1) : la page `/e/[slug]` doit exposer `og:title`, `og:description`, `og:image` (affiche) — indispensable pour un partage « riche ».
 - **Tracking des provenances reporté** (option) : mesurer les clics par source n'est pas un besoin MVP ; éviter la sur-ingénierie.
 
-- [ ] Variable d'environnement `NEXT_PUBLIC_APP_URL` (base publique du site, ex. `https://kinpass.app`) — documentée au §8 ; helper `lib/share.ts` : `buildEventUrl(event)` et `buildShareText(event)` (titre + date).
-- [ ] **Composant de partage** (dashboard) : bouton « Partager » (icône Iconoir `ShareAndroid`) dans la **vue Détail** de l'événement (et dans la liste des événements, au choix) → panneau modal (`AnimatePresence`) contenant :
+- [x] Variable d'environnement `NEXT_PUBLIC_APP_URL` documentée (§8) ; helpers `lib/share.ts` : `buildEventUrl`, `buildShareText`, `buildWhatsAppShareUrl` (6.1) + **canaux 6.7** : `buildXShareUrl`, `buildFacebookShareUrl`, `buildTelegramShareUrl` ; type partagé `ShareableEvent`.
+- [x] **Composant de partage** `EventShareSheet` (`components/features/share/`) : panneau modal accessible (`role=dialog`, `aria-modal`, Échap, focus sur la fermeture) contenant :
+  - le **partage natif** du système (`navigator.share`) quand il est disponible ;
   - l'URL complète en lecture seule + bouton **Copier** (`navigator.clipboard`, état « Copié ! ») ;
-  - un **QR code** (`qrcode.react`, déjà prévu en 6.2 pour les billets — réutiliser) pour le partage physique/affiche ;
-  - les boutons de diffusion : **WhatsApp** (`https://wa.me/?text=`), X/Twitter (intent), Facebook (sharer), Telegram ; **partage natif** mobile (`navigator.share` si disponible) en repli.
-- [ ] Intégration sur la **page publique** `/e/[slug]` (6.1) : bouton de partage discret + vérification des aperçus OG (test réel sur WhatsApp/Telegram).
-- [ ] Copie en un clic : état « Lien copié » avec retour visuel ; accessibilité (labels, focus) ; test desktop **et** mobile.
-- [ ] Tests E2E (écrits ; exécution sur demande) : copie du lien, ouverture du QR, construction correcte de l'URL (`/e/[slug]`).
+  - un **QR code** (généré côté client — `qrcode`, réutilisé des billets) pour le partage physique/affiche ;
+  - les boutons de diffusion : **WhatsApp**, **Telegram**, **X (Twitter)** (intents), **Facebook** (sharer).
+- [x] Intégration **dashboard** : bouton « Partager » (icône `ShareAndroid`) dans la **vue Détail** d'un événement publié (`EventDetail`).
+- [x] Intégration **page publique** `/e/[slug]` : bouton « Partager » discret (remplace les deux actions WhatsApp/copie de la 6.1) → même panneau ; aperçus OG déjà en place (6.1) — vérification visuelle réelle sur WhatsApp/Telegram à faire au déploiement.
+- [x] Copie en un clic : retour visuel « Copié ! » ; accessibilité (labels, focus, Échap) ; testé desktop et mobile via le panneau (bottom sheet mobile).
+- [x] Tests E2E (écrits ; exécution sur demande) : ouverture du panneau (page publique + vue détail), URL canonique correcte (`/e/[slug]`), liens des canaux, QR affiché, fermeture par Échap.
 
 **Option (plus tard — hors MVP)** : lien court interne (`/s/{code}`) et comptage des clics par source (table `share_clicks` : event_id, source, referrer, count) pour mesurer l'efficacité des canaux de diffusion.
 
@@ -431,6 +434,10 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 
 - [ ] Réutiliser `users.role` (`organizer` | `agent`) ; ajouter `users.organizer_id` (uuid nullable, FK `users` ON DELETE SET NULL) pour rattacher un agent à son organisateur.
 - [ ] **Emails synthétiques uniques auto-générés** : au moment de créer un scanneur, l'UI génère `{slug}-{n}@kinpass.com` (n incrémental par événement) ; l'organisateur **ne saisit pas** l'email, il choisit uniquement le nom et le mot de passe. Le domaine `@kinpass.com` marque visuellement un compte interne.
+- [ ] **Contrôle d'accès** : chaque agent ne peut scanner que les événements auxquels il est assigné.
+- [ ] L'organisateur peut créer, voir, désactiver/réactiver, supprimer et réinitialiser le mot de passe d'un agent dans la section « Équipe / Scanneurs » de `/settings` (via Server Actions sécurisées).
+- [ ] Les scanneurs ont une page ou ils peuvent voir qui ilsont scannes , l'admin peut voir les scanneurs et leurs scans.
+- [ ] **RBAC strict** : un agent ne peut jamais accéder aux routes organisateur (`/dashboard`, `/settings`, `/events/*`, `/payouts`) ni aux Server Actions de gestion des ventes/contrats ; un organisateur ne peut jamais scanner (routes `/scan/*`).
 - [ ] Nouvelle table `agent_event_access` (id, agent_id FK `users` CASCADE, event_id FK `events` CASCADE, created_at) — index sur `agent_id` et `event_id` — pour définir **quels événements** un agent peut scanner.
 - [ ] Section « Équipe / Scanneurs » dans `/settings` : lister les agents (nom, email généré, événements assignés), bouton « Ajouter un scanneur » (nom + mot de passe + sélection des événements), désactivation/réactivation, suppression, réinitialisation du mot de passe.
 - [ ] Server Actions `createAgent`, `updateAgent`, `deactivateAgent`, `assignAgentToEvent`, `unassignAgentToEvent`, `resetAgentPassword` — toutes protégées par `role === 'organizer'` **et** `organizer_id === session.id` (défense en profondeur).
@@ -674,6 +681,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 **Objectif** : une interface réservée au **créateur de l'application** pour **tout voir et tout gérer** : paramètres globaux, organisateurs, événements, billets/scans, reversements, et un journal d'audit (« qui fait quoi »).
 
 **Décision (validée — amélioration de l'idée initiale)** :
+
 - **URL distincte** `/superadmin` + **page de connexion dédiée** `/superadmin/login` (branding back-office distinct, pas de page marketing).
 - **Pas de page d'inscription publique.** Les comptes superadmin sont **provisionnés par seed** (`scripts/seed-superadmin.mts`) ; les emails autorisés sont dans `.env.local` (`SUPERADMIN_EMAILS`). Zéro surface d'inscription = zéro risque de compte créé par un tiers. Un superadmin peut ajouter d'autres superadmins depuis le back-office.
 - **Un seul système d'authentification** : rôle `superadmin` ajouté à `users.role` (aux côtés de `organizer` et `agent`), même session/cookie. `/superadmin/login` n'accepte **que** le rôle `superadmin` (les autres reçoivent un message neutre « accès réservé ») ; `/auth/login` redirige un superadmin vers `/superadmin`.
@@ -748,7 +756,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - **Phase 3** : ✅ TERMINÉE (logo ticket, dark/light, menu mobile).
 - **Phase 4 (auth + compte organisateur)** : 🟡 EN COURS — **4.1, 4.2 et 4.3 faites** (register/login + Google via Auth.js ; page « Mon profil » : avatar auto Google ou initiales, WhatsApp, adresse, comptes de reversement, blocage publication sans compte) ; reste : badge « Profil incomplet » sur le dashboard, upload avatar réel (stockage externe), rôle agent (Phase 7), exécution des tests E2E (sur demande).
 - **Phase 5 (événements)** : ✅ TERMINÉE — CRUD complet + publication, organisateur de test fixe (`lib/constants.ts`), à sécuriser par la session dès la Phase 4.
-- **Phase 6 (billetterie + paiement)** : 🟡 EN COURS — **6.1 → 6.6 faites** (page publique + galerie ; tunnel d'achat + `orders` ; remise email/téléchargement + moteur PDF/QR ; paiement KPay COD + webhook signé → `paid`, billets émis, mode simulation ; **pages `/success` et `/cancel` + ajout calendrier + renvoi email** ; fixs UX mobile) ; reste : validation KPay réelle (clés de test + callback Dépôts configuré), état `expired` (time-out des `pending`), 6.7 partage enrichi (panneau modal + QR organisateur).
+- **Phase 6 (billetterie + paiement)** : ✅ **TERMINÉE** (6.1 → 6.7) — page publique + galerie ; tunnel d'achat + `orders` ; remise email/téléchargement + moteur PDF/QR ; paiement KPay COD + webhook signé → `paid`, billets émis, mode simulation ; pages `/success` + `/cancel` (calendrier .ics, renvoi email) ; **partage enrichi 6.7** (panneau modal : copie, QR, WhatsApp/Telegram/X/Facebook, natif) ; fixs UX mobile. Restes hors phase : validation KPay réelle (clés de test + callback Dépôts), état `expired` (time-out des `pending`), lien court interne optionnel.
 - **Phase 7 (scanner)** : ❌ À VENIR — interface de scan (caméra + saisie), **comptes scanneurs gérés par l'organisateur avec RBAC strict** (assignation par événement, aucun accès aux ventes/contrats).
 - **Phase 8 (polish)** : 🟡 EN COURS — tests E2E faits (15 scénarios) ; unitaires, PWA et export restent.
 - **Phase 9 (vitrine publique)** : ✅ TERMINÉE — `getPublicEvents` (source unique), bandeau « À venir » sur la landing (3 événements, jamais de brouillon), rubrique « Billetterie » = listing complet (chips catégories, recherche, tri, états chargement/erreur/vide), carte `EventCard` « talon » partagée (→ `/e/[slug]`), page publique organisateur `/o/[slug]` (`users.slug` auto-généré) ; route `/events` SEO reportée au routing par URL.
@@ -789,6 +797,7 @@ components/
     event-creation/   # EventCreationForm (galerie 1-3 photos)
     event-public/     # EventPublicView (page /e/[slug], galerie carrousel)
     events/           # EventCard « talon » + EventListing (vitrine Phase 9)
+    share/            # EventShareSheet (panneau partage 6.7)
     checkout/         # EventCheckout (tunnel /e/[slug]/checkout, 6.2-6.4)
     scanner/          # Scanner
 lib/
@@ -831,19 +840,19 @@ drizzle.config.ts     # Config drizzle-kit
 
 ## 8. VARIABLES D'ENVIRONNEMENT & COMMANDES
 
-| Variable       | Obligatoire | Description                     |
-| :------------- | :---------- | :------------------------------ |
-| `DATABASE_URL` | ✅          | URL de connexion Neon (poolée). |
-| `PEXELS_API_KEY` | ❌ (optionnelle) | Clé API Pexels (photos pour fonds/couvertures). Sans clé, fallbacks de marque. |
-| `AUTH_SECRET` | ✅          | Clé de signature des sessions JWT (≥ 32 caractères, base64url). |
-| `AUTH_GOOGLE_ID` | ❌ (si Google) | Client ID OAuth Google (Google Cloud Console). |
-| `AUTH_GOOGLE_SECRET` | ❌ (si Google) | Client secret OAuth Google. |
-| `NEXT_PUBLIC_APP_URL` | ✅ (partage/SEO) | URL publique du site (ex. `https://kinpass.app`) — construire les liens partageables (`/e/[slug]`) et les aperçus OG. Repli local : `http://localhost:3000`. |
-| `RESEND_API_KEY` | ❌ (email) | Clé Resend pour la remise des billets par email (Phase 6.3). Sans clé : envoi **simulé** (log) en développement ; installer `pnpm add resend` dès activation. |
-| `MAIL_FROM` | ❌ (email) | Expéditeur des emails kinPass (défaut `kinPass <billets@kinpass.app>`). |
-| `KPAY_API_KEY` / `KPAY_SECRET_KEY` | ❌ (paiement) | Clés KPay (Phase 6.4) : test `kpay_test_…`/`sk_test_…`, live `kpay_live_…`/`sk_live_…`. **Sans clés → mode « Simuler le paiement »** (démo/E2E). |
-| `KPAY_WEBHOOK_SECRET` | ❌ (paiement) | Secret du callback **Webhook « Dépôts »** du dashboard KPay (signature `X-KPAY-Signature`). Absent en dev : signature non vérifiée (avertissement). |
-| `KPAY_USD_CDF_RATE` | ❌ (paiement) | Taux USD → CDF appliqué pour facturer en CDF (KPay COD sans devise). Défaut `2800`. |
+| Variable                           | Obligatoire      | Description                                                                                                                                                   |
+| :--------------------------------- | :--------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `DATABASE_URL`                     | ✅               | URL de connexion Neon (poolée).                                                                                                                               |
+| `PEXELS_API_KEY`                   | ❌ (optionnelle) | Clé API Pexels (photos pour fonds/couvertures). Sans clé, fallbacks de marque.                                                                                |
+| `AUTH_SECRET`                      | ✅               | Clé de signature des sessions JWT (≥ 32 caractères, base64url).                                                                                               |
+| `AUTH_GOOGLE_ID`                   | ❌ (si Google)   | Client ID OAuth Google (Google Cloud Console).                                                                                                                |
+| `AUTH_GOOGLE_SECRET`               | ❌ (si Google)   | Client secret OAuth Google.                                                                                                                                   |
+| `NEXT_PUBLIC_APP_URL`              | ✅ (partage/SEO) | URL publique du site (ex. `https://kinpass.app`) — construire les liens partageables (`/e/[slug]`) et les aperçus OG. Repli local : `http://localhost:3000`.  |
+| `RESEND_API_KEY`                   | ❌ (email)       | Clé Resend pour la remise des billets par email (Phase 6.3). Sans clé : envoi **simulé** (log) en développement ; installer `pnpm add resend` dès activation. |
+| `MAIL_FROM`                        | ❌ (email)       | Expéditeur des emails kinPass (défaut `kinPass <billets@kinpass.app>`).                                                                                       |
+| `KPAY_API_KEY` / `KPAY_SECRET_KEY` | ❌ (paiement)    | Clés KPay (Phase 6.4) : test `kpay_test_…`/`sk_test_…`, live `kpay_live_…`/`sk_live_…`. **Sans clés → mode « Simuler le paiement »** (démo/E2E).              |
+| `KPAY_WEBHOOK_SECRET`              | ❌ (paiement)    | Secret du callback **Webhook « Dépôts »** du dashboard KPay (signature `X-KPAY-Signature`). Absent en dev : signature non vérifiée (avertissement).           |
+| `KPAY_USD_CDF_RATE`                | ❌ (paiement)    | Taux USD → CDF appliqué pour facturer en CDF (KPay COD sans devise). Défaut `2800`.                                                                           |
 
 | Commande                     | Description                                                                |
 | :--------------------------- | :------------------------------------------------------------------------- |

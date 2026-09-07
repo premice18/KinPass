@@ -43,6 +43,20 @@ test.describe('Tableau de bord organisateur', () => {
     ).toBeVisible()
   })
 
+  test('partage un événement publié depuis la vue détail', async ({ page }) => {
+    await goTo(page, 'Tableau de bord')
+
+    // Vue détail de l'événement publié du seed
+    await page.getByRole('button', { name: 'Voir le détail de Kin House : Open Studio' }).click()
+    await expect(page.getByRole('heading', { name: 'Kin House : Open Studio' })).toBeVisible()
+
+    // Panneau de partage (Phase 6.7) avec l'URL publique
+    await page.getByTestId('event-detail-share-open').click()
+    const sheet = page.getByTestId('share-sheet')
+    await expect(sheet).toBeVisible()
+    await expect(sheet.getByTestId('share-input')).toHaveValue(/\/e\/kin-house-open-studio$/)
+  })
+
   test('publie un événement brouillon (jetable, sans toucher au seed)', async ({ page }) => {
     // Accepte la boîte de confirmation native de la suppression finale.
     page.on('dialog', (dialog) => dialog.accept())

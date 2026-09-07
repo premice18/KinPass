@@ -9,12 +9,13 @@
 // ────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Barcode, Calendar, CardWallet, Clock, MapPin, NewTab, Refresh, Scanning, StatsReport, WarningCircle } from 'iconoir-react'
+import { ArrowLeft, Barcode, Calendar, CardWallet, Clock, MapPin, NewTab, Refresh, Scanning, ShareAndroid, StatsReport, WarningCircle } from 'iconoir-react'
 
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Eyebrow } from '@/components/ui/eyebrow'
+import { EventShareSheet } from '@/components/features/share/EventShareSheet'
 import { cn } from '@/lib/utils'
 import { getEventDetail, type EventDetailTicket, type EventWithStats } from '@/lib/actions/events'
 
@@ -56,6 +57,8 @@ export function EventDetail({ eventId, onBack, onEdit }: EventDetailProps) {
   const [tickets, setTickets] = useState<EventDetailTicket[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  // Panneau de partage (Phase 6.7).
+  const [shareOpen, setShareOpen] = useState(false)
 
   // Charge le détail de l'événement (Server Action sécurisée par session).
   const load = useCallback(async () => {
@@ -153,23 +156,42 @@ export function EventDetail({ eventId, onBack, onEdit }: EventDetailProps) {
               un brouillon n'a pas encore d'URL publique (404). */}
           <div className="flex flex-wrap items-center gap-2">
             {event.status === 'published' && (
-              <a
-                href={`/e/${event.slug}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={buttonVariants({ variant: 'outline', size: 'sm' })}
-                aria-label={`Voir la page publique de ${event.title}`}
-                data-testid="event-detail-public-link"
-              >
-                <NewTab className="h-4 w-4" />
-                Page publique
-              </a>
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShareOpen(true)}
+                  aria-label={`Partager ${event.title}`}
+                  data-testid="event-detail-share-open"
+                >
+                  <ShareAndroid className="h-4 w-4" />
+                  Partager
+                </Button>
+                <a
+                  href={`/e/${event.slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                  aria-label={`Voir la page publique de ${event.title}`}
+                  data-testid="event-detail-public-link"
+                >
+                  <NewTab className="h-4 w-4" />
+                  Page publique
+                </a>
+              </>
             )}
             <Button variant="outline" size="sm" onClick={() => onEdit(event.id)}>
               Modifier
             </Button>
           </div>
         </div>
+
+        {/* Panneau modal de partage (Phase 6.7) */}
+        <EventShareSheet
+          event={{ slug: event.slug, title: event.title, startAt: event.startAt, venue: event.venue ?? event.location }}
+          open={shareOpen}
+          onOpenChange={setShareOpen}
+        />
 
         {/* KPIs de l'événement */}
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -20,23 +20,21 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   Calendar,
   CardWallet,
-  Check,
   Clock,
-  Link,
   MapPin,
   NavArrowLeft,
   NavArrowRight,
+  ShareAndroid,
   SmartphoneDevice,
   User,
-  Whatsapp,
 } from 'iconoir-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Eyebrow } from '@/components/ui/eyebrow'
+import { EventShareSheet } from '@/components/features/share/EventShareSheet'
 import type { PublicEvent } from '@/lib/actions/events'
-import { buildEventUrl, buildShareText, buildWhatsAppShareUrl } from '@/lib/share'
 
 interface EventPublicViewProps {
   event: PublicEvent
@@ -75,24 +73,12 @@ export function EventPublicView({ event }: EventPublicViewProps) {
     })),
   ]
   const [slideIndex, setSlideIndex] = useState(0)
-  const [copied, setCopied] = useState(false)
+  // Panneau de partage (Phase 6.7) : copie du lien, QR, canaux, natif.
+  const [shareOpen, setShareOpen] = useState(false)
 
-  const eventUrl = buildEventUrl(event)
-  const shareText = buildShareText(event)
   const hasMedia = slides.length > 0
   const isFinished = event.status === 'finished'
   const isFree = event.ticketTypes.every((t) => Number(t.price) === 0)
-
-  // Copie du lien public dans le presse-papiers (retour visuel « Copié ! »).
-  const copyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(eventUrl)
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 2000)
-    } catch {
-      // Presse-papiers indisponible (permission, contexte) : silencieux.
-    }
-  }
 
   // Navigation du carrousel (bornée ; navigation clavier gérée sur le conteneur).
   const goToSlide = (index: number) => setSlideIndex((index + slides.length) % slides.length)
@@ -144,34 +130,31 @@ export function EventPublicView({ event }: EventPublicViewProps) {
               </div>
             </div>
 
-            {/* Partage discret : WhatsApp (canal roi en RDC) + copie du lien.
-                Le panneau de partage complet (QR…) arrivera en Phase 6.7. */}
+            {/* Partage (Phase 6.7) : panneau complet — copie, QR, canaux,
+                partage natif du système. */}
             <div className="flex flex-wrap items-center gap-2">
-              <a
-                data-testid="event-public-share-whatsapp"
-                href={buildWhatsAppShareUrl(`${shareText} — Réservez votre billet : ${eventUrl}`)}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Partager sur WhatsApp"
-                className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2.5 text-[0.8rem] font-medium text-slate-200 transition-colors hover:bg-white/10"
-              >
-                <Whatsapp className="h-3.5 w-3.5" />
-                Partager
-              </a>
               <button
                 type="button"
-                data-testid="event-public-share-copy"
-                onClick={copyLink}
-                aria-label="Copier le lien de l'événement"
+                data-testid="event-public-share-open"
+                onClick={() => setShareOpen(true)}
+                aria-label="Partager l'événement"
+                aria-haspopup="dialog"
                 className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2.5 text-[0.8rem] font-medium text-slate-200 transition-colors hover:bg-white/10"
               >
-                {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Link className="h-3.5 w-3.5" />}
-                {copied ? 'Lien copié !' : 'Copier le lien'}
+                <ShareAndroid className="h-3.5 w-3.5" />
+                Partager
               </button>
             </div>
           </div>
         </div>
       </section>
+
+      {/* Panneau modal de partage */}
+      <EventShareSheet
+        event={{ slug: event.slug, title: event.title, startAt: event.startAt, venue: event.venue ?? event.location }}
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+      />
 
       {/* ── Médias : affiche + galerie (carrousel léger) ─────────────────── */}
       <section className="mx-auto max-w-6xl px-4 py-10 sm:px-8">
