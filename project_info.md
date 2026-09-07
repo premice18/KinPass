@@ -401,7 +401,7 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 
 - Tables `event_images`, `orders`, `order_items` (cf. ci-dessus) ; `tickets.order_id` FK nullable — toutes appliquées en base (6.2). Aucun ajout requis pour 6.5 (les cartes billets lisent `tickets`/`order_items` existants).
 
-#### 6.7 Lien d'événement partageable & diffusion
+#### 6.7 Lien d'événement partageable & diffusion ✅ FAITE
 
 **Objectif** : permettre à l'organisateur de **partager facilement son événement** via un lien complet — WhatsApp (canal roi en RDC), réseaux sociaux, QR code physique, copie en un clic.
 
@@ -411,14 +411,16 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 - Les **aperçus WhatsApp / réseaux** reposent sur les balises Open Graph (SEO déjà prévu en 6.1) : la page `/e/[slug]` doit exposer `og:title`, `og:description`, `og:image` (affiche) — indispensable pour un partage « riche ».
 - **Tracking des provenances reporté** (option) : mesurer les clics par source n'est pas un besoin MVP ; éviter la sur-ingénierie.
 
-- [ ] Variable d'environnement `NEXT_PUBLIC_APP_URL` (base publique du site, ex. `https://kinpass.app`) — documentée au §8 ; helper `lib/share.ts` : `buildEventUrl(event)` et `buildShareText(event)` (titre + date).
-- [ ] **Composant de partage** (dashboard) : bouton « Partager » (icône Iconoir `ShareAndroid`) dans la **vue Détail** de l'événement (et dans la liste des événements, au choix) → panneau modal (`AnimatePresence`) contenant :
+- [x] Variable d'environnement `NEXT_PUBLIC_APP_URL` documentée (§8) ; helpers `lib/share.ts` : `buildEventUrl`, `buildShareText`, `buildWhatsAppShareUrl` (6.1) + **canaux 6.7** : `buildXShareUrl`, `buildFacebookShareUrl`, `buildTelegramShareUrl` ; type partagé `ShareableEvent`.
+- [x] **Composant de partage** `EventShareSheet` (`components/features/share/`) : panneau modal accessible (`role=dialog`, `aria-modal`, Échap, focus sur la fermeture) contenant :
+  - le **partage natif** du système (`navigator.share`) quand il est disponible ;
   - l'URL complète en lecture seule + bouton **Copier** (`navigator.clipboard`, état « Copié ! ») ;
-  - un **QR code** (`qrcode.react`, déjà prévu en 6.2 pour les billets — réutiliser) pour le partage physique/affiche ;
-  - les boutons de diffusion : **WhatsApp** (`https://wa.me/?text=`), X/Twitter (intent), Facebook (sharer), Telegram ; **partage natif** mobile (`navigator.share` si disponible) en repli.
-- [ ] Intégration sur la **page publique** `/e/[slug]` (6.1) : bouton de partage discret + vérification des aperçus OG (test réel sur WhatsApp/Telegram).
-- [ ] Copie en un clic : état « Lien copié » avec retour visuel ; accessibilité (labels, focus) ; test desktop **et** mobile.
-- [ ] Tests E2E (écrits ; exécution sur demande) : copie du lien, ouverture du QR, construction correcte de l'URL (`/e/[slug]`).
+  - un **QR code** (généré côté client — `qrcode`, réutilisé des billets) pour le partage physique/affiche ;
+  - les boutons de diffusion : **WhatsApp**, **Telegram**, **X (Twitter)** (intents), **Facebook** (sharer).
+- [x] Intégration **dashboard** : bouton « Partager » (icône `ShareAndroid`) dans la **vue Détail** d'un événement publié (`EventDetail`).
+- [x] Intégration **page publique** `/e/[slug]` : bouton « Partager » discret (remplace les deux actions WhatsApp/copie de la 6.1) → même panneau ; aperçus OG déjà en place (6.1) — vérification visuelle réelle sur WhatsApp/Telegram à faire au déploiement.
+- [x] Copie en un clic : retour visuel « Copié ! » ; accessibilité (labels, focus, Échap) ; testé desktop et mobile via le panneau (bottom sheet mobile).
+- [x] Tests E2E (écrits ; exécution sur demande) : ouverture du panneau (page publique + vue détail), URL canonique correcte (`/e/[slug]`), liens des canaux, QR affiché, fermeture par Échap.
 
 **Option (plus tard — hors MVP)** : lien court interne (`/s/{code}`) et comptage des clics par source (table `share_clicks` : event_id, source, referrer, count) pour mesurer l'efficacité des canaux de diffusion.
 
@@ -754,7 +756,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - **Phase 3** : ✅ TERMINÉE (logo ticket, dark/light, menu mobile).
 - **Phase 4 (auth + compte organisateur)** : 🟡 EN COURS — **4.1, 4.2 et 4.3 faites** (register/login + Google via Auth.js ; page « Mon profil » : avatar auto Google ou initiales, WhatsApp, adresse, comptes de reversement, blocage publication sans compte) ; reste : badge « Profil incomplet » sur le dashboard, upload avatar réel (stockage externe), rôle agent (Phase 7), exécution des tests E2E (sur demande).
 - **Phase 5 (événements)** : ✅ TERMINÉE — CRUD complet + publication, organisateur de test fixe (`lib/constants.ts`), à sécuriser par la session dès la Phase 4.
-- **Phase 6 (billetterie + paiement)** : 🟡 EN COURS — **6.1 → 6.6 faites** (page publique + galerie ; tunnel d'achat + `orders` ; remise email/téléchargement + moteur PDF/QR ; paiement KPay COD + webhook signé → `paid`, billets émis, mode simulation ; **pages `/success` et `/cancel` + ajout calendrier + renvoi email** ; fixs UX mobile) ; reste : validation KPay réelle (clés de test + callback Dépôts configuré), état `expired` (time-out des `pending`), 6.7 partage enrichi (panneau modal + QR organisateur).
+- **Phase 6 (billetterie + paiement)** : ✅ **TERMINÉE** (6.1 → 6.7) — page publique + galerie ; tunnel d'achat + `orders` ; remise email/téléchargement + moteur PDF/QR ; paiement KPay COD + webhook signé → `paid`, billets émis, mode simulation ; pages `/success` + `/cancel` (calendrier .ics, renvoi email) ; **partage enrichi 6.7** (panneau modal : copie, QR, WhatsApp/Telegram/X/Facebook, natif) ; fixs UX mobile. Restes hors phase : validation KPay réelle (clés de test + callback Dépôts), état `expired` (time-out des `pending`), lien court interne optionnel.
 - **Phase 7 (scanner)** : ❌ À VENIR — interface de scan (caméra + saisie), **comptes scanneurs gérés par l'organisateur avec RBAC strict** (assignation par événement, aucun accès aux ventes/contrats).
 - **Phase 8 (polish)** : 🟡 EN COURS — tests E2E faits (15 scénarios) ; unitaires, PWA et export restent.
 - **Phase 9 (vitrine publique)** : ✅ TERMINÉE — `getPublicEvents` (source unique), bandeau « À venir » sur la landing (3 événements, jamais de brouillon), rubrique « Billetterie » = listing complet (chips catégories, recherche, tri, états chargement/erreur/vide), carte `EventCard` « talon » partagée (→ `/e/[slug]`), page publique organisateur `/o/[slug]` (`users.slug` auto-généré) ; route `/events` SEO reportée au routing par URL.
@@ -795,6 +797,7 @@ components/
     event-creation/   # EventCreationForm (galerie 1-3 photos)
     event-public/     # EventPublicView (page /e/[slug], galerie carrousel)
     events/           # EventCard « talon » + EventListing (vitrine Phase 9)
+    share/            # EventShareSheet (panneau partage 6.7)
     checkout/         # EventCheckout (tunnel /e/[slug]/checkout, 6.2-6.4)
     scanner/          # Scanner
 lib/

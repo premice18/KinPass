@@ -78,7 +78,10 @@ Convention de nommage : **kebab-case en anglais**, préfixé par le domaine.
 | `event-public-title` | `event-public/EventPublicView.tsx` | Titre de la page publique `/e/[slug]` |
 | `event-public-buy` | `event-public/EventPublicView.tsx` | Bouton « Réserver maintenant » |
 | `event-public-ticket-type` | `event-public/EventPublicView.tsx` | Ligne de tarif par type de billet |
-| `event-public-share-whatsapp` / `event-public-share-copy` | `event-public/EventPublicView.tsx` | Partage WhatsApp / copie du lien |
+| `event-public-share-open` | `event-public/EventPublicView.tsx` | Ouvre le panneau de partage (6.7) |
+| `event-detail-share-open` | `dashboard/EventDetail.tsx` | Partager depuis la vue détail |
+| `share-sheet` / `share-input` / `share-copy` / `share-qr` | `share/EventShareSheet.tsx` | Panneau de partage (URL, copie, QR) |
+| `share-whatsapp` / `share-telegram` / `share-x` / `share-facebook` / `share-native` | `share/EventShareSheet.tsx` | Canaux de diffusion |
 | `event-public-gallery` / `event-public-gallery-slide` | `event-public/EventPublicView.tsx` | Carrousel (affiche + galerie) |
 | `event-public-gallery-prev` / `event-public-gallery-next` / `event-public-gallery-dot` | `event-public/EventPublicView.tsx` | Navigation du carrousel |
 | `event-detail-public-link` | `dashboard/EventDetail.tsx` | Lien « Page publique » (événement publié) |
