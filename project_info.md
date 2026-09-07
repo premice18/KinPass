@@ -455,19 +455,20 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 - [x] **Espace agent `/scan`** : route réelle, en-tête discret (logo + déconnexion), liste « Mes événements » (cartes → `/scan/[slug]`), état vide clair ; page `/scan/[slug]` placeholder (interface de scan en 7.3). Le menu de la coquille et le profil sont masqués pour un agent.
 - [x] Tests E2E écrits (parcours complet : création agent → connexion agent → `/scan` → événement assigné → blocage `/dashboard` et `/auth/*` → nettoyage).
 
-#### 7.3 Interface de scan
+#### 7.3 Interface de scan ✅ FAITE
 
-- [ ] Route `/scan/[slug]` : caméra QR (`html5-qrcode`) + champ de saisie manuelle (majuscules auto, tirets ignorés).
-- [ ] Validation en base < 500 ms (index UNIQUE `tickets.code`).
-- [ ] États VERT (valide, affiche nom + type d'entrée via un pop-up stylee qui s'ouvre et disparais apres klk secondes ou en cliquant sur un bouton fermer le pop-up ) / ORANGE (déjà scanné, heure du 1er passage) / ROUGE (invalide/étranger) + retour sonore.
-- [ ] Effets sonores distinct pour chaque état (V/O/R) + vibration mobile (si disponible).
-- [ ] Historique des scans côté agent (dernier X billets scannés, avec nom + type + heure)
-- [ ] Écriture dans `scans` + mise à jour `tickets.status` (`valid` → `used`) + `scanned_at`.
+- [x] Route `/scan/[slug]` (agent assigné uniquement, double vérification serveur) : champ de **saisie manuelle** (majuscules auto, tirets ignorés, formatage `XXX-XXX`) + **caméra QR** (`html5-qrcode`, caméra arrière, arrêt propre) .
+- [x] Validation en base < 500 ms (index UNIQUE `tickets.code`, une requête + une écriture).
+- [x] États VERT / ORANGE / ROUGE via un **pop-up stylisé** (`AnimatePresence`) : ouverture à chaque scan, **auto-fermeture après ~3 s OU bouton « Continuer »** (backdrop cliquable), icône + libellé + détails — jamais la couleur seule.
+- [x] **Effets sonores distincts** par état (Web Audio : VERT aigu, ORANGE moyen, ROUGE grave) + **vibration mobile** (`navigator.vibrate`) si disponible.
+- [x] **Historique des scans côté agent** : « mes scans récents » sous le panneau (code, acheteur, résultat, heure — 20 derniers).
+- [x] Écriture dans `scans` (**`agent_id` = agent connecté**, traçabilité) + mise à jour `tickets.status` (`valid` → `used`) + `scanned_at` (transaction) ; doublon journalisé en `used` avec l'heure du premier passage.
+- [x] **Vue organisateur** : chaque ligne agent affiche son activité (`scanCount`, dernier scan) + « Voir les scans » (20 derniers : code, acheteur, événement, résultat, heure) dans la section Équipe.
 
-#### 7.4 Modèle de données (ajouts)
+#### 7.4 Modèle de données (ajouts) ✅ FAITE
 
 - `users` : `organizer_id` (uuid nullable, FK self), `active` (boolean default true — désactivation douce des agents).
-- Nouvelle table `agent_event_access`.
+- Nouvelle table `agent_event_access` — appliquées en base (7.1).
 
 #### 7.5 Tests
 
@@ -753,7 +754,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - **Phase 4 (auth + compte organisateur)** : 🟡 EN COURS — **4.1, 4.2 et 4.3 faites** (register/login + Google via Auth.js ; page « Mon profil » : avatar auto Google ou initiales, WhatsApp, adresse, comptes de reversement, blocage publication sans compte) ; reste : badge « Profil incomplet » sur le dashboard, upload avatar réel (stockage externe), rôle agent (Phase 7), exécution des tests E2E (sur demande).
 - **Phase 5 (événements)** : ✅ TERMINÉE — CRUD complet + publication, organisateur de test fixe (`lib/constants.ts`), à sécuriser par la session dès la Phase 4.
 - **Phase 6 (billetterie + paiement)** : ✅ **TERMINÉE** (6.1 → 6.7) — page publique + galerie ; tunnel d'achat + `orders` ; remise email/téléchargement + moteur PDF/QR ; paiement KPay COD + webhook signé → `paid`, billets émis, mode simulation ; pages `/success` + `/cancel` (calendrier .ics, renvoi email) ; **partage enrichi 6.7** (panneau modal : copie, QR, WhatsApp/Telegram/X/Facebook, natif) ; fixs UX mobile. Restes hors phase : validation KPay réelle (clés de test + callback Dépôts), état `expired` (time-out des `pending`), lien court interne optionnel.
-- **Phase 7 (scanner)** : 🟡 EN COURS — **7.1 et 7.2 faites** (comptes agents RBAC — `users.organizer_id` + `active`, emails + mots de passe auto-générés, `agent_event_access`, section « Équipe / Scanneurs », transmission WhatsApp/copie ; connexion unique + **redirection par rôle** — agent → `/scan`, middleware double protection, espace agent avec événements assignés) ; reste : **7.3 interface de scan réelle** (caméra + saisie, VERT/ORANGE/ROUGE, écriture `scans` + `agent_id`, suivi « qui j'ai scanné » agent/admin), rate-limit login (Phase 8).
+- **Phase 7 (scanner)** : ✅ **TERMINÉE** (7.1 → 7.3) — comptes agents RBAC (identifiants auto-générés, transmission WhatsApp/copie), connexion unique + redirection par rôle (agent → `/scan`), middleware double protection, **interface de scan réelle** (saisie manuelle + caméra QR, pop-up VERT/ORANGE/ROUGE, son + vibration, historique agent, journal `scans.agent_id`, activité par agent côté organisateur). Restes hors phase : rate-limit login (Phase 8).
 - **Phase 8 (polish)** : 🟡 EN COURS — tests E2E faits (15 scénarios) ; unitaires, PWA et export restent.
 - **Phase 9 (vitrine publique)** : ✅ TERMINÉE — `getPublicEvents` (source unique), bandeau « À venir » sur la landing (3 événements, jamais de brouillon), rubrique « Billetterie » = listing complet (chips catégories, recherche, tri, états chargement/erreur/vide), carte `EventCard` « talon » partagée (→ `/e/[slug]`), page publique organisateur `/o/[slug]` (`users.slug` auto-généré) ; route `/events` SEO reportée au routing par URL.
 - **Phase 10 (monétisation & reversement)** : ❌ À VENIR — commission kinPass, retrait à la demande, table `payouts`.

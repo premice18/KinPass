@@ -51,6 +51,36 @@ test.describe('Flux agent (Phase 7.2)', () => {
     const card = page.getByTestId('agent-event-card').filter({ hasText: 'Kin House : Open Studio' })
     await expect(card).toBeVisible()
 
+    // ── 3b. Scan réel (saisie manuelle, Phase 7.3) ──────────────────────────
+    await card.click()
+    await page.waitForURL(/\/scan\/kin-house-open-studio$/)
+    await expect(page.getByTestId('scan-event-title')).toHaveText('Kin House : Open Studio')
+
+    const input = page.getByTestId('scan-code-input')
+    const submit = page.getByTestId('scan-submit')
+
+    // 1) Code valide du seed (KP0009, billet « valid ») → VERT
+    await input.fill('KP0009')
+    await submit.click()
+    await expect(page.getByTestId('scan-valid-icon')).toBeVisible()
+    await expect(page.getByText('Billet valide')).toBeVisible()
+
+    // 2) Même code → déjà scanné (ORANGE), après réarmement du champ
+    await expect(input).toBeEnabled({ timeout: 5000 })
+    await input.fill('kp0009') // minuscules + normalisation
+    await submit.click()
+    await expect(page.getByTestId('scan-used-icon')).toBeVisible()
+    await expect(page.getByText('Billet déjà scanné')).toBeVisible()
+
+    // 3) Code inconnu → ROUGE
+    await expect(input).toBeEnabled({ timeout: 5000 })
+    await input.fill('ZZZZZZ')
+    await submit.click()
+    await expect(page.getByTestId('scan-invalid-icon')).toBeVisible()
+
+    // L'historique de l'agent contient les passages (auto-ouvert)
+    await expect(page.getByTestId('scan-history')).toBeVisible()
+
     // ── 4. Blocages RBAC ───────────────────────────────────────────────────
     // Route organisateur → redirigé vers /scan
     await page.goto('/dashboard')
