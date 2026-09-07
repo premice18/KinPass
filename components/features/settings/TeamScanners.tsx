@@ -22,10 +22,12 @@ import {
   assignAgentToEvent,
   createAgent,
   deleteAgent,
+  getAgentScans,
   getTeam,
   resetAgentPassword,
   setAgentActive,
   unassignAgentFromEvent,
+  type AgentScanLog,
   type TeamAgent,
 } from '@/lib/actions/team'
 import { getOrganizerEvents, type EventWithStats } from '@/lib/actions/events'
@@ -176,6 +178,25 @@ export function TeamScanners({ onBack }: TeamScannersProps) {
   const handleUnassign = async (agentId: string, eventId: string) => {
     const result = await unassignAgentFromEvent(agentId, eventId)
     if (result.success) setAgents((prev) => prev.map((a) => (a.id === agentId ? result.data : a)))
+  }
+
+  // Journal des scans d'un agent (vue organisateur, Phase 7.3).
+  const [scansOpenAgentId, setScansOpenAgentId] = useState<string | null>(null)
+  const [agentScans, setAgentScans] = useState<AgentScanLog[] | null>(null)
+
+  const toggleAgentScans = async (agent: TeamAgent) => {
+    if (scansOpenAgentId === agent.id) {
+      setScansOpenAgentId(null)
+      setAgentScans(null)
+      return
+    }
+    const result = await getAgentScans(agent.id)
+    if (result.success) {
+      setAgentScans(result.data)
+      setScansOpenAgentId(agent.id)
+    } else {
+      setError(result.error)
+    }
   }
 
   return (
@@ -413,6 +434,12 @@ export function TeamScanners({ onBack }: TeamScannersProps) {
                         )}
                       </div>
                       <p className="mt-0.5 font-mono text-xs text-muted-foreground">{agent.email}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {agent.scanCount} scan{agent.scanCount > 1 ? 's' : ''}
+                        {agent.lastScannedAt
+                          ? ` — dernier : ${new Date(agent.lastScannedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
+                          : ''}
+                      </p>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-1.5">
@@ -440,6 +467,15 @@ export function TeamScanners({ onBack }: TeamScannersProps) {
                         Nouveau mot de passe
                       </Button>
                       <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => toggleAgentScans(agent)}
+                        aria-expanded={scansOpenAgentId === agent.id}
+                        data-testid="team-agent-scans-open"
+                      >
+                        {scansOpenAgentId === agent.id ? 'Masquer' : 'Voir'} les scans
+                      </Button>
+                      <Button
                         variant="destructive"
                         size="icon-sm"
                         onClick={() => handleDelete(agent)}
@@ -451,8 +487,8 @@ export function TeamScanners({ onBack }: TeamScannersProps) {
                     </div>
                   </div>
 
-                  {/* Nouveau mot de passe généré (affichage unique, par ligne) */}
-                  {resetCreds?.agentId === agent.id && (
+                  {/* Nouveau mot de passe généré (affichage unique, par ligne) */
+                  resetCreds?.agentId === agent.id && (
                     <div className="flex flex-wrap items-center gap-3 rounded-lg border border-cyan-500/30 bg-cyan-500/5 p-3">
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -474,6 +510,59 @@ export function TeamScanners({ onBack }: TeamScannersProps) {
                       >
                         <Xmark className="h-4 w-4" />
                       </button>
+                    </div>
+                  )}
+
+                  {/* Journal des scans de l'agent (Phase 7.3) */}
+                  {scansOpenAgentId === agent.id && (
+                    <div data-testid="team-agent-scans-panel" className="rounded-lg border border-border bg-muted/30 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        Derniers scans ({agentScans?.length ?? 0})
+                      </p>
+                      {!agentScans || agentScans.length === 0 ? (
+                        <p className="mt-2 text-sm text-muted-foreground">Aucun scan enregistré.</p>
+                      ) : (
+                        <div className="mt-2 overflow-x-auto">
+                          <table className="w-full text-left text-xs">
+                            <thead className="text-muted-foreground">
+                              <tr>
+                                <th className="py-1.5 pr-3 font-medium">Code</th>
+                                <th className="py-1.5 pr-3 font-medium">Acheteur</th>
+                                <th className="py-1.5 pr-3 font-medium">Événement</th>
+                                <th className="py-1.5 pr-3 font-medium">Résultat</th>
+                                <th className="py-1.5 font-medium">Heure</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {agentScans.map((scan, index) => (
+                                <tr key={`${scan.code}-${index}`} className="border-t border-border/60">
+                                  <td className="py-1.5 pr-3 font-mono">{scan.code}</td>
+                                  <td className="py-1.5 pr-3">{scan.buyerName}</td>
+                                  <td className="py-1.5 pr-3">{scan.eventTitle}</td>
+                                  <td className="py-1.5 pr-3">
+                                    <span
+                                      className={cn(
+                                        'rounded-[3px] px-1.5 py-0.5 font-semibold uppercase tracking-wider',
+                                        scan.result === 'valid'
+                                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                          : 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+                                      )}
+                                    >
+                                      {scan.result === 'valid' ? 'Entrée' : 'Doublon'}
+                                    </span>
+                                  </td>
+                                  <td className="py-1.5 text-muted-foreground">
+                                    {new Date(scan.scannedAt).toLocaleTimeString('fr-FR', {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    })}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                     </div>
                   )}
 

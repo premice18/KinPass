@@ -43,7 +43,7 @@ Trois profils utilisent la plateforme :
 | Base de données (Neon + Drizzle) | Terminé                                                             |
 | Tests end-to-end (Playwright)    | Écrits (landing, dashboard, événements, page publique, vitrine, checkout, scanner) — exécution sur demande |
 | Tunnel d'achat / billetterie     | En cours (6.2-6.4 : commandes, remise email/PDF, paiement KPay ou simulé, billets émis) |
-| Contrôle d'accès (scanner)       | En cours (7.1-7.2 : comptes agents RBAC, espace /scan, redirection par rôle — scan réel en 7.3) |
+| Contrôle d'accès (scanner)       | Terminé (Phase 7 : comptes agents RBAC, redirection par rôle, scan caméra + saisie avec VERT/ORANGE/ROUGE) |
 | Authentification                 | En cours (email/mot de passe + Google via Auth.js, profil à venir)  |
 | Paiement Mobile Money            | En cours (6.4-6.5 : KPay COD + webhook, pages success/cancel, calendrier — validation clés de test à faire) |
 | Monétisation & reversement       | À venir                                                             |

@@ -17,14 +17,15 @@
 // ────────────────────────────────────────────────────────────────────────────
 
 import { randomInt } from 'node:crypto'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { db } from '@/lib/db'
-import { agentEventAccess, events, users, type User } from '@/lib/db/schema'
+import { agentEventAccess, events, scans, tickets, ticketTypes, users, type User } from '@/lib/db/schema'
 import { getCurrentUser } from '@/lib/auth'
 import { hashPassword } from '@/lib/password'
 import { slugify } from '@/lib/slug'
+import { normalizeTicketCode } from '@/lib/ticket-code'
 
 export type ActionResult<T> = { success: true; data: T } | { success: false; error: string }
 
@@ -86,6 +87,9 @@ export type TeamAgent = {
   active: boolean
   createdAt: Date
   events: Array<{ id: string; title: string; status: string }>
+  // Activité de scan (Phase 7.3 — l'organisateur voit qui scanné quoi).
+  scanCount: number
+  lastScannedAt: Date | null
 }
 
 // Liste les agents de l'organisateur connecté + leurs événements assignés.
@@ -127,12 +131,29 @@ export async function getTeam(): Promise<ActionResult<TeamAgent[]>> {
       eventsByAgent.set(access.agentId, list)
     }
 
+    // Activité de scan (count + dernier passage) pour tous les agents.
+    const scanStats = await db
+      .select({
+        agentId: scans.agentId,
+        count: sql<number>`count(*)::int`,
+        lastAt: sql<Date | null>`max(${scans.scannedAt})`,
+      })
+      .from(scans)
+      .where(inArray(scans.agentId, agents.map((a) => a.id)))
+      .groupBy(scans.agentId)
+    const statsByAgent = new Map(scanStats.map((row) => [row.agentId, row]))
+
     return {
       success: true,
-      data: agents.map((agent) => ({
-        ...agent,
-        events: eventsByAgent.get(agent.id) ?? [],
-      })),
+      data: agents.map((agent) => {
+        const stats = statsByAgent.get(agent.id)
+        return {
+          ...agent,
+          events: eventsByAgent.get(agent.id) ?? [],
+          scanCount: stats?.count ?? 0,
+          lastScannedAt: stats?.lastAt ?? null,
+        }
+      }),
     }
   } catch {
     return { success: false, error: 'Impossible de charger votre équipe.' }
@@ -323,6 +344,51 @@ async function fetchAgent(agentId: string, organizerId: string): Promise<TeamAge
     active: agent.active,
     createdAt: agent.createdAt,
     events: accesses.map((access) => ({ id: access.eventId, title: access.title, status: access.status })),
+    scanCount: 0,
+    lastScannedAt: null,
+  }
+}
+
+// Journal des scans d'un agent (vu par SON organisateur, Phase 7.3).
+export type AgentScanLog = {
+  code: string
+  buyerName: string
+  result: string
+  eventTitle: string
+  scannedAt: Date
+}
+
+// Liste les 20 derniers scans d'un agent de l'organisateur connecté.
+export async function getAgentScans(agentId: string): Promise<ActionResult<AgentScanLog[]>> {
+  const organizer = await getSessionOrganizer()
+  if (!organizer) return { success: false, error: 'Connexion requise.' }
+
+  try {
+    // L'agent doit appartenir à CET organisateur.
+    const [agent] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.id, agentId), eq(users.organizerId, organizer.id), eq(users.role, 'agent')))
+      .limit(1)
+    if (!agent) return { success: false, error: 'Agent introuvable.' }
+
+    const rows = await db
+      .select({
+        code: tickets.code,
+        buyerName: tickets.buyerName,
+        result: scans.result,
+        eventTitle: events.title,
+        scannedAt: scans.scannedAt,
+      })
+      .from(scans)
+      .innerJoin(tickets, eq(tickets.id, scans.ticketId))
+      .innerJoin(events, eq(events.id, scans.eventId))
+      .where(eq(scans.agentId, agentId))
+      .orderBy(desc(scans.scannedAt))
+      .limit(20)
+    return { success: true, data: rows }
+  } catch {
+    return { success: false, error: 'Impossible de charger les scans.' }
   }
 }
 
@@ -366,5 +432,149 @@ export async function getAgentAssignedEvents(): Promise<ActionResult<AgentAssign
     return { success: true, data: rows }
   } catch {
     return { success: false, error: 'Impossible de charger vos événements.' }
+  }
+}
+
+// Retourne UN événement assigné à l'agent connecté (par slug) — avec son id
+// pour les actions de scan. Introuvable ou non assigné → erreur.
+export async function getAgentAssignedEventBySlug(
+  slug: string,
+): Promise<ActionResult<AgentAssignedEvent>> {
+  const user = await getCurrentUser()
+  if (!user || user.role !== 'agent' || user.active === false) {
+    return { success: false, error: 'Accès réservé aux agents de contrôle.' }
+  }
+
+  try {
+    const [row] = await db
+      .select({
+        id: events.id,
+        slug: events.slug,
+        title: events.title,
+        startAt: events.startAt,
+        venue: events.venue,
+        location: events.location,
+        status: events.status,
+      })
+      .from(agentEventAccess)
+      .innerJoin(events, eq(events.id, agentEventAccess.eventId))
+      .where(and(eq(agentEventAccess.agentId, user.id), eq(events.slug, slug)))
+      .limit(1)
+    if (!row) return { success: false, error: 'Événement introuvable ou non assigné.' }
+    return { success: true, data: row }
+  } catch {
+    return { success: false, error: 'Impossible de charger cet événement.' }
+  }
+}
+
+// ── Scan d'un billet (Phase 7.3) ────────────────────────────────────────────
+
+// Résultat d'un scan : VERT (valide, première entrée), ORANGE (déjà scanné),
+// ROUGE (code inconnu ou étranger à l'événement).
+export type ScanOutcome =
+  | { result: 'valid'; buyerName: string; ticketTypeName: string }
+  | { result: 'used'; firstScannedAt: Date }
+  | { result: 'invalid' }
+
+// Valide un billet pour l'événement de l'agent connecté.
+//  - billet valide → marqué `used` + `scanned_at`, scan journalisé ;
+//  - billet déjà utilisé → scan journalisé en `used` (heure du 1er passage) ;
+//  - code inconnu ou appartenant à un AUTRE événement → `invalid`.
+// Une seule requête indexée (tickets.code UNIQUE) + une écriture.
+export async function scanTicket(eventId: string, rawCode: string): Promise<ActionResult<ScanOutcome>> {
+  const user = await getCurrentUser()
+  if (!user || user.role !== 'agent' || user.active === false) {
+    return { success: false, error: 'Accès réservé aux agents de contrôle.' }
+  }
+
+  // L'agent doit être assigné à CET événement (défense en profondeur).
+  const assigned = await db
+    .select({ id: agentEventAccess.id })
+    .from(agentEventAccess)
+    .where(and(eq(agentEventAccess.agentId, user.id), eq(agentEventAccess.eventId, eventId)))
+    .limit(1)
+  if (assigned.length === 0) return { success: false, error: 'Événement non assigné.' }
+
+  // Normalisation : majuscules, tirets/espaces ignorés (cf. lib/ticket-code).
+  const code = normalizeTicketCode(rawCode)
+  if (!code || code.length !== 7) return { success: false, error: 'Code invalide.' }
+
+  try {
+    const [ticket] = await db
+      .select({
+        id: tickets.id,
+        eventId: tickets.eventId,
+        status: tickets.status,
+        scannedAt: tickets.scannedAt,
+        buyerName: tickets.buyerName,
+        ticketTypeName: ticketTypes.name,
+      })
+      .from(tickets)
+      .innerJoin(ticketTypes, eq(ticketTypes.id, tickets.ticketTypeId))
+      .where(eq(tickets.code, code))
+      .limit(1)
+
+    // Code inconnu, ou billet d'un AUTRE événement → ROUGE (rien à journaliser).
+    if (!ticket || ticket.eventId !== eventId) {
+      return { success: true, data: { result: 'invalid' } }
+    }
+
+    if (ticket.status === 'used' || ticket.scannedAt) {
+      // Déjà scanné → ORANGE (heure du premier passage conservée).
+      await db.insert(scans).values({
+        ticketId: ticket.id,
+        eventId,
+        agentId: user.id,
+        result: 'used',
+      })
+      return {
+        success: true,
+        data: { result: 'used', firstScannedAt: ticket.scannedAt ?? new Date() },
+      }
+    }
+
+    // Première entrée → VERT : billet marqué utilisé + scan journalisé.
+    const now = new Date()
+    await db.transaction(async (tx) => {
+      await tx
+        .update(tickets)
+        .set({ status: 'used', scannedAt: now })
+        .where(eq(tickets.id, ticket.id))
+      await tx.insert(scans).values({
+        ticketId: ticket.id,
+        eventId,
+        agentId: user.id,
+        result: 'valid',
+      })
+    })
+
+    return {
+      success: true,
+      data: { result: 'valid', buyerName: ticket.buyerName, ticketTypeName: ticket.ticketTypeName },
+    }
+  } catch {
+    return { success: false, error: 'Scan impossible. Réessayez.' }
+  }
+}
+
+// Historique des scans de l'AGENT connecté pour un événement (Phase 7.3 :
+// « qui j'ai scanné ») — 20 derniers passages.
+export type AgentScanEntry = { code: string; buyerName: string; result: string; scannedAt: Date }
+
+export async function getAgentEventScans(eventId: string): Promise<ActionResult<AgentScanEntry[]>> {
+  const user = await getCurrentUser()
+  if (!user || user.role !== 'agent') return { success: false, error: 'Accès réservé.' }
+
+  try {
+    const rows = await db
+      .select({ code: tickets.code, buyerName: tickets.buyerName, result: scans.result, scannedAt: scans.scannedAt })
+      .from(scans)
+      .innerJoin(tickets, eq(tickets.id, scans.ticketId))
+      .where(and(eq(scans.eventId, eventId), eq(scans.agentId, user.id)))
+      .orderBy(desc(scans.scannedAt))
+      .limit(20)
+    return { success: true, data: rows }
+  } catch {
+    return { success: false, error: 'Impossible de charger les scans.' }
   }
 }
