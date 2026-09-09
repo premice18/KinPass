@@ -529,12 +529,9 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 - [x] `tests/e2e/vitrine.spec.ts` : landing (seuls les publiés du seed, brouillon masqué, badge « Entrée libre »), listing (filtres par catégorie, recherche, tri asc/desc, navigation carte → `/e/[slug]`, clavier des chips).
 - [x] Specs existants adaptés : dashboard (KPIs 450 $ / 22 billets — seed enrichi — et publication sur un événement **jetable** pour préserver le brouillon de démo utilisé par `event-public.spec`), landing (CTA → Billetterie), checkout (mock atteint via `/e/[slug]` → « Réserver »).
 
-### ❌ Phase 10 — Monétisation & reversement des revenus (À VENIR)
-
-**Objectif** : reverser les revenus des billets à l'organisateur, en prélevant la commission kinPass.
+### 📌 Phase 10 — Monétisation & reversement des revenus (SPEC FONCTIONNELLE — implémentation FUSIONNÉE avec la Phase 16)
 
 **Décision (validée)** : le modèle retenu est le **retrait à la demande** (« pull ») :
-
 1. Plus simple à implémenter (pas de tâche planifiée ni de compte d'attente).
 2. L'organisateur contrôle quand il retire (liquidité, planification).
 3. À **chaque retrait**, kinPass calcule et prélève son pourcentage avant envoi, puis reverse le net sur le compte choisi (M-Pesa / Airtel Money / Orange Money / virement), et la commission part vers le compte KPay de kinPass/Premice.
@@ -542,77 +539,143 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 
 Un **reversement automatique périodique** (ex. chaque vendredi) pourra être proposé plus tard en option, mais il n'est pas retenu pour la première version.
 
+> **🔁 Réorganisation (analyse de faisabilité) :** le développement de la monétisation est **reporté et fusionné avec la Phase 16 (superadmin)**. Raisons : (1) aucun argent réel avant le KYC KPay live → rien d'urgent à encaisser ; (2) l'exécution des retraits (validation admin) appartient naturellement au back-office — construire un flux temporaire aujourd'hui serait jetable ; (3) la 16 prévoit déjà le module « Reversements » (file d'approbation). Ce bloc reste LA SPEC de référence de ce que l'organisateur verra (solde, historique, bouton Retirer) — à construire **en même temps que le back-office**, en deux faces distinctes (organisateur / admin) pour ne pas faire de la 16 un monolithe.
+>
+> **Prérequis amont conservés** : la **Phase 11 (contrat)** doit figer les termes financiers (commission, retrait à la demande, minimum) AVANT l'implémentation ; `payout_methods` (4.3) et l'infra KPay retrait (webhook `payout.*`, `GET /payments/balance`, `exchange-rate`) sont prêts.
+>
+> **Spec (cible, construite en 16)** :
 - [ ] Constante `KINPASS_FEE_PERCENT` (ex. 0.3 %) dans `lib/constants.ts`, surchargeable par variable d'environnement.
-- [ ] Dashboard : carte « Solde disponible » (revenus nets), historique des reversements (montant brut, commission, net, statut, date), bouton « Retirer ».
+- [ ] Dashboard : carte « Solde disponible » (revenus nets = `orders` PAYÉS − `payouts`, par devise — jamais les billets seedés), historique des reversements (montant brut, commission, net, statut, date), bouton « Retirer ».
 - [ ] Table `payouts` (id, organizer_id, amount_total, fee_percent, fee_amount, net_amount, provider, account_label, reference, status, requested_at, paid_at) — index sur `organizer_id` et `status`.
-- [ ] Server Action `requestPayout(amount)` : vérifie le solde disponible (revenus non reversés), crée un `payout` en `pending`, calcule `fee_amount = amount × %` et `net_amount = amount - fee_amount`.
-- [ ] Exécution du virement : intégration KPay (payout Mobile Money) **ou** validation manuelle par l'admin qui passe le `payout` en `paid` et envoie le net ; la commission est enregistrée comme revenu kinPass.
+- [ ] Server Action `requestPayout(amount)` : vérifie le solde disponible, crée un `payout` en `pending`, calcule `fee_amount` et `net_amount`.
+- [ ] Exécution du virement (dans 16) : intégration KPay (payout Mobile Money — `payout.*` + callback « Retraits », plafonné par `GET /payments/balance`) **ou** validation manuelle par l'admin ; la commission reste au wallet kinPass. Décision frais/net (KPay 5 % retrait) à acter avec la 11.
 - [ ] Notifications organisateur : « Retrait demandé », « Retrait envoyé », « Retrait échoué » (email/WhatsApp).
 - [ ] Règle métier : impossible de retirer plus que le solde disponible ; montant minimum de retrait (ex. 25 $) ; 1 retrait en cours à la fois.
 - [ ] Tests : calcul de la commission, refus de retrait si solde insuffisant, historique cohérent.
 
 ### ❌ Phase 11 — Confiance, conformité & contrat (À VENIR)
 
-**Objectif** : montrer que kinPass est sérieux et rassurer les créateurs d'événements (et les acheteurs).
+**Objectif** : montrer que kinPass est sérieux et rassurer les créateurs d'événements (et les acheteurs) — pages légales complètes, contrat de prestation **qui fige les termes financiers** (commission, retrait, annulations) AVANT l'implémentation de la monétisation (fusionnée en Phase 16).
 
-- [ ] Pages légales accessibles depuis le footer : **Conditions Générales d'Utilisation (CGU)**, **Politique de Confidentialité** (adaptée RDC), **Contrat de prestation & règles de reversement**, page **Contact/Support**, page **À propos**.
-- [ ] Contenu détaillé du **contrat de prestation** : pourcentage de commission kinPass, fréquence/calendrier de reversement, mode de retrait, responsabilités de chaque partie, gestion des annulations et remboursements, propriété des données, données collectées et usage.
-- [ ] Case à cocher d'acceptation à l'inscription (cf. Phase 4.1) ; table `contract_acceptances` (id, user_id, document_type, version, accepted_at) — **re-signature requise si le contrat évolue** (numéro de version).
-- [ ] Mention de la commission clairement affichée dans le dashboard (ex. « kinPass prélève 0.3% sur chaque vente d'un billet»).
-- [ ] (Option) Badge « Organisateur vérifié » (vérification d'identité) pour renforcer la confiance.
-- [ ] Tests : inscription bloquée sans acceptation des CGU ; versionnage du contrat.
+**Décisions (validées)** :
+- Le **contrat est versionné** : chaque acceptation est enregistrée (`contract_acceptances`) ; toute évolution du contrat impose une **re-signature** (numéro de version).
+- Les pages légales sont des **routes publiques** (footer) ; contenu rédigé en français, adapté au droit congolais et aux réalités Mobile Money.
+- La **commission** et le **mode de retrait** décrits ici font référence pour la Phase 16 (+10).
+
+#### 11.1 Contenu juridique & pages publiques
+
+- [ ] **CGU** (`/legal/cgu` — placeholder existant) : définition du service, rôles (organisateur, acheteur, agent), fonctionnement billetterie/scan, obligations des parties, prix/commission, annulations & remboursements, responsabilités, droit applicable RDC, résolution de litiges.
+- [ ] **Politique de Confidentialité** (`/legal/privacy`) : données collectées (compte, événements, acheteurs, paiements), finalités, base légale, durées de conservation, droits des personnes (accès, rectification, effacement), sous-traitants (Neon, Resend, KPay, Vercel), transferts hors RDC, cookies/PWA.
+- [ ] **Contrat de prestation & règles de reversement** (`/legal/contract`) : commission kinPass (constante `KINPASS_FEE_PERCENT` + mention affichée), modèle « retrait à la demande » (Phase 10/16), minimum de retrait, délais de traitement, responsabilités (événement, capacité, contenu), gestion annulations/remboursements, propriété des données, exclusivités éventuelles.
+- [ ] **Page À propos** (`/legal/about`) : histoire kinPass, mission RDC, équipe/contact.
+- [ ] **Page Contact/Support** (`/legal/contact`) : formulaire (nom, email, sujet, message) + adresse **`contact@kinpass.com`** en production — **en attendant : `contact@premicekombozi.com`** (seul domaine vérifié Resend aujourd'hui ; basculer quand `kinpass.com` sera vérifié) + lien WhatsApp. Réception : boîte mail (pas de ticketting interne au MVP).
+- [ ] Liens de toutes ces pages dans le **footer** (landing + pages publiques) et liens croisés CGU ↔ Confidentialité.
+
+#### 11.2 Acceptation versionnée du contrat
+
+- [ ] Table `contract_acceptances` (id, user_id FK CASCADE, document_type `cgu`|`contract`, version varchar, accepted_at, ip nullable) — index `(user_id, document_type)`.
+- [ ] À l'inscription : case CGU obligatoire (déjà en place) **+ case Contrat de prestation** (visible selon le rôle) ; enregistrement d'une ligne d'acceptation avec la version courante.
+- [ ] **Versionnage** : version stockée dans `app_settings` (`contract.cgu_version`, `contract.prestation_version`) ; au login d'un organisateur, comparaison → bannière « Les conditions ont été mises à jour — veuillez les accepter » + blocage des actions de création/publication tant que non acceptée (pas de blocage de consultation des ventes).
+- [ ] Dashboard : mention discrète et permanente de la commission (« kinPass prélève X % sur chaque billet vendu »).
+
+#### 11.3 Confiance
+
+- [ ] Badge « Organisateur vérifié » (option) : processus (document d'identité, contact) géré en **Phase 16** (superadmin) ; en attendant, le badge n'existe pas côté public.
+- [ ] Revue RGPD-RDC allégée : mentions obligatoires dans la Politique + consentement newsletter séparé (cf. Phase 17).
+
+#### 11.4 Tests
+
+- [ ] E2E : inscription bloquée sans acceptation des CGU ; re-signature imposée quand la version change ; pages légales accessibles.
+- [ ] Unitaire : enregistrement des acceptations, comparaison de versions, non-blocage des organisateurs à jour.
+
+---
 
 ### ❌ Phase 12 — Vérification & re-téléchargement du billet (public) (À VENIR)
 
-**Objectif** : n'importe qui (acheteur ou agent) peut vérifier la validité d'un billet en saisissant son code, et le re-télécharger.
+**Objectif** : n'importe qui (acheteur ou agent) peut vérifier la validité d'un billet en saisissant son code, et le re-télécharger (PDF/PNG/JPG) ou le renvoyer par email — sans compte.
 
-- [ ] Route publique `/verify` (accessible sans compte) ; rubrique « Vérifier mon billet » également accessible depuis `/e/[slug]`.
-- [ ] Écran : saisie du code (6 caractères, majuscules automatiques, tirets ignorés) + bouton « Vérifier ».
-- [ ] Server Action `verifyTicket(code)` : recherche par `tickets.code` (index UNIQUE), retourne { événement, type de billet, acheteur, statut }.
-- [ ] Affichage des 3 états (réutilise la sémantique scanner VERT/ORANGE/ROUGE) : **valide** (non utilisé), **déjà utilisé** (heure du premier scan), **introuvable/invalide**.
-- [ ] Si valide : boutons « Re-télécharger » (PDF/PNG/JPG) et « Renvoyer par email ».
-- [ ] Anti-abus : rate-limiting sur la vérification (éviter le bruteforce des codes), pas d'énumération (message générique pour « introuvable »).
-- [ ] Tests : vérification d'un code valide, d'un code utilisé, d'un code inconnu ; re-téléchargement.
+**Décisions (validées)** : pas d'énumération (message générique pour « introuvable ») ; **rate-limit** par IP/email ; la sémantique des 3 états réutilise celle du scanner (VERT/ORANGE/ROUGE + libellé, jamais la couleur seule) ; le re-téléchargement réutilise les moteurs existants (`/api/tickets/[code]/pdf`, exports PNG/JPG du client).
+
+#### 12.1 Données publiques
+
+- [ ] Server Action publique `verifyTicket(code)` : normalisation (`normalizeTicketCode`), recherche `tickets.code` (UNIQUE), jointure événement + type + scan initial ; retour : statut (`valid` | `used` | `unknown`), événement (titre, dates, lieu), type, acheteur (nom), heure du premier passage si utilisé. **Jamais** de données de paiement ni de téléphone complet.
+- [ ] Anti-abus : `isRateLimited` sur IP (en-tête) et code (5 essais/min) ; réponse identique pour « introuvable » et « étranger » (pas d'énumération).
+
+#### 12.2 Route publique `/verify`
+
+- [ ] Page publique (`noindex`) : champ code (6 caractères, majuscules auto, tirets ignorés, format `XXX-XXX`) + bouton « Vérifier » ; états VERT/ORANGE/ROUGE affichés en carte (icône + libellé + détails).
+- [ ] Si **valide** : boutons « Télécharger le PDF », « Télécharger l'image (PNG/JPG) », « Renvoyer par email » (email saisi — jamais stocké pour une simple vérification).
+- [ ] Si **utilisé** : heure du premier passage + rappel « contactez l'organisateur si problème ».
+- [ ] Accès depuis la page publique `/e/[slug]` : lien discret « Vérifier mon billet » (dans le bandeau d'action).
+
+#### 12.3 Tests
+
+- [ ] E2E : vérification valide / utilisée / inconnue ; re-téléchargement PDF ; renvoi email (simulation sans clé Resend).
+- [ ] Unitaire : normalisation des saisies, rate-limit, absence d'énumération.
+
+---
 
 ### ❌ Phase 13 — Export & reporting organisateur (À VENIR)
 
-**Objectif** : le créateur voit tout concernant son événement depuis le dashboard, et peut exporter un rapport PDF + la liste des participants.
+**Objectif** : le créateur voit tout concernant son événement depuis le dashboard et peut **exporter** : rapport PDF complet + liste CSV des participants (gestion à la porte) + listes invités (report de la Phase 8).
 
-- [ ] Page « Détail de l'événement » (clic sur un événement dans le dashboard) : ventes (par type), revenus (brut/net/commission), taux de remplissage, liste des billets (acheteur, type, code, statut), nombre de scans.
-- [ ] **Export PDF** (génération serveur) : rapport complet — infos événement, tableau des billets, revenus, détail des reversements — bouton « Télécharger le rapport ».
-- [ ] **Export CSV** des participants (nom, téléphone, email, type de billet, code, statut) pour la gestion à la porte.
-- [ ] Filtres avant export : par type de billet, par statut (valide/utilisé/annulé).
-- [ ] Tests : génération du PDF/CSV, cohérence des données exportées avec la base.
+**Décisions (validées)** : génération **côté serveur** (PDF via le moteur react-pdf existant ; CSV généré en mémoire) ; les données exportées sont **celles de la base** (aucun calcul client) ; accès strictement organisateur + propriété de l'événement.
+
+#### 13.1 Rapport de vente (vue Détail enrichie)
+
+- [ ] Section « Ventes par type » exacte (quantité vendue, places restantes, revenu brut par type et devise) — base : `tickets` (statuts valid/used) et `order_items`.
+- [ ] Revenus : brut par devise, net estimé (après commission kinPass définie en Phase 11 — sinon brut seul avec note).
+- [ ] Taux de remplissage, nombre de scans, dernières ventes (tableau existant) complétés par la date de scan.
+- [ ] Filtres d'affichage : par type de billet, par statut (valide/utilisé/annulé).
+
+#### 13.2 Export PDF (serveur)
+
+- [ ] Bouton « Télécharger le rapport » dans la vue Détail → route/action serveur : infos événement, tableau des billets, revenus, remplissage, scans ; pagination si > 50 lignes ; nom de fichier `rapport-{slug}.pdf` ; réutilise `buildTicketPdf` (patterns react-pdf).
+- [ ] PDF généré à la demande (pas de stockage) — `Content-Disposition: attachment`.
+
+#### 13.3 Export CSV des participants
+
+- [ ] Bouton « Exporter la liste (CSV) » : colonnes nom, téléphone, email, type de billet, code, statut, date d'achat, scanné (oui/non + heure) ; séparateur `;` compatible Excel FR ; BOM UTF-8 (accents).
+- [ ] Filtres avant export (type, statut) ; limite haute (10 000 lignes) avec message si dépassement.
+- [ ] Échappement CSV correct (champs contenant `;`, `"`, retours ligne).
+
+#### 13.4 Tests
+
+- [ ] E2E : génération des deux fichiers, contenus cohérents avec la base, accès refusé hors organisateur/propriétaire.
+- [ ] Unitaire : échappement CSV, agrégations des ventes, nommage des fichiers.
 
 ### ❌ Phase 14 — Événements à entrée libre (gratuits) & RSVP (À VENIR)
 
-**Objectif** : permettre des événements **gratuits** de bout en bout. Pour l'organisateur comme pour l'acheteur, **kinPass ne facture rien** : commission 0 (0 × `KINPASS_FEE_PERCENT` = 0), aucun paiement Mobile Money exigé, aucun frais caché.
+**Objectif** : permettre des événements **gratuits** de bout en bout — commission 0, aucun paiement Mobile Money, aucune friction. L'événement est gratuit si **tous ses types de billets sont à 0** (pas de drapeau global) ; un événement peut mélanger entrée libre et places payantes.
 
-**Décision (validée)** : pas de drapeau global « gratuit ». Un événement est gratuit si **tous ses types de billets ont un prix de 0** (ex. type « Entrée libre »). Le système détecte automatiquement le mode gratuit (total de commande = 0) et saute toute la chaîne de paiement. Avantages : un événement peut mélanger entrée gratuite et places payantes (ex. « Entrée libre » + « VIP 30 $ »), et aucune logique de commission à dériver.
+**État des lieux (important)** : le cœur du flux gratuit fonctionne déjà partiellement depuis la 6.4 — total 0 → **aucun appel KPay**, commande payée d'office, billets émis, email/PDF : l'écran « Confirmer ma participation » et le libellé du bouton existent. **Reste à faire** (cette phase) : l'expérience complète « gratuit » (helper de création, messages, jauges pleines, anti-abus, KPIs participation). On **n'attend pas** d'autres phases pour le paiement sauté — il est opérationnel ; cette phase affine l'UX et les garde-fous.
 
 #### 14.1 Création (côté organisateur)
 
-- [ ] Helper dans `EventCreationForm` : bouton « Entrée libre » qui pré-remplit un type `price = 0` (nom suggéré « Entrée libre », devise USD, capacité au choix) et affiche la mention « Événement gratuit : kinPass ne facture ni l'organisateur ni les invités ».
-- [ ] Autoriser (comme aujourd'hui) les prix 0 ; validation serveur inchangée (`price >= 0`).
-- [ ] Badge/statut visuel dans le dashboard : « Gratuit » sur les événements dont tous les prix sont 0.
+- [ ] Helper « Entrée libre » dans `EventCreationForm` : un clic pré-remplit un type `price = 0` (nom « Entrée libre », USD, capacité au choix) ; message neutre (« Événement gratuit — aucune commission ») — **sans la mention « kinPass ne facture ni l'organisateur ni les invités »** (retirée des UI suite à revue).
+- [ ] Autoriser les prix 0 (déjà le cas) ; validation serveur inchangée.
+- [ ] Badge « Gratuit » sur les cartes du dashboard quand tous les prix = 0 (le badge « Entrée libre » public existe déjà).
 
-#### 14.2 Achat / inscription (côté invité)
+#### 14.2 Inscription (côté invité)
 
-- [ ] Checkout : si le total calculé est **0** → écran « Confirmer ma participation » (coordonnées : nom, téléphone, email optionnel) **sans** étape Mobile Money, sans webhook, sans écran « Redirection… ».
-- [ ] Confirmation immédiate : génération du billet (code 6 caractères + QR) et remise (email ou téléchargement PDF/PNG/JPG), mêmes options que le payant.
-- [ ] Page publique `/e/[slug]` : afficher « **Entrée libre** » (vert, emphase) au lieu d'un prix quand le type est à 0.
-- [ ] Anti-abus : limite d'inscriptions par numéro de téléphone (ex. 5) pour éviter l'accaparement des places gratuites.
+- [ ] Checkout total 0 → écran dédié « Confirmer ma participation » (nom, téléphone, email optionnel) sans étape Mobile Money ni « Redirection… » (amélioration de l'existant : wording + résumé).
+- [ ] Confirmation immédiate : billets (code + QR) + remise email/téléchargement identiques au payant (déjà en place via `initiatePayment` total 0).
+- [ ] Page publique `/e/[slug]` : afficher « Entrée libre » (vert, emphase) — déjà en place, uniformiser la copie.
 
-#### 14.3 Suivi & statistiques
+#### 14.3 Jauges & anti-abus
 
-- [ ] Dashboard : les événements gratuits affichent les KPIs de **participation** (inscriptions, taux de remplissage, entrées scannées) ; ligne revenus = 0 $ (aucune commission prélevée, aucune ligne dans l'historique de reversement).
-- [ ] État « jauge pleine » : si la capacité est atteinte, la page publique indique « Complet » et bloque l'inscription.
-- [ ] Export CSV/PDF (Phase 13) déjà compatible (les billets existent) ; vérifier l'affichage « Gratuit ».
+- [ ] Jauge réelle partagée (capacity − soldCount) : si atteinte → « Complet » sur la page publique et **blocage de l'inscription** (serveur).
+- [ ] **Anti-abus** : limite d'inscriptions gratuites par numéro de téléphone (ex. 5 par événement) — contrôle serveur dans `createOrder` (mode gratuit uniquement).
 
-#### 14.4 Tests
+#### 14.4 Suivi & statistiques
 
-- [ ] E2E (écrits ; exécution sur demande) : inscription à un événement gratuit sans aucune étape de paiement ; événement mixte (gratuit + VIP payant) ; jauge pleine ; commission 0 dans le dashboard.
-- [ ] Unitaire : calcul de commission sur total 0 ; détection du mode gratuit.
+- [ ] Dashboard : événements gratuits → KPIs de **participation** (inscriptions, remplissage, entrées scannées), ligne revenus = 0 $ (aucune commission, aucune ligne de reversement).
+- [ ] Exports CSV/PDF (Phase 13) compatibles (les billets existent).
+
+#### 14.5 Tests
+
+- [ ] E2E : inscription gratuite sans aucune étape de paiement ; événement mixte (gratuit + VIP payant) ; jauge pleine ; commission 0 dans le dashboard.
+- [ ] Unitaire : détection du mode gratuit, calcul commission sur total 0, limite par téléphone.
 
 ### ❌ Phase 15 — Innovations différenciantes (marché de Kinshasa) (À VENIR)
 
@@ -621,6 +684,8 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 #### 15.1 WhatsApp-first (livraison, rappels, annulation) — priorité haute
 
 **Pourquoi ça démarque** : au Congo, WhatsApp est LE canal de communication. Les concurrents utilisent l'email, que la majorité n'ouvre pas.
+
+**Étapes** : (1) choisir le canal à la commande (déjà le cas pour l'email — ajouter le choix WhatsApp) ; (2) préférences de l'organisateur (profil : ventes, retraits, rappels) ; (3) rappels J-3/J-1/J-2h (job + rendu React Email, décision §6.3) ; (4) annulation/report notifié en un clic.
 
 - [ ] Livraison du billet par **WhatsApp** (Business API) en plus de l'email : envoi du billet (image/PDF) + lien de téléchargement.
 - [ ] Rappels automatiques : J-3, J-1, J-2h avant l'événement (si l'organisateur active les rappels). Rendu email via **React Email** (cf. décision §6.3 — pas de template dashboard).
@@ -632,6 +697,8 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 #### 15.2 QR dynamique anti-fraude (anti capture d'écran)
 
 **Pourquoi ça démarque** : les QR statiques se screenshotent et se partagent ; c'est la fraude n°1 à la porte.
+
+**Étapes** : (1) jeton horodaté signé par billet (rotation 60 s) ; (2) affichage client d'un QR rafraîchi ; (3) validation scanner du jeton + fenêtre ; (4) repli code 6 caractères hors-ligne (documenté) ; (5) option « un billet = un téléphone ».
 
 - [ ] QR **régénéré périodiquement** (jeton horodaté, ex. rotation toutes les 60 s) : l'écran du téléphone montre un QR qui change, les captures d'écran deviennent inutilisables.
 - [ ] Le scanner valide le jeton (code + fenêtre temporelle) en plus de l'état du billet ; hors fenêtre → « QR expiré, réactualisez ».
@@ -689,6 +756,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - `users.role` : ajouter `'superadmin'` (enum `organizer` | `agent` | `superadmin`).
 - Nouvelle table `audit_logs` (id, actor_id FK `users` SET NULL, action varchar, entity varchar, entity_id uuid, metadata jsonb, created_at) — index sur `actor_id` et `created_at` — pour le « qui fait quoi ».
 - Nouvelle table `app_settings` (key varchar UNIQUE, value text, updated_at) — config globale (commission, versions de contrat, feature flags).
+- **Table `payouts` (fusion Phase 10 — cf. §4.10 pour la spec complète)** : id, organizer_id, amount_total, fee_percent, fee_amount, net_amount, provider, account_label, reference, status, requested_at, paid_at — index sur `organizer_id` et `status`.
 
 #### 16.2 Authentification & sécurité
 
@@ -709,7 +777,10 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - [ ] **Organisateurs** : liste + fiche (profil, comptes de reversement, contrats acceptés) ; actions **suspendre / réactiver** (bloque la connexion et la vente).
 - [ ] **Événements** : liste de **tous** les événements (tous organisateurs) avec filtres (statut, catégorie), détail, changement de statut forcé.
 - [ ] **Billets & scans** : recherche par code de billet, liste des derniers scans, vue d'un billet.
-- [ ] **Reversements** : file d'attente des `payouts` `pending` → **approuver / refuser / marquer payé** (flux manuel de la Phase 10) ; historique.
+- [ ] **Reversements (fusion Phase 10 — spec §4.10)** — deux faces construites ENSEMBLE :
+  - *Admin* : file d'attente des `payouts` `pending` → **approuver / refuser / marquer payé** (flux manuel) ou exécution KPay retrait (`payout.*` + callback « Retraits », plafonnée par `GET /payments/balance`) ; historique ; journalisation `audit_logs` (approbation/refus) ;
+  - *Organisateur* : carte « Solde disponible » (`orders` payés − `payouts`, par devise), **bouton « Retirer »** (règles : solde suffisant, minimum 25 $, 1 retrait en cours), historique (brut, commission, net, statut, date), notifications « Retrait demandé / envoyé / échoué » (email/WhatsApp) ;
+  - Constante `KINPASS_FEE_PERCENT` dans `app_settings` (surchargeable par env), termes financiers figés par la Phase 11.
 - [ ] **Agents (scanneurs)** : lecture de tous les comptes d'agents et de leurs assignations.
 - [ ] **Paramètres globaux** : `KINPASS_FEE_PERCENT`, versions du contrat (CGU/prestation), feature flags (activer/désactiver un module de la Phase 15).
 - [ ] **Journal d'audit** : consultation filtrable des `audit_logs` (par acteur, action, période).
@@ -724,6 +795,42 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - [ ] Server Actions dédiées (`lib/actions/admin.ts`) : `listOrganizers`, `suspendOrganizer`, `reactivateOrganizer`, `listEvents`, `getEventDetail`, `searchTicket`, `listPayouts`, `processPayout`, `getAuditLogs`, `updateAppSetting` — toutes protégées `role === 'superadmin'`.
 - [ ] Tests E2E (écrits ; exécution sur demande) : un superadmin se connecte et voit tout ; un organisateur/agent est **refusé** sur `/superadmin` ; suspension d'organisateur effective ; action journalisée dans l'audit.
 - [ ] Unitaire : permissions (organisateur ne peut pas appeler les actions admin), journalisation systématique.
+
+---
+
+### ❌ Phase 17 — Communication, contact & soutien (À VENIR)
+
+**Objectif** : créer les canaux de confiance et de croissance autour de l'app — newsletter (nouveautés/événements), page contact humain et page « Soutenir kinPass » — en s'appuyant d'abord sur le **seul domaine Resend vérifié disponible : `premicekombozi.com`** (ex. `newsletter@premicekombozi.com`, `contact@premicekombozi.com`), puis bascule vers `kinpass.com` / `newsletter@kinpass.com` / `contact@kinpass.com` dès que ce domaine sera vérifié (env `MAIL_FROM` documentée dans `kpay.md`/README).
+
+**Décision (validée)** : adresses par défaut configurées via env (`MAIL_NEWSLETTER`, `MAIL_CONTACT`) — le code ne contient **jamais** d'adresse en dur.
+
+#### 17.1 Newsletter « kinPass News »
+
+**Ce qu'on veut** : un email périodique (hebdomadaire léger, ou déclenché par les nouveautés : nouvel événement publié, mise à jour de l'app) qui rappelle kinPass aux organisateurs et aux curieux.
+
+- [ ] **Inscription / consentement** : champ « Être prévenu » (état vide du listing, footer) + consentement séparé à l'inscription (RGPD-RDC, jamais coché par défaut) → table `newsletter_subscribers` (email UNIQUE, subscribed_at, source, unsubscribed_at nullable, token désinscription).
+- [ ] **Gestion** : double-opt-in léger (email de confirmation avec lien) ; désinscription en un clic (lien tokenisé, sans compte) ; page « Merci » ; limite 1 abonnement par email.
+- [ ] **Création d'envois** : en Phase 16 (superadmin, `app_settings`) ou via script `scripts/newsletter.mts` (sujet + HTML, rendu **React Email** — décision §6.3) ; envoi par lots via Resend (template `html`), adresse `MAIL_NEWSLETTER`.
+- [ ] **Déclencheurs** : manuel (annonce) au début ; plus tard : nouvel événement publié (si organisateur abonné) ; rappel hebdo résumé des événements à venir (source `getPublicEvents`).
+- [ ] Tests : inscription/consentement, désinscription tokenisée, envoi simulé sans clé (log), aucun email envoyé à un désabonné.
+
+#### 17.2 Page « Contacter l'équipe kinPass »
+
+**Ce qu'on veut** : un vrai contact humain — pas de chatbot — avec accusé de réception.
+
+- [ ] Page publique `/contact` (lien footer + header ?) : formulaire (nom, email, sujet — bug / organisateur / acheteur / partenariat / autre —, message) + adresse directe `MAIL_CONTACT` affichée + lien WhatsApp d'assistance.
+- [ ] Envoi : l'email de l'utilisateur devient `replyTo` (réponse directe par l'équipe), corps = message formaté + provenance (page/événement si connu) ; limite anti-spam (1 message / 5 min par IP via `isRateLimited`).
+- [ ] Confirmation visuelle « Message envoyé — nous répondons sous 24-48 h » (jamais de faux « support automatique »).
+- [ ] Tests : envoi simulé (log), validation du formulaire, rate-limit, accusé affiché.
+
+#### 17.3 Page « Soutenir kinPass »
+
+**Ce qu'on veut** : permettre aux utilisateurs convaincus (organisateurs, acheteurs, diaspora) de soutenir le projet financièrement — discret, jamais intrusif (liens en footer + page dédiée uniquement).
+
+- [ ] Page publique `/support` : pourquoi soutenir (kinPass indépendant, frais faibles, équipe locale), contreparties symboliques (badge « soutien » sur la page organisateur ? option), **moyens** : Mobile Money (compte M-Pesa/Orange dédié affiché) + lien externe (ex. paiement KPay init pour don fixe) — pas de commission sur les dons.
+- [ ] Formulaire « Je soutiens » (nom, montant optionnel, message) → envoi à `MAIL_CONTACT` (replyTo donateur) + remerciement affiché ; aucune donnée bancaire collectée.
+- [ ] Footer : lien discret « Soutenir kinPass » (rubrique À propos/Contact).
+- [ ] Tests : page accessible, formulaire envoyé/validé, aucun paiement requis pour afficher la page.
 
 ---
 
@@ -758,13 +865,14 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - **Phase 7 (scanner)** : ✅ **TERMINÉE** (7.1 → 7.3) — comptes agents RBAC (identifiants auto-générés, transmission WhatsApp/copie), connexion unique + redirection par rôle (agent → `/scan`), middleware double protection, **interface de scan réelle** (saisie manuelle + caméra QR, pop-up VERT/ORANGE/ROUGE, son + vibration, historique agent, journal `scans.agent_id`, activité par agent côté organisateur). Restes hors phase : rate-limit login (Phase 8).
 - **Phase 8 (polish)** : ✅ TERMINÉE — tests unitaires Vitest (25), rate-limit login, normalisation/sécurisation des codes et rôles, PWA légère (manifest + SW) ; export listes invités reporté en Phase 13.
 - **Phase 9 (vitrine publique)** : ✅ TERMINÉE — `getPublicEvents` (source unique), bandeau « À venir » sur la landing (3 événements, jamais de brouillon), rubrique « Billetterie » = listing complet (chips catégories, recherche, tri, états chargement/erreur/vide), carte `EventCard` « talon » partagée (→ `/e/[slug]`), page publique organisateur `/o/[slug]` (`users.slug` auto-généré) ; route `/events` SEO reportée au routing par URL.
-- **Phase 10 (monétisation & reversement)** : ❌ À VENIR — commission kinPass, retrait à la demande, table `payouts`.
+- **Phase 10 (monétisation & reversement)** : 📌 SPEC FONCTIONNELLE — implémentation **fusionnée avec la Phase 16** (back-office : approbation/exécution des retraits + UI organisateur solde/historique). Termes financiers figés par la Phase 11. Ordre recommandé : 11 → 12 → 13 → 14 → 15 → **16 (avec 10)**.
 - **Phase 11 (confiance & contrat)** : ❌ À VENIR — CGU, confidentialité, contrat de prestation, acceptation versionnée.
 - **Phase 12 (vérification billet)** : ❌ À VENIR — page `/verify` publique + re-téléchargement.
 - **Phase 13 (export & reporting)** : ❌ À VENIR — rapport PDF + export CSV des participants.
-- **Phase 14 (entrées libres & RSVP)** : ❌ À VENIR — événements gratuits de bout en bout, commission 0, checkout sans paiement.
+- **Phase 14 (entrées libres & RSVP)** : 🟡 PARTIELLE — le flux « total 0 → aucun paiement, billets émis » fonctionne (6.4) ; reste l'expérience complète (14.1-14.5 : helper de création, wording, jauge pleine, anti-abus par téléphone, KPIs participation).
 - **Phase 15 (innovations différenciantes)** : ❌ À VENIR — WhatsApp-first, QR dynamique anti-fraude, diaspora « je paie, un proche profite », paiement cash à l'entrée, affiliation des rabatteurs.
-- **Phase 16 (admin superadmin)** : ❌ À VENIR — back-office `/superadmin` du créateur : vue globale (KPIs), gestion des organisateurs/événements/billets/reversements, paramètres globaux, journal d'audit. Comptes provisionnés par seed (`SUPERADMIN_EMAILS`), rôle `superadmin`.
+- **Phase 16 (admin superadmin + monétisation 10)** : ❌ À VENIR — back-office `/superadmin` du créateur : vue globale (KPIs), gestion des organisateurs/événements/billets/reversements, paramètres globaux, journal d'audit **+ exécution de la monétisation (Phase 10 fusionnée : approbation/exécution des retraits côté admin, solde/historique/bouton Retirer côté organisateur)**. Comptes provisionnés par seed (`SUPERADMIN_EMAILS`), rôle `superadmin`.
+- **Phase 17 (communication, contact & soutien)** : ❌ À VENIR — newsletter (consentement, désinscription, envois React Email), page contact humain (replyTo + rate-limit), page « Soutenir kinPass ». Adresses via env (`MAIL_NEWSLETTER`/`MAIL_CONTACT`) — domaine `@premicekombozi.com` en attendant la vérification de `kinpass.com`.
 
 **Avancement global estimé : ~55 %** (UI + fondations base de données + gestion des événements de bout en bout ; auth, page publique événement ET vitrine publique en place — commandes/paiement, monétisation, scanner et back-office restent à faire).
 

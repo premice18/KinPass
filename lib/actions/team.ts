@@ -392,6 +392,238 @@ export async function getAgentScans(agentId: string): Promise<ActionResult<Agent
   }
 }
 
+// ── Vue « Scan » de l'organisateur (Phase 7.3+ — dashboard en direct) ───────
+
+// Résumé par événement pour le tableau de bord d'entrées.
+export type ScanOverviewEvent = {
+  id: string
+  title: string
+  slug: string
+  status: string
+  startAt: Date | null
+  capacity: number | null
+  soldCount: number
+  checkedIn: number
+}
+
+// Derniers passages (avec l'agent qui a scanné) — flux « qui entre ».
+export type RecentScanEntry = {
+  code: string
+  buyerName: string
+  result: string
+  scannedAt: Date
+  eventTitle: string
+  agentName: string | null
+}
+
+// Ligne du détail d'un événement : état réel du billet (entré ou non).
+export type EventScanTicket = {
+  id: string
+  code: string
+  buyerName: string
+  ticketTypeName: string
+  status: string
+  scannedAt: Date | null
+  agentName: string | null
+}
+
+// Détail SCAN d'un événement (vue organisateur « Entrées en direct »).
+export type EventScanDetail = {
+  event: ScanOverviewEvent
+  tickets: EventScanTicket[]
+  totalTickets: number
+}
+
+// Détail par événement : tous les billets avec leur état d'entrée (qui est
+// entré, quand, par quel agent — et qui ne l'est pas encore).
+export async function getEventScanDetail(eventId: string): Promise<ActionResult<EventScanDetail>> {
+  const organizer = await getSessionOrganizer()
+  if (!organizer) return { success: false, error: 'Connexion requise.' }
+
+  try {
+    const [event] = await db
+      .select({
+        id: events.id,
+        title: events.title,
+        slug: events.slug,
+        status: events.status,
+        startAt: events.startAt,
+      })
+      .from(events)
+      .where(and(eq(events.id, eventId), eq(events.organizerId, organizer.id)))
+      .limit(1)
+    if (!event) return { success: false, error: 'Événement introuvable.' }
+
+    // Billets (50 derniers créés) + type.
+    const ticketRows = await db
+      .select({
+        id: tickets.id,
+        code: tickets.code,
+        buyerName: tickets.buyerName,
+        ticketTypeName: ticketTypes.name,
+        status: tickets.status,
+        scannedAt: tickets.scannedAt,
+      })
+      .from(tickets)
+      .innerJoin(ticketTypes, eq(ticketTypes.id, tickets.ticketTypeId))
+      .where(eq(tickets.eventId, eventId))
+      .orderBy(desc(tickets.createdAt))
+      .limit(50)
+
+    // Agent du scan valide (premier passage) pour chaque billet entré.
+    const scannedIds = ticketRows.filter((t) => t.scannedAt).map((t) => t.id)
+    const agentsByTicket = new Map<string, string>()
+    if (scannedIds.length > 0) {
+      const scansAgent = await db
+        .select({ ticketId: scans.ticketId, agentName: users.fullName })
+        .from(scans)
+        .leftJoin(users, eq(users.id, scans.agentId))
+        .where(and(inArray(scans.ticketId, scannedIds), eq(scans.result, 'valid')))
+      for (const row of scansAgent) {
+        if (row.agentName) agentsByTicket.set(row.ticketId, row.agentName)
+      }
+    }
+
+    const totalRows = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(tickets)
+      .where(eq(tickets.eventId, eventId))
+    const soldRows = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(tickets)
+      .where(and(eq(tickets.eventId, eventId), inArray(tickets.status, ['valid', 'used'])))
+    const entryRows = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(scans)
+      .where(and(eq(scans.eventId, eventId), eq(scans.result, 'valid')))
+
+    return {
+      success: true,
+      data: {
+        event: {
+          id: event.id,
+          title: event.title,
+          slug: event.slug,
+          status: event.status,
+          startAt: event.startAt,
+          capacity: null,
+          soldCount: soldRows[0]?.count ?? 0,
+          checkedIn: entryRows[0]?.count ?? 0,
+        },
+        tickets: ticketRows.map((ticket) => ({
+          id: ticket.id,
+          code: ticket.code,
+          buyerName: ticket.buyerName,
+          ticketTypeName: ticket.ticketTypeName,
+          status: ticket.status,
+          scannedAt: ticket.scannedAt,
+          agentName: ticket.scannedAt ? (agentsByTicket.get(ticket.id) ?? null) : null,
+        })),
+        totalTickets: totalRows[0]?.count ?? 0,
+      },
+    }
+  } catch {
+    return { success: false, error: 'Impossible de charger le détail.' }
+  }
+}
+
+// Tableau de bord « entrées en direct » de l'organisateur : pour chaque
+// événement (sold_count réel, capacité, entrées scannées) + flux des
+// derniers passages avec l'agent responsable.
+export async function getOrganizerScanOverview(): Promise<
+  ActionResult<{ events: ScanOverviewEvent[]; recentScans: RecentScanEntry[] }>
+> {
+  const organizer = await getSessionOrganizer()
+  if (!organizer) return { success: false, error: 'Connexion requise.' }
+
+  try {
+    const eventIds = await db
+      .select({ id: events.id })
+      .from(events)
+      .where(eq(events.organizerId, organizer.id))
+      .orderBy(desc(events.createdAt))
+    const ids = eventIds.map((row) => row.id)
+    if (ids.length === 0) return { success: true, data: { events: [], recentScans: [] } }
+
+    // Billets vendus (valid/used) par événement.
+    const sold = await db
+      .select({ eventId: tickets.eventId, count: sql<number>`count(*)::int` })
+      .from(tickets)
+      .where(and(inArray(tickets.eventId, ids), inArray(tickets.status, ['valid', 'used'])))
+      .groupBy(tickets.eventId)
+    const soldByEvent = new Map(sold.map((row) => [row.eventId, row.count]))
+
+    // Entrées scannées (premier passage valide) par événement.
+    const entries = await db
+      .select({ eventId: scans.eventId, count: sql<number>`count(*)::int` })
+      .from(scans)
+      .where(and(inArray(scans.eventId, ids), eq(scans.result, 'valid')))
+      .groupBy(scans.eventId)
+    const checkedByEvent = new Map(entries.map((row) => [row.eventId, row.count]))
+
+    // Capacités totales.
+    const caps = await db
+      .select({ eventId: ticketTypes.eventId, total: sql<number>`coalesce(sum(${ticketTypes.capacity}), 0)::int` })
+      .from(ticketTypes)
+      .where(inArray(ticketTypes.eventId, ids))
+      .groupBy(ticketTypes.eventId)
+    const capByEvent = new Map(caps.map((row) => [row.eventId, row.total]))
+
+    const meta = await db
+      .select({ id: events.id, title: events.title, slug: events.slug, status: events.status, startAt: events.startAt })
+      .from(events)
+      .where(eq(events.organizerId, organizer.id))
+      .orderBy(desc(events.startAt))
+
+    // Flux des 30 derniers passages (tous événements de l'organisateur).
+    const recentScans = await db
+      .select({
+        code: tickets.code,
+        buyerName: tickets.buyerName,
+        result: scans.result,
+        scannedAt: scans.scannedAt,
+        eventTitle: events.title,
+        agentName: users.fullName,
+      })
+      .from(scans)
+      .innerJoin(tickets, eq(tickets.id, scans.ticketId))
+      .innerJoin(events, eq(events.id, scans.eventId))
+      .leftJoin(users, eq(users.id, scans.agentId))
+      .where(inArray(scans.eventId, ids))
+      .orderBy(desc(scans.scannedAt))
+      .limit(30)
+
+    return {
+      success: true,
+      data: {
+        events: meta.map((event) => {
+          const capacity = capByEvent.get(event.id) ?? 0
+          return {
+            id: event.id,
+            title: event.title,
+            slug: event.slug,
+            status: event.status,
+            startAt: event.startAt,
+            capacity: capacity > 0 ? capacity : null,
+            soldCount: soldByEvent.get(event.id) ?? 0,
+            checkedIn: checkedByEvent.get(event.id) ?? 0,
+          }
+        }),
+        recentScans: recentScans.map((row) => ({
+          code: row.code,
+          buyerName: row.buyerName,
+          result: row.result,
+          scannedAt: row.scannedAt,
+          eventTitle: row.eventTitle,
+          agentName: row.agentName,
+        })),
+      },
+    }
+  } catch {
+    return { success: false, error: 'Impossible de charger la vue scan.' }
+  }
+}
+
 // ── Espace agent (Phase 7.2/7.3) ────────────────────────────────────────────
 
 // Événement assigné à un agent (carte de son espace de scan).
@@ -487,13 +719,18 @@ export async function scanTicket(eventId: string, rawCode: string): Promise<Acti
     return { success: false, error: 'Accès réservé aux agents de contrôle.' }
   }
 
-  // L'agent doit être assigné à CET événement (défense en profondeur).
-  const assigned = await db
-    .select({ id: agentEventAccess.id })
+  // L'agent doit être assigné à CET événement (défense en profondeur), et
+  // l'événement doit être PUBLIÉ (terminé/brouillon → accès refusé).
+  const [access] = await db
+    .select({ id: agentEventAccess.id, status: events.status })
     .from(agentEventAccess)
+    .innerJoin(events, eq(events.id, agentEventAccess.eventId))
     .where(and(eq(agentEventAccess.agentId, user.id), eq(agentEventAccess.eventId, eventId)))
     .limit(1)
-  if (assigned.length === 0) return { success: false, error: 'Événement non assigné.' }
+  if (!access) return { success: false, error: 'Événement non assigné.' }
+  if (access.status !== 'published') {
+    return { success: false, error: 'Événement terminé ou non ouvert au contrôle.' }
+  }
 
   // Normalisation : majuscules, tirets/espaces ignorés (cf. lib/ticket-code).
   const code = normalizeTicketCode(rawCode)
