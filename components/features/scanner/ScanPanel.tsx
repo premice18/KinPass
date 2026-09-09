@@ -114,11 +114,14 @@ export function ScanPanel({ event }: ScanPanelProps) {
     setResult(null)
     setCode('')
     setError('')
-    // Léger délai pour éviter un double scan accidentel.
-    window.setTimeout(() => {
-      document.getElementById('scan-code-input')?.focus()
-    }, 120)
-  }, [])
+    // Mode SAISIE : le focus revient au champ. Mode CAMÉRA : rien à refocaliser
+    // (et ouvrir le clavier masquerait le flux vidéo).
+    if (!cameraOn) {
+      window.setTimeout(() => {
+        document.getElementById('scan-code-input')?.focus()
+      }, 120)
+    }
+  }, [cameraOn])
 
   // Le pop-up se ferme tout seul après ~3,5 s (ou au clic, ou avec Échap) —
   // assez long pour lire le nom à la porte, assez court pour la cadence.
@@ -172,6 +175,14 @@ export function ScanPanel({ event }: ScanPanelProps) {
     [event.id, scanning, result, historyAutoOpened],
   )
 
+  // Référence toujours à jour de performScan : le handler de la caméra est
+  // fixé au start() — sans ref, il utiliserait des états périmés (doubles
+  // scans ou scans ignorés).
+  const performScanRef = useRef(performScan)
+  useEffect(() => {
+    performScanRef.current = performScan
+  })
+
   const loadHistory = useCallback(async () => {
     const response = await getAgentEventScans(event.id)
     if (response.success) setHistory(response.data)
@@ -211,13 +222,11 @@ export function ScanPanel({ event }: ScanPanelProps) {
     try {
       await scanner.start(
         { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 220, height: 220 } },
+        { fps: 10, qrbox: { width: 240, height: 240 } },
         (decodedText) => {
-          // Décodage réussi → scan immédiat puis pause de la caméra.
-          void scanner.stop().catch(() => undefined)
-          cameraStartedRef.current = false
-          setCameraOn(false)
-          void performScan(decodedText)
+          // Décodage réussi → scan IMMÉDIAT, la caméra reste ouverte pour le
+          // billet suivant (le pop-up + les gardes évitent les doubles scans).
+          void performScanRef.current(decodedText)
         },
         () => {
           // Tram images ignorées (aucun QR détecté).
@@ -414,17 +423,23 @@ export function ScanPanel({ event }: ScanPanelProps) {
             </Button>
           </div>
 
-          {/* Zone caméra (html5-qrcode) — conteneur TOUJOURS monté (requis par
-              la lib au start()), avec une hauteur garantie dès l'affichage
-              pour que la vidéo ait une zone visible où s'insérer. */}
+          {/* Cadre caméra : carré, centré, avec repères de visée discrets.
+              html5-qrcode remplit le conteneur vidéo ; les coins superposés
+              guident l'œil vers la zone de lecture (décoratif, non interactif). */}
           <div
-            id="scan-camera-region"
-            className={cn(
-              'overflow-hidden rounded-lg border border-border bg-slate-950',
-              cameraOn ? 'block aspect-video w-full' : 'hidden',
-            )}
-            data-testid="scan-camera"
-          />
+            className={cn('relative mx-auto w-full max-w-[320px]', cameraOn ? 'block' : 'hidden')}
+            data-testid="scan-camera-wrapper"
+          >
+            <div
+              id="scan-camera-region"
+              className="aspect-square w-full overflow-hidden rounded-2xl border border-border bg-slate-950"
+            />
+            {/* Repères de coin (comme un viseur) */}
+            <span aria-hidden="true" className="pointer-events-none absolute left-4 top-4 h-7 w-7 rounded-tl-lg border-l-2 border-t-2 border-cyan-400" />
+            <span aria-hidden="true" className="pointer-events-none absolute right-4 top-4 h-7 w-7 rounded-tr-lg border-r-2 border-t-2 border-cyan-400" />
+            <span aria-hidden="true" className="pointer-events-none absolute bottom-4 left-4 h-7 w-7 rounded-bl-lg border-b-2 border-l-2 border-cyan-400" />
+            <span aria-hidden="true" className="pointer-events-none absolute bottom-4 right-4 h-7 w-7 rounded-br-lg border-b-2 border-r-2 border-cyan-400" />
+          </div>
           {cameraOn && (
             <p className="text-center text-xs text-muted-foreground">
               {cameraStarting ? 'Démarrage de la caméra…' : 'Placez le QR code dans le cadre pour scanner.'}
