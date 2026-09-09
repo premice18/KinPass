@@ -1,18 +1,32 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Icône kinPass (SVG) : ticket avec encoches, dégradé bleu -> cyan -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Icône kinPass — réplique fidèle du Logo.tsx (échelle x10, viewBox 48 → 512) :
+       billet aux encoches latérales (perforation), dégradé Electric Blue → Flash Cyan,
+       reflet supérieur, ligne de talon pointillée et coche blanche de validation. -->
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#2563EB"/>
+    <linearGradient id="kp-grad" x1="80" y1="100" x2="400" y2="380" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2563EB"/>
       <stop offset="1" stop-color="#06B6D4"/>
     </linearGradient>
+    <linearGradient id="kp-shine" x1="60" y1="100" x2="420" y2="200" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <mask id="kp-mask">
+      <rect x="0" y="0" width="512" height="512" fill="#FFFFFF"/>
+      <circle cx="90" cy="256" r="52" fill="#000000"/>
+      <circle cx="422" cy="256" r="52" fill="#000000"/>
+    </mask>
   </defs>
-  <rect x="64" y="128" width="384" height="256" rx="36" fill="url(#g)"/>
-  <!-- Encoches latérales (perforations) -->
-  <rect x="28" y="220" width="40" height="72" rx="18" fill="#F8FAFC"/>
-  <rect x="444" y="220" width="40" height="72" rx="18" fill="#F8FAFC"/>
-  <!-- Perforation verticale + ligne de détachement -->
-  <rect x="212" y="128" width="8" height="256" fill="#F8FAFC"/>
-  <line x1="216" y1="152" x2="216" y2="376" stroke="#0F172A" stroke-width="4" stroke-dasharray="4 14" opacity="0.35"/>
-  <!-- Coche blanche (validation d'accès) -->
-  <path d="M316 168 L388 300 L250 344 L196 268" fill="none" stroke="#FFFFFF" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Corps du billet (avec encoches via masque) -->
+  <g mask="url(#kp-mask)">
+    <rect x="60" y="100" width="392" height="312" rx="44" fill="url(#kp-grad)"/>
+    <rect x="60" y="100" width="392" height="156" rx="44" fill="url(#kp-shine)"/>
+  </g>
+
+  <!-- Ligne de perforation du talon détachable -->
+  <line x1="200" y1="132" x2="200" y2="380" stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="15" stroke-linecap="round" stroke-dasharray="22 34"/>
+
+  <!-- Coche de validation (accès autorisé) -->
+  <path d="M302 252 l36 36 90-90" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
