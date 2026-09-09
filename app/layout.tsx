@@ -1,6 +1,7 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { ThemeProvider } from 'next-themes'
+import { ServiceWorkerRegister } from '@/components/layout/ServiceWorkerRegister'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -17,6 +18,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body className="antialiased">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           {children}
+          {/* PWA : enregistrement du service worker (production uniquement) */}
+          <ServiceWorkerRegister />
           {process.env.NODE_ENV === 'production' && <Analytics />}
         </ThemeProvider>
       </body>

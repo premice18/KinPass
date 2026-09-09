@@ -475,13 +475,14 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 - [ ] E2E : l'organisateur crée un scanneur (email auto-généré affiché) et l'assigne à un événement ; le scanneur se connecte sur `/auth/login` et est **redirigé vers `/scan`** (uniquement son événement) ; il est **bloqué** sur `/dashboard` et `/settings` ; un organisateur est redirigé vers `/dashboard`.
 - [ ] Unitaire : `login` redirige selon `role` ; un `agent` ne peut pas appeler les actions organisateur ; génération d'email synthétique unique sans collision.
 
-### 🟡 Phase 8 — Polish & robustesse (EN COURS — E2E + enrichissement visuel faits, reste à faire)
+### ✅ Phase 8 — Polish & robustesse (FAITE — reste : rate-limit IP + PWA parfait si besoin)
 
-- [x] Tests E2E Playwright (`tests/e2e/`, 15 scénarios : landing, dashboard, événements, checkout, scanner).
-- [x] Enrichissement visuel : photos Pexels (proxy `/api/pexels`, clé serveur), animations Framer Motion (`FadeIn`/`MotionCard`, reduced-motion), illustrations SVG de marque (`public/illustrations/`), feedbacks Lottie (`public/lottie/` : paiement, succès, scan).
-- [ ] Tests unitaires (composants + Server Actions).
-- [ ] Sécurisation des routes (validation billets / modification événements).
-- [ ] PWA (manifest + service worker) + export listes invités (reporté en Phase 13 pour l'export enrichi).
+- [x] Tests E2E Playwright (specs par domaine écrits tout au long des phases ; exécution sur demande).
+- [x] Enrichissement visuel : photos Pexels (proxy `/api/pexels`, clé serveur), animations Framer Motion (`FadeIn`/`MotionCard`, reduced-motion), illustrations SVG de marque (`public/illustrations/`), feedbacks Lottie (paiement), **billets QR + partage**.
+- [x] **Tests unitaires** : Vitest (`pnpm test:unit`, 25 tests) sur la logique pure — `lib/ticket-code` (génération/format/normalisation), `lib/share` (URL canonique + canaux), `lib/ticket/ics`, validateurs Zod des commandes (remise email, téléphone, quantité, email).
+- [x] **Sécurisation / robustesse** : **rate-limit login** (5 échecs / 5 min par email — bloque le brute-force des comptes agents aux emails prévisibles ; fenêtre par instance, un verrouillage en base pourra durcir le serverless) ; rôle re-vérifié dans chaque action/pages serveur ; normalisation des codes (`lib/ticket-code`) ; route PDF par code (clé d'accès = code 6 caractères, documenté).
+- [x] **PWA légère** : manifest (`app/manifest.ts`, icônes SVG `public/icon.svg`) + service worker (`public/sw.js`, réseau d'abord pour les navigations, cache statique en repli, activé en production) — sans dépendance lourde.
+- [ ] Export listes invités (reporté en Phase 13 pour l'export enrichi — décision conservée).
 
 ### ✅ Phase 9 — Vitrine publique : événements à venir (landing + listing) (FAITE)
 
@@ -755,7 +756,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - **Phase 5 (événements)** : ✅ TERMINÉE — CRUD complet + publication, organisateur de test fixe (`lib/constants.ts`), à sécuriser par la session dès la Phase 4.
 - **Phase 6 (billetterie + paiement)** : ✅ **TERMINÉE** (6.1 → 6.7) — page publique + galerie ; tunnel d'achat + `orders` ; remise email/téléchargement + moteur PDF/QR ; paiement KPay COD + webhook signé → `paid`, billets émis, mode simulation ; pages `/success` + `/cancel` (calendrier .ics, renvoi email) ; **partage enrichi 6.7** (panneau modal : copie, QR, WhatsApp/Telegram/X/Facebook, natif) ; fixs UX mobile. Restes hors phase : validation KPay réelle (clés de test + callback Dépôts), état `expired` (time-out des `pending`), lien court interne optionnel.
 - **Phase 7 (scanner)** : ✅ **TERMINÉE** (7.1 → 7.3) — comptes agents RBAC (identifiants auto-générés, transmission WhatsApp/copie), connexion unique + redirection par rôle (agent → `/scan`), middleware double protection, **interface de scan réelle** (saisie manuelle + caméra QR, pop-up VERT/ORANGE/ROUGE, son + vibration, historique agent, journal `scans.agent_id`, activité par agent côté organisateur). Restes hors phase : rate-limit login (Phase 8).
-- **Phase 8 (polish)** : 🟡 EN COURS — tests E2E faits (15 scénarios) ; unitaires, PWA et export restent.
+- **Phase 8 (polish)** : ✅ TERMINÉE — tests unitaires Vitest (25), rate-limit login, normalisation/sécurisation des codes et rôles, PWA légère (manifest + SW) ; export listes invités reporté en Phase 13.
 - **Phase 9 (vitrine publique)** : ✅ TERMINÉE — `getPublicEvents` (source unique), bandeau « À venir » sur la landing (3 événements, jamais de brouillon), rubrique « Billetterie » = listing complet (chips catégories, recherche, tri, états chargement/erreur/vide), carte `EventCard` « talon » partagée (→ `/e/[slug]`), page publique organisateur `/o/[slug]` (`users.slug` auto-généré) ; route `/events` SEO reportée au routing par URL.
 - **Phase 10 (monétisation & reversement)** : ❌ À VENIR — commission kinPass, retrait à la demande, table `payouts`.
 - **Phase 11 (confiance & contrat)** : ❌ À VENIR — CGU, confidentialité, contrat de prestation, acceptation versionnée.

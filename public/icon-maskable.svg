@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Icône kinPass (SVG) : ticket avec encoches, dégradé bleu -> cyan -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#06B6D4"/>
+    </linearGradient>
+  </defs>
+  <rect x="64" y="128" width="384" height="256" rx="36" fill="url(#g)"/>
+  <!-- Encoches latérales (perforations) -->
+  <rect x="28" y="220" width="40" height="72" rx="18" fill="#F8FAFC"/>
+  <rect x="444" y="220" width="40" height="72" rx="18" fill="#F8FAFC"/>
+  <!-- Perforation verticale + ligne de détachement -->
+  <rect x="212" y="128" width="8" height="256" fill="#F8FAFC"/>
+  <line x1="216" y1="152" x2="216" y2="376" stroke="#0F172A" stroke-width="4" stroke-dasharray="4 14" opacity="0.35"/>
+  <!-- Coche blanche (validation d'accès) -->
+  <path d="M316 168 L388 300 L250 344 L196 268" fill="none" stroke="#FFFFFF" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
