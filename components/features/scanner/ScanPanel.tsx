@@ -200,6 +200,12 @@ export function ScanPanel({ event }: ScanPanelProps) {
     if (cameraStarting) return
     setError('')
     setCameraStarting(true)
+    // IMPORTANT : afficher la zone AVANT start() — html5-qrcode lit les
+    // dimensions du conteneur pour insérer la vidéo ; masqué, rien
+    // n'apparaît. Le setState est asynchrone : on attend le paint (rAF)
+    // avant d'appeler start(), sinon le conteneur est encore caché.
+    setCameraOn(true)
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
     const scanner = new Html5Qrcode('scan-camera-region')
     scannerRef.current = scanner
     try {
@@ -218,7 +224,6 @@ export function ScanPanel({ event }: ScanPanelProps) {
         },
       )
       cameraStartedRef.current = true
-      setCameraOn(true)
     } catch (err) {
       setCameraOn(false)
       const message =
@@ -410,15 +415,21 @@ export function ScanPanel({ event }: ScanPanelProps) {
           </div>
 
           {/* Zone caméra (html5-qrcode) — conteneur TOUJOURS monté (requis par
-              la lib au start()), simplement masqué quand la caméra est coupée. */}
+              la lib au start()), avec une hauteur garantie dès l'affichage
+              pour que la vidéo ait une zone visible où s'insérer. */}
           <div
             id="scan-camera-region"
             className={cn(
               'overflow-hidden rounded-lg border border-border bg-slate-950',
-              cameraOn ? 'block' : 'hidden',
+              cameraOn ? 'block aspect-video w-full' : 'hidden',
             )}
             data-testid="scan-camera"
           />
+          {cameraOn && (
+            <p className="text-center text-xs text-muted-foreground">
+              {cameraStarting ? 'Démarrage de la caméra…' : 'Placez le QR code dans le cadre pour scanner.'}
+            </p>
+          )}
         </CardContent>
       </Card>
 
