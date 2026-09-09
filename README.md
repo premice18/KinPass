@@ -41,7 +41,9 @@ Trois profils utilisent la plateforme :
 | Création / édition d'événement   | Terminé (persistance en base, multi-types de billets, galerie 1-3 photos, slug unique) |
 | Page publique événement `/e/[slug]` | Terminé (Phase 6.1 : SEO dynamique, galerie carrousel, partage WhatsApp) |
 | Base de données (Neon + Drizzle) | Terminé                                                             |
-| Tests end-to-end (Playwright)    | Écrits (landing, dashboard, événements, page publique, vitrine, checkout, scanner) — exécution sur demande |
+| Tests end-to-end (Playwright)    | Écrits (landing, dashboard, événements, page publique, vitrine, checkout, agent, équipe) — exécution sur demande |
+| Tests unitaires (Vitest)         | 25 tests (codes billet, partage, .ics, validateurs commandes) — `pnpm test:unit` |
+| PWA                             | Manifest + service worker (réseau d'abord, repli hors-ligne) |
 | Tunnel d'achat / billetterie     | En cours (6.2-6.4 : commandes, remise email/PDF, paiement KPay ou simulé, billets émis) |
 | Contrôle d'accès (scanner)       | Terminé (Phase 7 : comptes agents RBAC, redirection par rôle, scan caméra + saisie avec VERT/ORANGE/ROUGE) |
 | Authentification                 | En cours (email/mot de passe + Google via Auth.js, profil à venir)  |

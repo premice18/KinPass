@@ -20,6 +20,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { users } from '@/lib/db/schema'
 import { generateUserSlug } from '@/lib/db/user-slug'
+import { clearAttempts, isRateLimited, recordAttempt } from '@/lib/rate-limit'
 import { verifyPassword } from '@/lib/password'
 import { authConfig } from '@/auth.config'
 
@@ -91,14 +92,32 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const password = String(credentials?.password ?? '')
         if (!email || !password) return null
 
+        // ── Rate-limit (Phase 8) : 5 échecs / 5 min par email — bloque le
+        // brute-force des comptes agents (emails prévisibles). NB : fenêtre
+        // par instance (voir lib/rate-limit.ts).
+        const WINDOW_MS = 5 * 60 * 1000
+        const MAX_ATTEMPTS = 5
+        if (isRateLimited(email, MAX_ATTEMPTS, WINDOW_MS)) return null
+
         const user = await findUserByEmail(email)
         // Compte Google pur : pas de mot de passe → refus sur ce provider.
-        if (!user || !user.passwordHash) return null
+        if (!user || !user.passwordHash) {
+          recordAttempt(email, WINDOW_MS)
+          return null
+        }
         // Compte désactivé (agent suspendu par l'organisateur, Phase 7.1) :
         // refus avec le même message générique (pas d'énumération).
-        if (user.active === false) return null
-        if (!verifyPassword(password, user.passwordHash)) return null
+        if (user.active === false) {
+          recordAttempt(email, WINDOW_MS)
+          return null
+        }
+        if (!verifyPassword(password, user.passwordHash)) {
+          recordAttempt(email, WINDOW_MS)
+          return null
+        }
 
+        // Succès : on réinitialise le compteur d'échecs.
+        clearAttempts(email)
         return { id: user.id, email: user.email, name: user.fullName, role: user.role }
       },
     }),
