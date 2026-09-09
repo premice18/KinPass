@@ -314,8 +314,8 @@ export function EventPublicView({ event }: EventPublicViewProps) {
                   </div>
                 ))}
                 {isFree && (
-                  <p className="text-sm text-emerald-600 dark:text-emerald-400">
-                    Événement gratuit — kinPass ne facture ni l'organisateur ni les invités.
+                  <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                    Entrée libre — inscrivez-vous en quelques secondes.
                   </p>
                 )}
               </div>

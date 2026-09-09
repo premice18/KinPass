@@ -35,6 +35,7 @@ import { ProfileSettings } from '@/components/features/settings/ProfileSettings'
 import { TeamScanners } from '@/components/features/settings/TeamScanners'
 import { EventCheckout } from '@/components/features/checkout/EventCheckout'
 import { ScannerIntro } from '@/components/features/scanner/ScannerIntro'
+import { ScanDashboard } from '@/components/features/scanner/ScanDashboard'
 import { EventPublicView } from '@/components/features/event-public/EventPublicView'
 import { EventListing } from '@/components/features/events/EventListing'
 import { getEventById, type EditableEvent, type PublicEvent } from '@/lib/actions/events'
@@ -51,6 +52,7 @@ type View =
   | 'events'
   | 'organizer-intro'
   | 'scanner-intro'
+  | 'scan-dashboard'
 
 // Utilisateur exposé au client (sans données sensibles).
 export type SessionUser = {
@@ -177,8 +179,9 @@ export function KinPassApp({ initialView = 'home', initialEvent }: KinPassAppPro
   // Navigation du MENU, adaptée au rôle :
   //  - « Tableau de bord » et « Créer » : l'organisateur accède à son espace ;
   //    un visiteur atterrit sur la page d'explication (inscription ~30 s) ;
-  //  - « Scanner » : outil réservé aux agents de contrôle (Phase 7) — tout le
-  //    monde est aiguillé vers la page d'explication du contrôle d'accès.
+  //  - « Scanner » : l'ORGANISATEUR supervise ses entrées en direct (dashboard
+  //    scan) ; les autres sont aiguillés vers l'explication du contrôle
+  //    d'accès (agents, Phase 7).
   const handleNav = (id: (typeof nav)[number]['id']) => {
     const isOrganizer = user?.role === 'organizer'
     if (id === 'dashboard') {
@@ -186,7 +189,7 @@ export function KinPassApp({ initialView = 'home', initialEvent }: KinPassAppPro
     } else if (id === 'create') {
       navigate(isOrganizer ? 'create' : 'organizer-intro')
     } else if (id === 'scanner') {
-      navigate('scanner-intro')
+      navigate(isOrganizer ? 'scan-dashboard' : 'scanner-intro')
     } else {
       navigate(id)
     }
@@ -298,6 +301,9 @@ export function KinPassApp({ initialView = 'home', initialEvent }: KinPassAppPro
     ) : view === 'scanner-intro' ? (
       /* Page d'explication « Contrôle d'accès » (agents, Phase 7). */
       <ScannerIntro />
+    ) : view === 'scan-dashboard' ? (
+      /* Dashboard « Entrées en direct » de l'organisateur. */
+      <ScanDashboard onBack={() => navigate('dashboard')} onOpenTeam={() => navigate('team')} />
     ) : null
 
   return (
