@@ -11,7 +11,7 @@
 // ────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, MotionConfig, motion } from 'framer-motion'
 import { Html5Qrcode } from 'html5-qrcode'
 import {
   Camera,
@@ -96,12 +96,16 @@ export function ScanPanel({ event }: ScanPanelProps) {
 
   // Caméra.
   const [cameraOn, setCameraOn] = useState(false)
+  const [cameraStarting, setCameraStarting] = useState(false)
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const cameraStartedRef = useRef(false)
 
   // Historique de l'agent sur cet événement.
   const [history, setHistory] = useState<AgentScanEntry[]>([])
   const [historyOpen, setHistoryOpen] = useState(false)
+  // N'ouvre l'historique automatiquement qu'au PREMIER scan (pas de saut de
+  // mise en page à chaque passage ensuite — l'utilisateur garde la main).
+  const [historyAutoOpened, setHistoryAutoOpened] = useState(false)
 
   const normalize = (value: string): string => value.toUpperCase().replace(/[^A-Z0-9]/g, '')
 
@@ -116,11 +120,19 @@ export function ScanPanel({ event }: ScanPanelProps) {
     }, 120)
   }, [])
 
-  // Le pop-up se ferme tout seul après ~3 s (ou au clic).
+  // Le pop-up se ferme tout seul après ~3,5 s (ou au clic, ou avec Échap) —
+  // assez long pour lire le nom à la porte, assez court pour la cadence.
   useEffect(() => {
     if (!result) return
-    const timer = window.setTimeout(closeResult, 3000)
-    return () => window.clearTimeout(timer)
+    const timer = window.setTimeout(closeResult, 3500)
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeResult()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.clearTimeout(timer)
+      document.removeEventListener('keydown', onKeyDown)
+    }
   }, [result, closeResult])
 
   const performScan = useCallback(
@@ -149,11 +161,15 @@ export function ScanPanel({ event }: ScanPanelProps) {
         beepInvalid()
         vibrate([200, 60, 200])
       }
-      setHistoryOpen(true)
+      // Historique : chargé à chaque scan, mais auto-ouvert UNE fois seulement.
       loadHistory()
+      if (!historyAutoOpened) {
+        setHistoryAutoOpened(true)
+        setHistoryOpen(true)
+      }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [event.id, scanning, result],
+    [event.id, scanning, result, historyAutoOpened],
   )
 
   const loadHistory = useCallback(async () => {
@@ -172,6 +188,8 @@ export function ScanPanel({ event }: ScanPanelProps) {
   }, [loadHistory])
 
   // Démarre/arrête la caméra (html5-qrcode — nécessite HTTPS ou localhost).
+  // NB : le conteneur #scan-camera-region est TOUJOURS dans le DOM (classe
+  // hidden sinon) : html5-qrcode exige que l'élément existe au `start()`.
   const toggleCamera = async () => {
     if (cameraOn) {
       if (scannerRef.current) await scannerRef.current.stop().catch(() => undefined)
@@ -179,6 +197,9 @@ export function ScanPanel({ event }: ScanPanelProps) {
       setCameraOn(false)
       return
     }
+    if (cameraStarting) return
+    setError('')
+    setCameraStarting(true)
     const scanner = new Html5Qrcode('scan-camera-region')
     scannerRef.current = scanner
     try {
@@ -198,8 +219,17 @@ export function ScanPanel({ event }: ScanPanelProps) {
       )
       cameraStartedRef.current = true
       setCameraOn(true)
-    } catch {
-      setError("Caméra indisponible (autorisation refusée ou environnement non sécurisé). Utilisez la saisie manuelle.")
+    } catch (err) {
+      setCameraOn(false)
+      const message =
+        err instanceof Error && err.name === 'NotAllowedError'
+          ? 'Autorisation caméra refusée : autorisez l’accès à la caméra dans votre navigateur, puis réessayez.'
+          : err instanceof Error && err.name === 'NotFoundError'
+            ? 'Aucune caméra détectée sur cet appareil.'
+            : 'Caméra indisponible (environnement non sécurisé ou autorisation refusée). Utilisez la saisie manuelle.'
+      setError(message)
+    } finally {
+      setCameraStarting(false)
     }
   }
 
@@ -209,9 +239,11 @@ export function ScanPanel({ event }: ScanPanelProps) {
   return (
     <div className="space-y-5">
       {/* ── Pop-up de résultat (3 états) — s'ouvre à chaque scan, se ferme
-           seul après ~3 s ou au clic sur « Continuer ». ─────────────────── */}
-      <AnimatePresence>
-        {result && (
+           seul après ~3,5 s, au clic sur « Continuer » ou avec Échap.
+           MotionConfig reducedMotion="user" : aucune animation si demandé. */}
+      <MotionConfig reducedMotion="user">
+        <AnimatePresence>
+          {result && (
           <motion.div
             role="dialog"
             aria-modal="true"
@@ -301,7 +333,8 @@ export function ScanPanel({ event }: ScanPanelProps) {
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
+        </AnimatePresence>
+      </MotionConfig>
 
       {/* ── Saisie manuelle + caméra ─────────────────────────────────────── */}
       <Card>
@@ -354,20 +387,38 @@ export function ScanPanel({ event }: ScanPanelProps) {
             </Button>
           </form>
 
-          <div className="flex items-center justify-between gap-3 border-t border-dashed border-border pt-3">
+          <div className="flex flex-col gap-3 border-t border-dashed border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-muted-foreground">
               {result ? STATUS_META[result.result].label : "En attente d'un billet…"} · {event.title}
             </p>
-            <Button type="button" variant="outline" size="sm" onClick={toggleCamera} data-testid="scan-camera-toggle">
+            {/* Cible tactile confortable (kiosque de porte) */}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={toggleCamera}
+              disabled={cameraStarting}
+              data-testid="scan-camera-toggle"
+              className="w-full sm:w-auto"
+            >
               <Camera className="h-4 w-4" />
-              {cameraOn ? 'Arrêter la caméra' : 'Scanner par caméra'}
+              {cameraStarting
+                ? 'Démarrage de la caméra…'
+                : cameraOn
+                  ? 'Arrêter la caméra'
+                  : 'Scanner par caméra'}
             </Button>
           </div>
 
-          {/* Zone caméra (html5-qrcode) */}
-          {cameraOn && (
-            <div id="scan-camera-region" className="overflow-hidden rounded-lg border border-border bg-slate-950" data-testid="scan-camera" />
-          )}
+          {/* Zone caméra (html5-qrcode) — conteneur TOUJOURS monté (requis par
+              la lib au start()), simplement masqué quand la caméra est coupée. */}
+          <div
+            id="scan-camera-region"
+            className={cn(
+              'overflow-hidden rounded-lg border border-border bg-slate-950',
+              cameraOn ? 'block' : 'hidden',
+            )}
+            data-testid="scan-camera"
+          />
         </CardContent>
       </Card>
 

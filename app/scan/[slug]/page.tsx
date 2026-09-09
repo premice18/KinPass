@@ -11,6 +11,7 @@ import { redirect } from 'next/navigation'
 import { ArrowLeft, Calendar, MapPin } from 'iconoir-react'
 
 import { ScanPanel } from '@/components/features/scanner/ScanPanel'
+import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { Eyebrow } from '@/components/ui/eyebrow'
 import { buttonVariants } from '@/components/ui/button'
 import { getCurrentUser } from '@/lib/auth'
@@ -48,12 +49,13 @@ export default async function ScanEventPage({ params }: ScanEventPageProps) {
     <div className="min-h-screen bg-background">
       {/* En-tête discret (l'espace agent a son propre cadre). */}
       <header className="border-b border-border bg-background/95 backdrop-blur">
-        <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3 sm:px-6">
+        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <a href="/scan" className={buttonVariants({ variant: 'ghost', size: 'sm', className: '-ml-2' })}>
             <ArrowLeft className="h-4 w-4" />
             Mes événements
           </a>
-          <span className="text-sm font-semibold tracking-tight">{event.title}</span>
+          <span className="min-w-0 truncate text-sm font-semibold tracking-tight">{event.title}</span>
+          <ThemeToggle />
         </div>
       </header>
 

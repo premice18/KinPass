@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Eyebrow } from '@/components/ui/eyebrow'
 import { EmptyState } from '@/components/ui/empty-state'
+import { cn } from '@/lib/utils'
 import { getAgentAssignedEvents, type AgentAssignedEvent } from '@/lib/actions/team'
 
 function formatDate(value: Date | string | null): string {
@@ -96,38 +97,59 @@ export function AgentHome() {
               description="Votre organisateur doit vous assigner un événement avant que vous puissiez contrôler les accès."
             />
           ) : (
-            events.map((event) => (
-              <a
-                key={event.id}
-                href={`/scan/${event.slug}`}
-                data-testid="agent-event-card"
-                className="group flex flex-col gap-2 rounded-lg border border-border bg-card p-5 transition-colors hover:border-cyan-500/50 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div>
-                  <p className="font-semibold group-hover:text-cyan-600 dark:group-hover:text-cyan-400">
-                    {event.title}
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                    {event.startAt && (
-                      <span className="flex items-center gap-1.5">
-                        <Calendar className="h-4 w-4" />
-                        {formatDate(event.startAt)}
-                      </span>
-                    )}
-                    {(event.venue || event.location) && (
-                      <span className="flex items-center gap-1.5">
-                        <MapPin className="h-4 w-4" />
-                        {[event.venue, event.location].filter(Boolean).join(' · ')}
-                      </span>
-                    )}
+            events.map((event) => {
+              const scannable = event.status === 'published'
+              return (
+                <div
+                  key={event.id}
+                  data-testid="agent-event-card"
+                  className={cn(
+                    'flex flex-col gap-2 rounded-lg border bg-card p-5 sm:flex-row sm:items-center sm:justify-between',
+                    scannable
+                      ? 'border-border transition-colors hover:border-cyan-500/50'
+                      : 'border-border bg-muted/30 opacity-70',
+                  )}
+                >
+                  <div>
+                    <p className={cn('font-semibold', scannable && 'group-hover:text-cyan-600')}>
+                      {event.title}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                      {event.startAt && (
+                        <span className="flex items-center gap-1.5">
+                          <Calendar className="h-4 w-4" />
+                          {formatDate(event.startAt)}
+                        </span>
+                      )}
+                      {(event.venue || event.location) && (
+                        <span className="flex items-center gap-1.5">
+                          <MapPin className="h-4 w-4" />
+                          {[event.venue, event.location].filter(Boolean).join(' · ')}
+                        </span>
+                      )}
+                      {!scannable && (
+                        <span className="rounded-[3px] bg-muted px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                          {event.status === 'finished' ? 'Terminé' : 'Non ouvert'}
+                        </span>
+                      )}
+                    </div>
                   </div>
+                  {scannable ? (
+                    <a
+                      href={`/scan/${event.slug}`}
+                      className="inline-flex items-center gap-1.5 text-sm font-medium text-cyan-600 dark:text-cyan-400 hover:underline"
+                    >
+                      Contrôler les accès
+                      <ArrowRight className="h-4 w-4" />
+                    </a>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+                      Contrôle indisponible
+                    </span>
+                  )}
                 </div>
-                <span className="inline-flex items-center gap-1.5 text-sm font-medium text-cyan-600 dark:text-cyan-400">
-                  Contrôler les accès
-                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                </span>
-              </a>
-            ))
+              )
+            })
           )}
         </div>
       </main>
