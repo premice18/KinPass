@@ -300,10 +300,20 @@ export function LandingPage({ onGetStarted, onBrowse }: LandingPageProps) {
         <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-8">
           <span className="font-semibold text-foreground">kinPass</span>
           <span>© 2026 kinPass. La billetterie pensée pour la RDC.</span>
-          <div className="flex gap-4">
-            <span>Confidentialité</span>
-            <span>Assistance</span>
-          </div>
+          <nav aria-label="Liens légaux" className="flex flex-wrap gap-x-4 gap-y-2">
+            <a href="/legal/cgu" className="hover:text-foreground">
+              Conditions d’utilisation
+            </a>
+            <a href="/legal/privacy" className="hover:text-foreground">
+              Confidentialité
+            </a>
+            <a href="/legal/about" className="hover:text-foreground">
+              À propos
+            </a>
+            <a href="/legal/contact" className="hover:text-foreground">
+              Contact
+            </a>
+          </nav>
         </div>
       </footer>
     </main>

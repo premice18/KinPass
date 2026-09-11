@@ -161,6 +161,7 @@ app/                     # Routes App Router (page + layout + styles globaux)
 app/e/[slug]/            # Page publique événement (SEO, Phase 6.1)
 app/e/[slug]/checkout/   # Tunnel d'achat (Phase 6.2-6.4)
 app/o/[slug]/            # Page publique organisateur (Phase 9.5)
+app/legal/               # CGU, confidentialité, contrat, à propos, contact (11.1)
 components/
   KinPassApp.tsx         # Coquille SPA (navigation par état)
   layout/                # Composants de coquille (Logo, ThemeToggle)
@@ -207,10 +208,11 @@ drizzle.config.ts        # Configuration drizzle-kit
 - **Création / édition d'événement** : informations générales, affiche (URL), **galerie de 1 à 3 photos** (URL, réordonnancement, suppression), multi-types de billets (prix, devise USD/CDF, capacité), slug unique généré depuis le titre, validation côté serveur et client.
 - **Page publique d'événement** (`/e/[slug]`) : en-tête sombre, affiche + galerie en carrousel, description, tarifs, partage WhatsApp / copie du lien, métadonnées SEO dynamiques (og:image = affiche). Les brouillons et slugs inconnus renvoient une 404.
 - **Vitrine publique (Phase 9)** : bandeau « Événements à venir » sur la landing ; rubrique « Billetterie » = listing complet (grille de cartes, filtres par catégorie, recherche par titre, tri par date, états chargement/erreur/vide) ; carte événement « talon » (pastille de date, prix réel « à partir de X $ », « Entrée libre »/« Complet » calculés) ; page publique organisateur `/o/[slug]` (avatar, bio, site, Instagram, événements publiés).
-- **Tunnel d'achat** (`/e/[slug]/checkout`, Phase 6.2) : choix du type de billet avec jauge réelle (places restantes), quantité, opérateur Mobile Money (M-Pesa Vodacom / Orange Money / Airtel Money), coordonnées, remise — la commande est créée en base avec prix/capacité re-vérifiés côté serveur.
+- **Tunnel d'achat** (`/e/[slug]/checkout`, Phase 6.2) : choix du type de billet avec jauge réelle (places restantes), quantité (avec **noms des participants** optionnels, un par billet), opérateur Mobile Money (M-Pesa Vodacom / Orange Money / Airtel Money), coordonnées, remise — la commande est créée en base avec prix/capacité re-vérifiés côté serveur.
 - **Paiement Mobile Money** (Phase 6.4) : intégration **KPay** (push USSD RD Congo, clés test `kpay_test_…`) + webhook sécurisé `/api/kpay/webhook` (signature HMAC, idempotent) → passage `paid`, **émission des billets** (QR + codes), envoi par email (PDF). **Sans clés KPay : mode « Simuler le paiement »** (démo/E2E). Conversion USD → CDF via `KPAY_USD_CDF_RATE` (KPay COD sans paramètre de devise).
 - **Confirmation** (Phase 6.5) : pages `/e/[slug]/checkout/success` (récap commande payée, cartes billets QR + PDF/PNG/JPG, « Ajouter au calendrier » `.ics`, « Renvoyer par email ») et `/e/[slug]/checkout/cancel` (annulation + Réessayer).
 - **Partage d'événement** (Phase 6.7) : panneau modal « Partager » (page publique + vue Détail) — URL canonique copiable, QR code, WhatsApp / Telegram / X / Facebook, partage natif du système quand disponible.
+- **Pages légales & contact** (Phase 11.1) : CGU, Politique de confidentialité, Contrat de prestation & règles de reversement (commission 0,3 %, retrait minimum 25 $), À propos, Contact (formulaire avec `replyTo` + rate-limit) — liées depuis le footer.
 - **Équipe / Scanneurs** (Phase 7.1) : l'organisateur crée des comptes agents (email + mot de passe auto-générés, transmission WhatsApp/copie), les assigne à ses événements, les suspend/réactive — accès scan uniquement.
 - **Espace agent** (Phase 7.2) : connexion unique `/auth/login`, redirection par rôle — l'agent arrive sur `/scan` (événements assignés), le middleware le bloque hors du dashboard ; l'interface de scan arrive en 7.3.
 - **Scanner** (maquette) : saisie manuelle du code avec retours VERT / ORANGE / ROUGE.

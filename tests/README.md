@@ -42,6 +42,7 @@ tests/
     scanner.spec.ts      # Rubriques du menu selon le rôle (pages d'explication visiteur)
     team.spec.ts         # Équipe / Scanneurs (Phase 7.1 : création agent, assignation, suspension)
     scan-agent.spec.ts   # Flux agent (Phase 7.2 : connexion → /scan, RBAC)
+    legal.spec.ts        # Pages légales & contact (Phase 11.1)
 ```
 
 ## Conventions
@@ -101,6 +102,7 @@ Convention de nommage : **kebab-case en anglais**, préfixé par le domaine.
 | `scan-valid-icon` / `scan-used-icon` / `scan-invalid-icon` | `scanner/ScanPanel.tsx` | États VERT / ORANGE / ROUGE |
 | `scan-camera-toggle` / `scan-history` / `scan-history-toggle` | `scanner/ScanPanel.tsx` | Caméra + historique agent |
 | `team-agent-scans-open` / `team-agent-scans-panel` | `settings/TeamScanners.tsx` | Journal des scans (organisateur) |
+| `contact-form` / `contact-name` / `contact-email` / `contact-subject` / `contact-message` / `contact-submit` / `contact-error` / `contact-success` | `legal/ContactForm.tsx` | Formulaire de contact (Phase 11.1) |
 | `public-event-card` | `events/EventCard.tsx` | Carte « talon » d'un événement public |
 | `listing-chip` / `listing-search` / `listing-sort` | `events/EventListing.tsx` | Filtres de la vitrine (Billetterie) |
 | `listing-retry` / `listing-skeleton` / `listing-count` | `events/EventListing.tsx` | États chargement / erreur / compteur |
@@ -109,6 +111,7 @@ Convention de nommage : **kebab-case en anglais**, préfixé par le domaine.
 | `checkout-buyer-name` / `checkout-buyer-phone` / `checkout-buyer-email` | `checkout/EventCheckout.tsx` | Coordonnées acheteur |
 | `checkout-total` / `checkout-quantity` / `checkout-submit` | `checkout/EventCheckout.tsx` | Total / quantité / soumission |
 | `checkout-delivery-download` / `checkout-delivery-email` | `checkout/EventCheckout.tsx` | Choix de la remise (Phase 6.3) |
+| `checkout-attendee-mode-same` / `checkout-attendee-mode-individual` / `checkout-attendee-name` | `checkout/EventCheckout.tsx` | Noms des participants (quantité > 1) |
 | `checkout-provider-mpesa` / `checkout-provider-orange` / `checkout-provider-airtel` | `checkout/EventCheckout.tsx` | Opérateur Mobile Money (Phase 6.4) |
 | `paid-ticket-code` | `checkout/EventCheckout.tsx` | Code d'un billet émis après paiement |
 | `paid-ticket` / `paid-ticket-qr` | `checkout/IssuedTicketCard.tsx` | Carte billet (QR + PDF/PNG/JPG) |

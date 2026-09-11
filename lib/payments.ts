@@ -124,6 +124,10 @@ export async function fulfillPaidOrder(orderId: string, paymentRef?: string | nu
       .where(eq(orderItems.orderId, orderId))
 
     const issued: IssuedTicket[] = []
+    // Noms des participants : un nom par billet si l'acheteur les a nommés,
+    // sinon le nom de l'acheteur pour tous.
+    const attendeeNames = order.attendees ?? null
+    let attendeeIndex = 0
     await db.transaction(async (tx) => {
       for (const item of items) {
         // Jauge : les places vendues augmentent d'autant (une seule UPDATE).
@@ -134,11 +138,13 @@ export async function fulfillPaidOrder(orderId: string, paymentRef?: string | nu
 
         // Émission des billets (un par place), retry anti-collision dans la tx.
         for (let n = 0; n < item.quantity; n++) {
+          const ticketBuyerName = attendeeNames?.[attendeeIndex] ?? order.buyerName
+          attendeeIndex += 1
           const inserted = await insertTicketWithUniqueCode(tx, {
             eventId: order.eventId,
             ticketTypeId: item.ticketTypeId,
             orderId,
-            buyerName: order.buyerName,
+            buyerName: ticketBuyerName,
             buyerPhone: order.buyerPhone,
             buyerEmail: order.buyerEmail,
           })
