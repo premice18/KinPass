@@ -26,3 +26,16 @@ export type TicketCurrency = (typeof TICKET_CURRENCIES)[number]
 // Statuts de cycle de vie d'un événement.
 export const EVENT_STATUSES = ['draft', 'published', 'finished'] as const
 export type EventStatus = (typeof EVENT_STATUSES)[number]
+
+// ────────────────────────────────────────────────────────────────────────────
+// Monétisation (Phase 10/11.2) — commission kinPass.
+// Valeur par défaut 0,3 % (surchargeable par variable d'environnement puis,
+// à terme, par `app_settings` depuis le superadmin — Phase 16).
+// ────────────────────────────────────────────────────────────────────────────
+export const KINPASS_FEE_PERCENT = Number(process.env.KINPASS_FEE_PERCENT ?? '0.3')
+
+// Versions des documents légaux (Phase 11.2) — à incrémenter à chaque
+// évolution ; toute nouvelle version impose une re-acceptation (au prochain
+// retrait/publication, jamais un blocage au login).
+export const CGU_VERSION = '1.0'
+export const PRESTATION_VERSION = '1.0'

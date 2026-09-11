@@ -21,7 +21,7 @@ import bcrypt from 'bcryptjs'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { eq } from 'drizzle-orm'
 
-import { eventImages, events, payoutMethods, scans, tickets, ticketTypes, users } from '../lib/db/schema.ts'
+import { contractAcceptances, eventImages, events, payoutMethods, scans, tickets, ticketTypes, users } from '../lib/db/schema.ts'
 import { DEFAULT_ORGANIZER_ID } from '../lib/constants.ts'
 
 config({ path: '.env.local' })
@@ -92,6 +92,19 @@ await db.transaction(async (tx) => {
     accountNumber: '+243 820 000 000',
     isDefault: true,
   })
+
+  // Acceptations légales du compte démo (Phase 11.2) : la démo et les tests
+  // restent fluides (pas de bandeau « règles de reversement »).
+  for (const documentType of ['cgu', 'contract']) {
+    const existing = await tx
+      .select({ id: contractAcceptances.id })
+      .from(contractAcceptances)
+      .where(eq(contractAcceptances.userId, DEFAULT_ORGANIZER_ID))
+      .limit(1)
+    if (existing.length === 0) {
+      await tx.insert(contractAcceptances).values({ userId: DEFAULT_ORGANIZER_ID, documentType, version: '1.0' })
+    }
+  }
 
   // ── Événement 1 : publié, avec des ventes et des scans ────────────────────
   // Dates RELATIVES au moment du seed : l'événement reste « à venir » dans la

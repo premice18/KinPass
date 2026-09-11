@@ -22,6 +22,9 @@ export type OrganizerPublicProfile = {
   bio: string | null
   website: string | null
   instagram: string | null
+  // Badge « Organisateur vérifié » (Phase 11.3) — activé depuis le superadmin
+  // (Phase 16) ; jamais affiché tant que non vérifié.
+  verified: boolean
   events: PublicEventCard[]
 }
 
@@ -53,6 +56,7 @@ export async function getOrganizerPublicBySlug(
         bio: organizer.bio,
         website: organizer.website,
         instagram: organizer.instagram,
+        verified: organizer.verified,
         events,
       },
     }
