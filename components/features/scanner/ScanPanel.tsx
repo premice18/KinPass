@@ -222,7 +222,16 @@ export function ScanPanel({ event }: ScanPanelProps) {
     try {
       await scanner.start(
         { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 240, height: 240 } },
+        {
+          fps: 10,
+          // Cadre de lecture CARRÉ : on prend la plus petite dimension du
+          // flux (html5-qrcode rend sinon un rectangle quand la vidéo est
+          // plus large que haute).
+          qrbox: (viewfinderWidth, viewfinderHeight) => {
+            const size = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.72)
+            return { width: size, height: size }
+          },
+        },
         (decodedText) => {
           // Décodage réussi → scan IMMÉDIAT, la caméra reste ouverte pour le
           // billet suivant (le pop-up + les gardes évitent les doubles scans).

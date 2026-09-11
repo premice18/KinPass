@@ -100,6 +100,8 @@ export async function createOrder(input: CheckoutInput): Promise<OrderResult> {
           buyerName: data.buyerName,
           buyerPhone: data.buyerPhone,
           buyerEmail: data.buyerEmail?.trim() || null,
+          // Noms des participants (un par billet) ou null (tous au nom acheteur).
+          attendees: data.attendees && data.attendees.length > 0 ? data.attendees : null,
           totalAmount: total.toFixed(2),
           currency: type.currency,
           // Mode de remise choisi à l'achat (Phase 6.3) : 'download' | 'email'.

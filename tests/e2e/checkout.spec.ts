@@ -129,6 +129,32 @@ test.describe('Tunnel d’achat /e/[slug]/checkout', () => {
     await expect(success.getByTestId('paid-ticket').first().getByRole('button', { name: 'PDF' })).toBeVisible()
   })
 
+  test('nomme chaque billet quand la quantité dépasse 1', async ({ page }) => {
+    await page.goto(`/e/${PUBLISHED_SLUG}/checkout`)
+
+    await page.getByRole('radio', { name: /Standard/ }).click()
+    await page.getByRole('button', { name: 'Augmenter la quantité' }).click()
+    await page.getByTestId('checkout-buyer-name').fill('Jean-Marc Kabongo')
+    await page.getByTestId('checkout-buyer-phone').fill('+243 81 234 56 78')
+
+    // Par défaut : « tous à mon nom » (aucun champ supplémentaire)
+    await expect(page.getByTestId('checkout-attendee-mode-same')).toHaveAttribute('aria-checked', 'true')
+    await expect(page.getByTestId('checkout-attendee-name')).toHaveCount(0)
+
+    // Option individuelle → un champ par billet (préremplis avec le nom saisi)
+    await page.getByTestId('checkout-attendee-mode-individual').click()
+    const attendeeInputs = page.getByTestId('checkout-attendee-name')
+    await expect(attendeeInputs).toHaveCount(2)
+    await attendeeInputs.nth(0).fill('Aline Mbala')
+    await attendeeInputs.nth(1).fill('David Ilunga')
+
+    await page.getByTestId('checkout-submit').click()
+
+    const success = page.getByTestId('checkout-success')
+    await expect(success.getByText('Paiement confirmé')).toBeVisible()
+    await expect(success.getByTestId('paid-ticket')).toHaveCount(2)
+  })
+
   test('un événement gratuit est confirmé sans payer', async ({ page }) => {
     await page.goto('/e/expo-photo-gombe/checkout')
 

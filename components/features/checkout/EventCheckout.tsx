@@ -87,6 +87,13 @@ export function EventCheckout({ event }: EventCheckoutProps) {
   // ── Remise du billet (Phase 6.3) : téléchargement direct ou email ────────
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>('download')
 
+  // ── Noms des participants (quantité > 1) ─────────────────────────────────
+  // Par défaut, tous les billets portent le nom de l'acheteur (aucune saisie
+  // supplémentaire — règle UX « Redundant Entry »). L'acheteur peut choisir
+  // de nommer chaque billet ; les champs sont préremplis avec son nom.
+  const [nameEachTicket, setNameEachTicket] = useState(false)
+  const [attendeeNames, setAttendeeNames] = useState<string[]>([])
+
   // ── Déroulement du paiement ───────────────────────────────────────────────
   const [step, setStep] = useState<Step>('form')
   const [isPending, startTransition] = useTransition()
@@ -128,6 +135,14 @@ export function EventCheckout({ event }: EventCheckoutProps) {
     if (buyerEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail.trim())) {
       return 'Adresse email invalide.'
     }
+    // Noms individuels : chaque billet doit avoir un nom.
+    if (quantity > 1 && nameEachTicket) {
+      for (let i = 0; i < quantity; i++) {
+        if (!(attendeeNames[i] ?? '').trim()) {
+          return `Indiquez le nom du participant ${i + 1}.`
+        }
+      }
+    }
     return null
   }
 
@@ -150,6 +165,11 @@ export function EventCheckout({ event }: EventCheckoutProps) {
         buyerPhone: buyerPhone.trim(),
         buyerEmail: buyerEmail.trim() || undefined,
         deliveryMethod,
+        // Noms individuels uniquement si l'option est activée et qty > 1.
+        attendees:
+          quantity > 1 && nameEachTicket
+            ? Array.from({ length: quantity }, (_, i) => (attendeeNames[i] ?? buyerName).trim())
+            : undefined,
       })
       if (!created.success) {
         setFormError(created.error)
@@ -536,6 +556,73 @@ export function EventCheckout({ event }: EventCheckoutProps) {
                     </Button>
                   </div>
                 </div>
+
+                {/* Noms des participants (quantité > 1) — par défaut, tous
+                    au nom de l'acheteur ; option pour nommer chaque billet. */}
+                {quantity > 1 && selectedType && (
+                  <fieldset>
+                    <legend className="text-sm font-medium">Noms sur les billets</legend>
+                    <div className="mt-2.5 grid gap-2 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={!nameEachTicket}
+                        onClick={() => setNameEachTicket(false)}
+                        data-testid="checkout-attendee-mode-same"
+                        className={cn(
+                          'rounded-lg border p-3 text-left transition-colors',
+                          !nameEachTicket
+                            ? 'border-primary bg-primary/5 ring-2 ring-primary/30'
+                            : 'border-border bg-background hover:bg-muted/40',
+                        )}
+                      >
+                        <span className="block font-medium">Tous à mon nom</span>
+                        <span className="mt-0.5 block text-xs text-muted-foreground">
+                          Les {quantity} billets porteront « {buyerName.trim() || 'votre nom'} »
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={nameEachTicket}
+                        onClick={() => setNameEachTicket(true)}
+                        data-testid="checkout-attendee-mode-individual"
+                        className={cn(
+                          'rounded-lg border p-3 text-left transition-colors',
+                          nameEachTicket
+                            ? 'border-primary bg-primary/5 ring-2 ring-primary/30'
+                            : 'border-border bg-background hover:bg-muted/40',
+                        )}
+                      >
+                        <span className="block font-medium">Nommer chaque billet</span>
+                        <span className="mt-0.5 block text-xs text-muted-foreground">
+                          Utile pour offrir ou répartir les places
+                        </span>
+                      </button>
+                    </div>
+
+                    {/* Champs individuels (préremplis avec le nom de l'acheteur) */}
+                    {nameEachTicket && (
+                      <div className="mt-3 space-y-3">
+                        {Array.from({ length: quantity }, (_, index) => (
+                          <label key={index} className="block space-y-2 text-sm font-medium">
+                            Participant {index + 1}
+                            <Input
+                              value={attendeeNames[index] ?? buyerName}
+                              onChange={(e) => {
+                                const next = [...attendeeNames]
+                                next[index] = e.target.value
+                                setAttendeeNames(next)
+                              }}
+                              placeholder={`Ex. Nom du participant ${index + 1}`}
+                              data-testid="checkout-attendee-name"
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </fieldset>
+                )}
 
                 {/* Opérateur Mobile Money (RD Congo, Phase 6.4) */}
                 <fieldset>
