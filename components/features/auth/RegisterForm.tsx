@@ -45,7 +45,7 @@ export function RegisterForm() {
     const rule = passwordRules.find((r) => !r.test(password))
     if (rule) return `Le mot de passe doit contenir ${rule.label}.`
     if (confirmPassword !== password) return 'Les mots de passe ne correspondent pas.'
-    if (!acceptTerms) return 'Vous devez accepter les Conditions Générales.'
+    if (!acceptTerms) return 'Vous devez accepter les conditions d’utilisation.'
     return null
   }
 
@@ -163,10 +163,15 @@ export function RegisterForm() {
           />
           <span>
             J’accepte les{' '}
-            <a href="/legal/cgu" className="text-primary hover:underline" target="_blank" rel="noreferrer">
-              Conditions Générales
-            </a>{' '}
-            et les règles de reversement.
+            <a
+              href="/legal/cgu?from=register"
+              className="text-primary hover:underline"
+              target="_blank"
+              rel="noreferrer"
+            >
+              conditions d’utilisation
+            </a>
+            .
           </span>
         </label>
 

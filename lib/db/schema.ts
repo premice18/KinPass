@@ -2,6 +2,7 @@ import {
   boolean,
   index,
   integer,
+  jsonb,
   numeric,
   pgTable,
   text,
@@ -167,6 +168,10 @@ export const orders = pgTable(
     // Téléphone Mobile Money de l'acheteur (format international libre).
     buyerPhone: varchar('buyer_phone', { length: 30 }),
     buyerEmail: varchar('buyer_email', { length: 255 }),
+    // Noms des participants quand l'acheteur nomme chaque billet
+    // (Phase 6.2+) : tableau JSON de chaînes, longueur = quantité totale.
+    // `null` = tous les billets portent le nom de l'acheteur.
+    attendees: jsonb('attendees').$type<string[] | null>(),
     totalAmount: numeric('total_amount', { precision: 12, scale: 2 }).notNull().default('0'),
     // USD | CDF — devise du total (celle du type de billet commandé).
     currency: varchar('currency', { length: 10 }).notNull().default('USD'),

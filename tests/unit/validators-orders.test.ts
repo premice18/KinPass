@@ -53,4 +53,23 @@ describe('checkoutSchema', () => {
     const result = checkoutSchema.safeParse({ ...validInput, buyerEmail: 'pas-un-email' })
     expect(result.success).toBe(false)
   })
+
+  it('accepte des noms de participants (un par billet)', () => {
+    const result = checkoutSchema.safeParse({
+      ...validInput,
+      quantity: 2,
+      attendees: ['Aline Mbala', 'David Ilunga'],
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('refuse un nombre de noms différent de la quantité', () => {
+    const result = checkoutSchema.safeParse({ ...validInput, quantity: 3, attendees: ['Aline Mbala'] })
+    expect(result.success).toBe(false)
+  })
+
+  it('refuse un nom de participant vide', () => {
+    const result = checkoutSchema.safeParse({ ...validInput, quantity: 2, attendees: ['Aline Mbala', '  '] })
+    expect(result.success).toBe(false)
+  })
 })

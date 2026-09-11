@@ -365,6 +365,7 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 - [x] **Server Action `createOrder`** (publique) : validation Zod, événement `published` requis, **prix/jauge re-lus en base**, création transactionnelle commande + ligne(s) ; retour d'un accusé avec référence lisible (8 caractères).
 - [x] Génération du code billet : utilitaire `lib/ticket-code.ts` — **6 caractères alphanumériques** au format `XXX-XXX` (alphabet sans ambiguïté 0/O/1/I, `crypto.getRandomValues`) + `normalizeTicketCode` (majuscules, tirets ignorés — réutilisé par le scan, Phase 7) ; la contrainte UNIQUE existe déjà (`tickets.code`), le retry anti-collision sera appliqué à la génération effective des billets (Phase 6.4). **QR Code (`qrcode.react`) reporté** à l'émission des billets (aucun QR rendu avant la Phase 6.4/6.5 — pas de dépendance morte).
 - [x] `tickets.order_id` → FK nullable vers `orders` (ON DELETE SET NULL) appliquée en base — les billets du seed antérieurs restent valides.
+- [x] **Noms des participants (quantité > 1)** : `orders.attendees` (jsonb, un nom par billet — `null` = tous au nom de l'acheteur) ; checkout avec option « Tous à mon nom » (défaut, zéro saisie — règle UX *Redundant Entry*) ou « Nommer chaque billet » (champs préremplis) ; l'émission distribue les noms billet par billet (PDF/email/scan affichent le bon nom) ; validation Zod : longueur des noms = quantité.
 - [x] Maquette `TicketCheckout` **supprimée** : le CTA « Réserver maintenant » de `/e/[slug]` est désormais un vrai lien vers `/e/[slug]/checkout`.
 - [ ] Confirmation de paiement (6.4) : la commande reste `pending`, l'écran affiche un accusé clair « Commande enregistrée » + rappel que le paiement arrive.
 
@@ -562,21 +563,31 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - Les pages légales sont des **routes publiques** (footer) ; contenu rédigé en français, adapté au droit congolais et aux réalités Mobile Money.
 - La **commission** et le **mode de retrait** décrits ici font référence pour la Phase 16 (+10).
 
-#### 11.1 Contenu juridique & pages publiques
+#### 11.1 Contenu juridique & pages publiques ✅ FAITE
 
-- [ ] **CGU** (`/legal/cgu` — placeholder existant) : définition du service, rôles (organisateur, acheteur, agent), fonctionnement billetterie/scan, obligations des parties, prix/commission, annulations & remboursements, responsabilités, droit applicable RDC, résolution de litiges.
-- [ ] **Politique de Confidentialité** (`/legal/privacy`) : données collectées (compte, événements, acheteurs, paiements), finalités, base légale, durées de conservation, droits des personnes (accès, rectification, effacement), sous-traitants (Neon, Resend, KPay, Vercel), transferts hors RDC, cookies/PWA.
-- [ ] **Contrat de prestation & règles de reversement** (`/legal/contract`) : commission kinPass (constante `KINPASS_FEE_PERCENT` + mention affichée), modèle « retrait à la demande » (Phase 10/16), minimum de retrait, délais de traitement, responsabilités (événement, capacité, contenu), gestion annulations/remboursements, propriété des données, exclusivités éventuelles.
-- [ ] **Page À propos** (`/legal/about`) : histoire kinPass, mission RDC, équipe/contact.
-- [ ] **Page Contact/Support** (`/legal/contact`) : formulaire (nom, email, sujet, message) + adresse **`contact@kinpass.com`** en production — **en attendant : `contact@premicekombozi.com`** (seul domaine vérifié Resend aujourd'hui ; basculer quand `kinpass.com` sera vérifié) + lien WhatsApp. Réception : boîte mail (pas de ticketting interne au MVP).
-- [ ] Liens de toutes ces pages dans le **footer** (landing + pages publiques) et liens croisés CGU ↔ Confidentialité.
+- [x] **CGU** (`/legal/cgu`) : définitions, comptes/rôles (organisateur, acheteur, agent), usage, billets/contrôle, paiements, annulations, responsabilités, propriété intellectuelle, données, droit applicable RDC.
+- [x] **Politique de Confidentialité** (`/legal/privacy`) : données collectées (comptes, commandes, techniques), finalités, bases légales, sous-traitants (Neon, Vercel, KPay, Resend), durées de conservation, droits, sécurité (bcrypt/HTTPS, aucune donnée bancaire), cookies (strictement nécessaires + audience agrégée).
+- [x] **Contrat de prestation & règles de reversement** (`/legal/contract`) : commission **0,3 %** affichée, encaissement KPay, **retrait à la demande** (minimum 25 $, 1 retrait en cours, délai 24-72 h, net après commission et frais opérateur), obligations de l’organisateur, annulations/reports, suspension, responsabilités, droit congolais. **Fige les termes financiers** de la Phase 10/16.
+- [x] **Page À propos** (`/legal/about`) : mission, ce que fait kinPass, principes.
+- [x] **Page Contact/Support** (`/legal/contact`) : **formulaire** (nom, email, sujet, message — validation Zod, rate-limit 3/10 min par email, `replyTo` = adresse de l’utilisateur) + adresse directe **`MAIL_CONTACT`** (défaut `contact@premicekombozi.com`, bascule `contact@kinpass.com` à la vérification du domaine) + accusé honnête « réponse sous 24-48 h ».
+- [x] Coquille commune `LegalPage` (version `1.0`, navigation croisée entre documents) + **footer de la landing** lié aux 5 pages.
+- [x] Tests E2E écrits (`legal.spec.ts` : footer, affichage des 5 documents, commission/minimum affichés, formulaire validation + accusé) — exécution sur demande.
 
-#### 11.2 Acceptation versionnée du contrat
+#### 11.2 Acceptation versionnée du contrat (décision « consentement au bon moment »)
+
+**Décision (validée)** : **pas de double signature à l'inscription** (friction inutile : personne ne lit 3 pages avant de créer un événement). Le consentement est posé **là où il a du sens** — transparence continue + acceptation formelle au moment de l'argent :
+
+1. **À l'inscription** : une **seule** case « conditions d'utilisation » (déjà en place, libellé simplifié) — aucun second document à lire.
+2. **Transparence continue** : commission affichée en clair au dashboard et au récapitulatif de création d'événement (« kinPass prélève 0,3 % par billet vendu »).
+3. **Acceptation formelle au PREMIER RETRAIT** (Phase 16) : récap simple à l'écran (commission, frais, net, minimum 25 $) + case « J'accepte les règles de reversement (v 1.0) » → enregistrée dans `contract_acceptances`.
+4. **Évolution du contrat** : re-acceptation **au prochain retrait** (ou prochaine publication d'événement), **jamais un blocage au login** (règle UX « User Freedom » : ne pas forcer d'étape).
+5. **Accès au document** : la page reste **publique** (pas de mur de connexion — une acceptation doit pointer vers un document lisible avant acceptation), mais elle n'est **pas exposée dans le footer visiteur** : liens depuis l'inscription, le dashboard (mention commission) et l'écran de retrait ; nav interne des pages légales uniquement.
 
 - [ ] Table `contract_acceptances` (id, user_id FK CASCADE, document_type `cgu`|`contract`, version varchar, accepted_at, ip nullable) — index `(user_id, document_type)`.
-- [ ] À l'inscription : case CGU obligatoire (déjà en place) **+ case Contrat de prestation** (visible selon le rôle) ; enregistrement d'une ligne d'acceptation avec la version courante.
-- [ ] **Versionnage** : version stockée dans `app_settings` (`contract.cgu_version`, `contract.prestation_version`) ; au login d'un organisateur, comparaison → bannière « Les conditions ont été mises à jour — veuillez les accepter » + blocage des actions de création/publication tant que non acceptée (pas de blocage de consultation des ventes).
-- [ ] Dashboard : mention discrète et permanente de la commission (« kinPass prélève X % sur chaque billet vendu »).
+- [ ] Version courante dans `app_settings` (`contract.cgu_version`, `contract.prestation_version`).
+- [ ] Enregistrement de l'acceptation CGU à l'inscription (version courante) ; acceptation des règles de reversement au premier retrait ; re-acceptation sur changement de version au prochain retrait/publication.
+- [ ] Dashboard : mention discrète et permanente de la commission.
+- [ ] Tests : acceptation enregistrée (inscription + premier retrait), versionnage, non-blocage des organisateurs à jour.
 
 #### 11.3 Confiance
 
@@ -587,6 +598,24 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 
 - [ ] E2E : inscription bloquée sans acceptation des CGU ; re-signature imposée quand la version change ; pages légales accessibles.
 - [ ] Unitaire : enregistrement des acceptations, comparaison de versions, non-blocage des organisateurs à jour.
+
+#### 11.5 Mot de passe oublié (reset par email) — faisable, module indépendant
+
+**Objectif** : boucler l'authentification organisateur — un organisateur qui perd son mot de passe peut le réinitialiser seul par email (le lien « Mot de passe oublié ? » de `/auth/login` existe déjà en placeholder).
+
+**Décision (validée)** :
+- **Anti-énumération** : la page répond **toujours** le même message (« Si un compte existe pour cette adresse, un email de réinitialisation a été envoyé »), que l'email existe ou non.
+- **Token à usage unique, haché en base** (jamais en clair), expiration **1 heure** ; les demandes précédentes sont invalidées à chaque nouvelle demande.
+- **Agents exclus** : les comptes scanneurs (emails synthétiques) n'ont pas de « mot de passe oublié » — seul leur organisateur peut réinitialiser (déjà en place, 7.1) ; la demande pour un email `@kinpass.com` renvoie le même message générique sans envoyer d'email.
+- Email transactionnel via **Resend** (React Email — décision §6.3), adresse `MAIL_FROM` (domaine vérifié).
+- **Rate-limit** : 3 demandes / 15 min par email (`isRateLimited`).
+
+- [ ] Table `password_reset_tokens` (id, user_id FK CASCADE, token_hash varchar UNIQUE, expires_at timestamptz, used_at nullable, created_at) — index `(user_id)`, suppression des tokens expirés/consommés au passage.
+- [ ] Server Action `requestPasswordReset(email)` : validation Zod, rate-limit, génération d'un token aléatoire (crypto, 32+ octets), stockage du **hash** (sha256), envoi de l'email avec lien `/auth/reset-password?token=…` (validité 1 h) ; réponse toujours identique.
+- [ ] Page `/auth/forgot-password` (remplace le placeholder) : formulaire email (icône `Mail`), état « envoyé » générique, lien retour connexion.
+- [ ] Page `/auth/reset-password` : lecture du token, formulaire nouveau mot de passe + confirmation (mêmes règles : 8 car., maj., min., chiffre), erreurs « lien invalide ou expiré », succès → redirection `/auth/login` avec message de confirmation.
+- [ ] Server Action `resetPassword(token, password)` : vérifie hash + expiration + non-usage, met à jour `password_hash`, marque `used_at`, invalide les autres tokens de l'utilisateur.
+- [ ] Tests E2E écrits : demande avec email inconnu (même message, aucun email), demande valide (lien reçu en simulation), token expiré refusé, token réutilisé refusé, reset puis connexion réussie ; unitaire : hachage/expiration des tokens, non-énumération.
 
 ---
 
@@ -757,6 +786,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - Nouvelle table `audit_logs` (id, actor_id FK `users` SET NULL, action varchar, entity varchar, entity_id uuid, metadata jsonb, created_at) — index sur `actor_id` et `created_at` — pour le « qui fait quoi ».
 - Nouvelle table `app_settings` (key varchar UNIQUE, value text, updated_at) — config globale (commission, versions de contrat, feature flags).
 - **Table `payouts` (fusion Phase 10 — cf. §4.10 pour la spec complète)** : id, organizer_id, amount_total, fee_percent, fee_amount, net_amount, provider, account_label, reference, status, requested_at, paid_at — index sur `organizer_id` et `status`.
+- **Table `contact_messages` (boîte de réception support, cf. 16.7)** : id, name, email, subject, message, status (`new` | `read` | `replied` | `closed`), created_at, read_at, replied_at, reply_body text nullable, replied_by FK `users` SET NULL — index sur `status` et `created_at`.
 
 #### 16.2 Authentification & sécurité
 
@@ -796,6 +826,22 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - [ ] Tests E2E (écrits ; exécution sur demande) : un superadmin se connecte et voit tout ; un organisateur/agent est **refusé** sur `/superadmin` ; suspension d'organisateur effective ; action journalisée dans l'audit.
 - [ ] Unitaire : permissions (organisateur ne peut pas appeler les actions admin), journalisation systématique.
 
+#### 16.7 Boîte de réception support (lire & répondre aux emails)
+
+**Idée (validée)** : le superadmin dispose d'une **boîte de réception intégrée** au back-office (pages non accessibles au public) pour **voir et répondre aux messages** du formulaire de contact — sans quitter kinPass, avec le même soin d'interface que le reste du produit.
+
+**Décision (validée)** :
+- Les messages sont **persistés en base** (`contact_messages`, cf. 16.1) — l'email reste envoyé en parallèle (notification + réponse directe possible depuis une boîte externe), mais l'inbox est la source d'organisation (statuts, historique, audit).
+- La **réponse part depuis l'inbox** via Resend : l'utilisateur reçoit un email dont le `replyTo` permet de poursuivre le fil ; la réponse est **tracée** (`reply_body`, `replied_at`, `replied_by`) et journalisée dans `audit_logs`.
+- Aucune donnée sensible : les messages sont publics par nature (formulaire ouvert), mais **jamais exposés** ailleurs que dans `/superadmin`.
+
+- [ ] **Liste** : filtres par statut (`new`/`read`/`replied`/`closed`) et par sujet, recherche par email/nom, pagination ; compteur « nouveaux messages » dans la navigation superadmin.
+- [ ] **Détail** : lecture confortable du message (mise en page, liens cliquables), coordonnées de l’expéditeur, actions : **Marquer lu**, **Répondre**, **Clôturer** ; note interne optionnelle.
+- [ ] **Réponse** : éditeur simple (texte), prévisualisation, envoi via Resend (`replyTo` = adresse de l’utilisateur, sujet « Re: … ») ; brouillon conservé en base tant que non envoyé (option).
+- [ ] **Statuts automatiques** : passage à `read` à l’ouverture, `replied` après envoi d’une réponse ; `closed` manuel.
+- [ ] **Journalisation** : chaque réponse/clôture dans `audit_logs` (acteur, message id, action).
+- [ ] **Tests** : E2E (message de contact apparaît dans l’inbox, réponse simulée change le statut, accès refusé aux non-superadmins) ; unitaire (transitions de statut, permissions).
+
 ---
 
 ### ❌ Phase 17 — Communication, contact & soutien (À VENIR)
@@ -816,12 +862,15 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 
 #### 17.2 Page « Contacter l'équipe kinPass »
 
-**Ce qu'on veut** : un vrai contact humain — pas de chatbot — avec accusé de réception.
+**Ce qu'on veut** : un vrai contact humain — pas de chatbot — avec accusé de réception **et une boîte de réception côté superadmin (16.7) pour lire et répondre**.
 
-- [ ] Page publique `/contact` (lien footer + header ?) : formulaire (nom, email, sujet — bug / organisateur / acheteur / partenariat / autre —, message) + adresse directe `MAIL_CONTACT` affichée + lien WhatsApp d'assistance.
-- [ ] Envoi : l'email de l'utilisateur devient `replyTo` (réponse directe par l'équipe), corps = message formaté + provenance (page/événement si connu) ; limite anti-spam (1 message / 5 min par IP via `isRateLimited`).
-- [ ] Confirmation visuelle « Message envoyé — nous répondons sous 24-48 h » (jamais de faux « support automatique »).
-- [ ] Tests : envoi simulé (log), validation du formulaire, rate-limit, accusé affiché.
+**État** : ✅ partiel (11.1) — page `/legal/contact` + formulaire (validation Zod, rate-limit 3/10 min par email, `replyTo`, accusé) ; reste : persistance en base + interface de réponse.
+
+- [x] Page publique `/legal/contact` : formulaire (nom, email, sujet — bug / organisateur / acheteur / partenariat / autre —, message) + adresse directe `MAIL_CONTACT` affichée.
+- [x] Envoi : l'email de l'utilisateur devient `replyTo` (réponse directe par l'équipe) ; anti-spam (3 messages / 10 min par email via `isRateLimited`).
+- [x] Confirmation visuelle « Message envoyé — nous répondons sous 24-48 h » (jamais de faux « support automatique »).
+- [ ] **Persistance** : enregistrer chaque message dans `contact_messages` (16.1) en plus de l'email → alimente la **boîte de réception superadmin (16.7)**.
+- [ ] Tests : envoi simulé (log), validation du formulaire, rate-limit, accusé affiché, message visible dans l'inbox admin.
 
 #### 17.3 Page « Soutenir kinPass »
 
@@ -866,12 +915,12 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - **Phase 8 (polish)** : ✅ TERMINÉE — tests unitaires Vitest (25), rate-limit login, normalisation/sécurisation des codes et rôles, PWA légère (manifest + SW) ; export listes invités reporté en Phase 13.
 - **Phase 9 (vitrine publique)** : ✅ TERMINÉE — `getPublicEvents` (source unique), bandeau « À venir » sur la landing (3 événements, jamais de brouillon), rubrique « Billetterie » = listing complet (chips catégories, recherche, tri, états chargement/erreur/vide), carte `EventCard` « talon » partagée (→ `/e/[slug]`), page publique organisateur `/o/[slug]` (`users.slug` auto-généré) ; route `/events` SEO reportée au routing par URL.
 - **Phase 10 (monétisation & reversement)** : 📌 SPEC FONCTIONNELLE — implémentation **fusionnée avec la Phase 16** (back-office : approbation/exécution des retraits + UI organisateur solde/historique). Termes financiers figés par la Phase 11. Ordre recommandé : 11 → 12 → 13 → 14 → 15 → **16 (avec 10)**.
-- **Phase 11 (confiance & contrat)** : ❌ À VENIR — CGU, confidentialité, contrat de prestation, acceptation versionnée.
+- **Phase 11 (confiance & contrat)** : 🟡 EN COURS — **11.1 faite** (5 pages légales complètes + menu latéral actif + CTA final + footer lié + formulaire de contact avec `replyTo`/rate-limit, adresse `MAIL_CONTACT` par défaut sur le domaine vérifié `premicekombozi.com`) ; reste : 11.2 (acceptation versionnée « consentement au bon moment »), 11.3 (badge vérifié via 16), 11.4 (tests déjà écrits), **11.5 mot de passe oublié (reset par email — module indépendant, faisable)**.
 - **Phase 12 (vérification billet)** : ❌ À VENIR — page `/verify` publique + re-téléchargement.
 - **Phase 13 (export & reporting)** : ❌ À VENIR — rapport PDF + export CSV des participants.
 - **Phase 14 (entrées libres & RSVP)** : 🟡 PARTIELLE — le flux « total 0 → aucun paiement, billets émis » fonctionne (6.4) ; reste l'expérience complète (14.1-14.5 : helper de création, wording, jauge pleine, anti-abus par téléphone, KPIs participation).
 - **Phase 15 (innovations différenciantes)** : ❌ À VENIR — WhatsApp-first, QR dynamique anti-fraude, diaspora « je paie, un proche profite », paiement cash à l'entrée, affiliation des rabatteurs.
-- **Phase 16 (admin superadmin + monétisation 10)** : ❌ À VENIR — back-office `/superadmin` du créateur : vue globale (KPIs), gestion des organisateurs/événements/billets/reversements, paramètres globaux, journal d'audit **+ exécution de la monétisation (Phase 10 fusionnée : approbation/exécution des retraits côté admin, solde/historique/bouton Retirer côté organisateur)**. Comptes provisionnés par seed (`SUPERADMIN_EMAILS`), rôle `superadmin`.
+- **Phase 16 (admin superadmin + monétisation 10)** : ❌ À VENIR — back-office `/superadmin` du créateur : vue globale (KPIs), gestion des organisateurs/événements/billets/reversements, paramètres globaux, journal d'audit **+ exécution de la monétisation (Phase 10 fusionnée)** **+ boîte de réception support (16.7 : lire et répondre aux messages du formulaire de contact depuis l'admin)**. Comptes provisionnés par seed (`SUPERADMIN_EMAILS`), rôle `superadmin`.
 - **Phase 17 (communication, contact & soutien)** : ❌ À VENIR — newsletter (consentement, désinscription, envois React Email), page contact humain (replyTo + rate-limit), page « Soutenir kinPass ». Adresses via env (`MAIL_NEWSLETTER`/`MAIL_CONTACT`) — domaine `@premicekombozi.com` en attendant la vérification de `kinpass.com`.
 
 **Avancement global estimé : ~55 %** (UI + fondations base de données + gestion des événements de bout en bout ; auth, page publique événement ET vitrine publique en place — commandes/paiement, monétisation, scanner et back-office restent à faire).

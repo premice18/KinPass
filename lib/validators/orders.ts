@@ -42,6 +42,12 @@ export const checkoutSchema = z
     buyerEmail: z.union([z.string().trim().email('Adresse email invalide.'), z.literal('')]).optional(),
     // 'download' (défaut) | 'email' — Phase 6.3.
     deliveryMethod: z.enum(DELIVERY_METHODS, { error: 'Mode de remise invalide.' }).optional(),
+    // Noms des participants (optionnel) : quand fourni, un nom par billet
+    // (longueur = quantité). Absent = tous les billets au nom de l'acheteur.
+    attendees: z
+      .array(z.string().trim().min(1, 'Chaque participant doit avoir un nom.').max(255, 'Nom de participant trop long.'))
+      .max(20, 'Trop de participants.')
+      .optional(),
   })
   .refine((data) => data.buyerName.split(/\s+/).filter(Boolean).length >= 2, {
     message: 'Indiquez votre nom et votre prénom.',
@@ -50,6 +56,10 @@ export const checkoutSchema = z
   .refine((data) => data.deliveryMethod !== 'email' || (data.buyerEmail ?? '').trim().length > 0, {
     message: 'L’adresse email est obligatoire pour recevoir vos billets par email.',
     path: ['buyerEmail'],
+  })
+  .refine((data) => !data.attendees || data.attendees.length === data.quantity, {
+    message: 'Indiquez un nom pour chaque billet (ou choisissez « tous au même nom »).',
+    path: ['attendees'],
   })
 
 export type CheckoutInput = z.infer<typeof checkoutSchema>
