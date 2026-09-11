@@ -36,6 +36,7 @@ import {
 } from '@/lib/db/schema'
 import type { EventCategory, EventStatus } from '@/lib/constants'
 import { getCurrentUser } from '@/lib/auth'
+import { hasAcceptedPrestation } from '@/lib/actions/contracts'
 import { randomSuffix, slugify } from '@/lib/slug'
 import {
   createEventSchema,
@@ -185,6 +186,16 @@ async function setEventStatus(eventId: string, status: EventStatus): Promise<Act
         return {
           success: false,
           error: 'Ajoutez un compte de reversement dans vos réglages pour publier un événement.',
+        }
+      }
+      // Phase 11.2 : engagement de reversement — l'organisateur doit avoir
+      // accepté la version courante des règles (bandeau du dashboard).
+      const accepted = await hasAcceptedPrestation(organizer.id)
+      if (!accepted) {
+        return {
+          success: false,
+          error:
+            'Acceptez les règles de reversement (bandeau du tableau de bord) avant de publier votre événement.',
         }
       }
     }

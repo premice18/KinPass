@@ -43,6 +43,7 @@ tests/
     team.spec.ts         # Équipe / Scanneurs (Phase 7.1 : création agent, assignation, suspension)
     scan-agent.spec.ts   # Flux agent (Phase 7.2 : connexion → /scan, RBAC)
     legal.spec.ts        # Pages légales & contact (Phase 11.1)
+    contract.spec.ts     # Acceptation des règles de reversement (Phase 11.2)
 ```
 
 ## Conventions
@@ -103,6 +104,8 @@ Convention de nommage : **kebab-case en anglais**, préfixé par le domaine.
 | `scan-camera-toggle` / `scan-history` / `scan-history-toggle` | `scanner/ScanPanel.tsx` | Caméra + historique agent |
 | `team-agent-scans-open` / `team-agent-scans-panel` | `settings/TeamScanners.tsx` | Journal des scans (organisateur) |
 | `contact-form` / `contact-name` / `contact-email` / `contact-subject` / `contact-message` / `contact-submit` / `contact-error` / `contact-success` | `legal/ContactForm.tsx` | Formulaire de contact (Phase 11.1) |
+| `commission-notice` / `contract-banner` / `contract-accept` | `dashboard/OrganizerDashboard.tsx` | Commission + acceptation des reversements (11.2) |
+| `organizer-verified` | `app/o/[slug]/page.tsx` | Badge « Vérifié » (11.3, activé en 16) |
 | `public-event-card` | `events/EventCard.tsx` | Carte « talon » d'un événement public |
 | `listing-chip` / `listing-search` / `listing-sort` | `events/EventListing.tsx` | Filtres de la vitrine (Billetterie) |
 | `listing-retry` / `listing-skeleton` / `listing-count` | `events/EventListing.tsx` | États chargement / erreur / compteur |

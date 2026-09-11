@@ -583,16 +583,17 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 4. **Évolution du contrat** : re-acceptation **au prochain retrait** (ou prochaine publication d'événement), **jamais un blocage au login** (règle UX « User Freedom » : ne pas forcer d'étape).
 5. **Accès au document** : la page reste **publique** (pas de mur de connexion — une acceptation doit pointer vers un document lisible avant acceptation), mais elle n'est **pas exposée dans le footer visiteur** : liens depuis l'inscription, le dashboard (mention commission) et l'écran de retrait ; nav interne des pages légales uniquement.
 
-- [ ] Table `contract_acceptances` (id, user_id FK CASCADE, document_type `cgu`|`contract`, version varchar, accepted_at, ip nullable) — index `(user_id, document_type)`.
-- [ ] Version courante dans `app_settings` (`contract.cgu_version`, `contract.prestation_version`).
-- [ ] Enregistrement de l'acceptation CGU à l'inscription (version courante) ; acceptation des règles de reversement au premier retrait ; re-acceptation sur changement de version au prochain retrait/publication.
-- [ ] Dashboard : mention discrète et permanente de la commission.
-- [ ] Tests : acceptation enregistrée (inscription + premier retrait), versionnage, non-blocage des organisateurs à jour.
+- [x] Table `contract_acceptances` (id, user_id FK CASCADE, document_type `cgu`|`contract`, version varchar, accepted_at) — index `(user_id, document_type)` ; table `app_settings` (clé/valeur) appliquée en base.
+- [x] Versions courantes dans `lib/constants.ts` (`CGU_VERSION`, `PRESTATION_VERSION`) — `app_settings` prendra le relais en Phase 16.
+- [x] Acceptation CGU **enregistrée à l'inscription** (`register` → `recordAcceptance`) ; acceptation des règles de reversement **au moment utile** : bandeau du dashboard (avec récap commission 0,3 % / minimum 25 $ / lien contrat) → `acceptPrestationContract` ; `publishEvent` **refuse la publication** tant que la version courante n'est pas acceptée (défense serveur). Seed : le compte démo a déjà accepté.
+- [x] Dashboard : mention **permanente** de la commission (`commission-notice`) + `KINPASS_FEE_PERCENT` (défaut 0,3 %, surchargeable par env).
+- [x] Tests E2E écrits (`contract.spec.ts` : nouveau compte → bandeau → acceptation → disparition ; compte démo sans bandeau).
 
-#### 11.3 Confiance
+#### 11.3 Confiance ✅ PRÉPARÉE (activation en Phase 16)
 
-- [ ] Badge « Organisateur vérifié » (option) : processus (document d'identité, contact) géré en **Phase 16** (superadmin) ; en attendant, le badge n'existe pas côté public.
-- [ ] Revue RGPD-RDC allégée : mentions obligatoires dans la Politique + consentement newsletter séparé (cf. Phase 17).
+- [x] Colonne **`users.verified`** (boolean, défaut `false`) appliquée en base ; **badge « Vérifié »** câblé sur la page publique organisateur (`/o/[slug]`) mais **jamais affiché** tant que la vérification n'est pas activée depuis le superadmin (Phase 16). Aucun badge par défaut — la confiance ne se décrète pas.
+- [ ] Processus de vérification (document d'identité, contact) : **Phase 16** (action superadmin `verifyOrganizer` + journalisation `audit_logs`).
+- [x] Consentement newsletter séparé : cadré en Phase 17.1 (jamais coché par défaut).
 
 #### 11.4 Tests
 
@@ -915,7 +916,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - **Phase 8 (polish)** : ✅ TERMINÉE — tests unitaires Vitest (25), rate-limit login, normalisation/sécurisation des codes et rôles, PWA légère (manifest + SW) ; export listes invités reporté en Phase 13.
 - **Phase 9 (vitrine publique)** : ✅ TERMINÉE — `getPublicEvents` (source unique), bandeau « À venir » sur la landing (3 événements, jamais de brouillon), rubrique « Billetterie » = listing complet (chips catégories, recherche, tri, états chargement/erreur/vide), carte `EventCard` « talon » partagée (→ `/e/[slug]`), page publique organisateur `/o/[slug]` (`users.slug` auto-généré) ; route `/events` SEO reportée au routing par URL.
 - **Phase 10 (monétisation & reversement)** : 📌 SPEC FONCTIONNELLE — implémentation **fusionnée avec la Phase 16** (back-office : approbation/exécution des retraits + UI organisateur solde/historique). Termes financiers figés par la Phase 11. Ordre recommandé : 11 → 12 → 13 → 14 → 15 → **16 (avec 10)**.
-- **Phase 11 (confiance & contrat)** : 🟡 EN COURS — **11.1 faite** (5 pages légales complètes + menu latéral actif + CTA final + footer lié + formulaire de contact avec `replyTo`/rate-limit, adresse `MAIL_CONTACT` par défaut sur le domaine vérifié `premicekombozi.com`) ; reste : 11.2 (acceptation versionnée « consentement au bon moment »), 11.3 (badge vérifié via 16), 11.4 (tests déjà écrits), **11.5 mot de passe oublié (reset par email — module indépendant, faisable)**.
+- **Phase 11 (confiance & contrat)** : 🟡 EN COURS — **11.1, 11.2 et 11.3 faites** (5 pages légales + contact ; acceptation versionnée `contract_acceptances` « consentement au bon moment » — CGU à l'inscription, règles de reversement au dashboard/publication, bandeau + commission affichée ; badge « vérifié » préparé, activation en 16) ; reste : 11.4 (tests E2E déjà écrits) et **11.5 mot de passe oublié** (module indépendant).
 - **Phase 12 (vérification billet)** : ❌ À VENIR — page `/verify` publique + re-téléchargement.
 - **Phase 13 (export & reporting)** : ❌ À VENIR — rapport PDF + export CSV des participants.
 - **Phase 14 (entrées libres & RSVP)** : 🟡 PARTIELLE — le flux « total 0 → aucun paiement, billets émis » fonctionne (6.4) ; reste l'expérience complète (14.1-14.5 : helper de création, wording, jauge pleine, anti-abus par téléphone, KPIs participation).
