@@ -14,7 +14,7 @@ import 'server-only'
 
 import { Resend } from 'resend'
 
-import { renderTicketEmailHtml, renderTicketEmailText } from '@/lib/email-templates'
+import { renderPasswordResetEmailHtml, renderPasswordResetEmailText, renderTicketEmailHtml, renderTicketEmailText } from '@/lib/email-templates'
 
 export type SendEmailResult =
   | { ok: true; id: string | null }
@@ -102,6 +102,41 @@ function escapeHtml(value: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
+}
+
+// ── Réinitialisation de mot de passe (Phase 11.5) ───────────────────────────
+
+interface PasswordResetEmailPayload {
+  to: string
+  fullName: string
+  resetUrl: string
+}
+
+// Envoie le lien de réinitialisation. Sans clé Resend (dev), l'envoi est
+// simulé (log) et l'appelant en est informé.
+export async function sendPasswordResetEmail(payload: PasswordResetEmailPayload): Promise<SendEmailResult> {
+  const apiKey = process.env.RESEND_API_KEY
+  const data = { fullName: payload.fullName, resetUrl: payload.resetUrl }
+
+  if (!apiKey) {
+    console.warn(`[mail] Reset mot de passe simulé (RESEND_API_KEY absente) → ${payload.to} : ${payload.resetUrl}`)
+    return { ok: false, error: 'Email non configuré (développement).' }
+  }
+
+  try {
+    const resend = new Resend(apiKey)
+    const { data: sent, error } = await resend.emails.send({
+      from: process.env.MAIL_FROM ?? DEFAULT_FROM,
+      to: payload.to,
+      subject: 'Réinitialisation de votre mot de passe kinPass',
+      html: renderPasswordResetEmailHtml(data),
+      text: renderPasswordResetEmailText(data),
+    })
+    if (error) return { ok: false, error: error.message }
+    return { ok: true, id: sent?.id ?? null }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Envoi impossible.' }
+  }
 }
 
 // Envoie un billet (PDF) en pièce jointe. En développement sans `RESEND_API_KEY`,

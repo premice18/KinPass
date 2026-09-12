@@ -136,3 +136,70 @@ export function renderTicketEmailText(data: TicketEmailData): string {
   ]
   return lines.filter((line) => line !== '').join('\n')
 }
+
+// ── Réinitialisation de mot de passe (Phase 11.5) ───────────────────────────
+
+interface PasswordResetEmailData {
+  fullName: string
+  // Lien complet `/auth/reset-password?token=…`.
+  resetUrl: string
+}
+
+// Rendu HTML (styles inline) du lien de réinitialisation.
+export function renderPasswordResetEmailHtml(data: PasswordResetEmailData): string {
+  return `<!doctype html>
+<html lang="fr">
+  <body style="margin:0;padding:0;background:#F1F5F9;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F1F5F9;padding:24px 0;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
+            <tr>
+              <td style="background:#0F172A;border-radius:12px 12px 0 0;padding:24px 28px;">
+                <div style="font-family:Arial,Helvetica,sans-serif;font-size:18px;font-weight:bold;color:#06B6D4;letter-spacing:1px;">
+                  kinPass
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="background:#FFFFFF;padding:28px;border-radius:0 0 12px 12px;font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#0F172A;line-height:1.6;">
+                <p>Bonjour <strong>${escapeHtml(data.fullName)}</strong>,</p>
+                <p>Vous avez demandé à réinitialiser votre mot de passe kinPass. Ce lien est valable
+                <strong>1 heure</strong> et ne peut être utilisé qu'une seule fois :</p>
+                <p style="text-align:center;margin:28px 0;">
+                  <a href="${escapeHtml(data.resetUrl)}"
+                     style="background:#2563EB;color:#FFFFFF;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:bold;">
+                    Réinitialiser mon mot de passe
+                  </a>
+                </p>
+                <p style="font-size:13px;color:#64748B;">
+                  Si vous n'êtes pas à l'origine de cette demande, ignorez simplement cet email —
+                  votre mot de passe reste inchangé.
+                </p>
+                <p style="font-size:12px;color:#94A3B8;border-top:1px dashed #E2E8F0;padding-top:16px;">
+                  L'équipe kinPass
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`
+}
+
+// Version texte brut du lien de réinitialisation.
+export function renderPasswordResetEmailText(data: PasswordResetEmailData): string {
+  return [
+    `Bonjour ${data.fullName},`,
+    '',
+    'Vous avez demandé à réinitialiser votre mot de passe kinPass.',
+    "Ce lien est valable 1 heure et ne peut être utilisé qu'une seule fois :",
+    data.resetUrl,
+    '',
+    "Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.",
+    '',
+    "L'équipe kinPass",
+  ].join('\n')
+}
