@@ -22,11 +22,6 @@ import { CGU_VERSION, PRESTATION_VERSION } from '@/lib/constants'
 
 export type ContractDocumentType = 'cgu' | 'contract'
 
-// Version courante d'un document (constantes ; à terme `app_settings`).
-export function currentVersion(documentType: ContractDocumentType): string {
-  return documentType === 'cgu' ? CGU_VERSION : PRESTATION_VERSION
-}
-
 // Enregistre une acceptation (interne — appelée à l'inscription, à la
 // publication, au retrait). Ne remplace jamais l'historique.
 export async function recordAcceptance(
