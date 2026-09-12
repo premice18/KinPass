@@ -44,6 +44,7 @@ tests/
     scan-agent.spec.ts   # Flux agent (Phase 7.2 : connexion → /scan, RBAC)
     legal.spec.ts        # Pages légales & contact (Phase 11.1)
     contract.spec.ts     # Acceptation des règles de reversement (Phase 11.2)
+    password-reset.spec.ts # Mot de passe oublié (Phase 11.5)
 ```
 
 ## Conventions
@@ -106,6 +107,8 @@ Convention de nommage : **kebab-case en anglais**, préfixé par le domaine.
 | `contact-form` / `contact-name` / `contact-email` / `contact-subject` / `contact-message` / `contact-submit` / `contact-error` / `contact-success` | `legal/ContactForm.tsx` | Formulaire de contact (Phase 11.1) |
 | `commission-notice` / `contract-banner` / `contract-accept` | `dashboard/OrganizerDashboard.tsx` | Commission + acceptation des reversements (11.2) |
 | `organizer-verified` | `app/o/[slug]/page.tsx` | Badge « Vérifié » (11.3, activé en 16) |
+| `forgot-email` / `forgot-submit` / `forgot-success` | `app/auth/forgot-password/page.tsx` | Mot de passe oublié (11.5) |
+| `reset-password` / `reset-confirm` / `reset-submit` / `reset-success` | `auth/ResetPasswordForm.tsx` | Nouveau mot de passe (11.5) |
 | `public-event-card` | `events/EventCard.tsx` | Carte « talon » d'un événement public |
 | `listing-chip` / `listing-search` / `listing-sort` | `events/EventListing.tsx` | Filtres de la vitrine (Billetterie) |
 | `listing-retry` / `listing-skeleton` / `listing-count` | `events/EventListing.tsx` | États chargement / erreur / compteur |

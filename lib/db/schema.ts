@@ -310,6 +310,23 @@ export const contractAcceptances = pgTable(
   (table) => [index('contract_acceptances_user_idx').on(table.userId, table.documentType)],
 )
 
+// Tokens de réinitialisation de mot de passe (Phase 11.5) : le token n'est
+// JAMAIS stocké en clair (hash sha256), expiration 1 h, usage unique.
+export const passwordResetTokens = pgTable(
+  'password_reset_tokens',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    tokenHash: varchar('token_hash', { length: 64 }).notNull().unique(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index('password_reset_tokens_user_idx').on(table.userId)],
+)
+
 // Types exportés pour un typage strict côté application.
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
@@ -331,4 +348,5 @@ export type AgentEventAccess = typeof agentEventAccess.$inferSelect
 export type NewAgentEventAccess = typeof agentEventAccess.$inferInsert
 export type AppSetting = typeof appSettings.$inferSelect
 export type ContractAcceptance = typeof contractAcceptances.$inferSelect
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect
 export type PayoutMethod = typeof payoutMethods.$inferSelect
