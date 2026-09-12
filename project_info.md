@@ -600,23 +600,14 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - [ ] E2E : inscription bloquée sans acceptation des CGU ; re-signature imposée quand la version change ; pages légales accessibles.
 - [ ] Unitaire : enregistrement des acceptations, comparaison de versions, non-blocage des organisateurs à jour.
 
-#### 11.5 Mot de passe oublié (reset par email) — faisable, module indépendant
+#### 11.5 Mot de passe oublié (reset par email) ✅ FAITE
 
-**Objectif** : boucler l'authentification organisateur — un organisateur qui perd son mot de passe peut le réinitialiser seul par email (le lien « Mot de passe oublié ? » de `/auth/login` existe déjà en placeholder).
-
-**Décision (validée)** :
-- **Anti-énumération** : la page répond **toujours** le même message (« Si un compte existe pour cette adresse, un email de réinitialisation a été envoyé »), que l'email existe ou non.
-- **Token à usage unique, haché en base** (jamais en clair), expiration **1 heure** ; les demandes précédentes sont invalidées à chaque nouvelle demande.
-- **Agents exclus** : les comptes scanneurs (emails synthétiques) n'ont pas de « mot de passe oublié » — seul leur organisateur peut réinitialiser (déjà en place, 7.1) ; la demande pour un email `@kinpass.com` renvoie le même message générique sans envoyer d'email.
-- Email transactionnel via **Resend** (React Email — décision §6.3), adresse `MAIL_FROM` (domaine vérifié).
-- **Rate-limit** : 3 demandes / 15 min par email (`isRateLimited`).
-
-- [ ] Table `password_reset_tokens` (id, user_id FK CASCADE, token_hash varchar UNIQUE, expires_at timestamptz, used_at nullable, created_at) — index `(user_id)`, suppression des tokens expirés/consommés au passage.
-- [ ] Server Action `requestPasswordReset(email)` : validation Zod, rate-limit, génération d'un token aléatoire (crypto, 32+ octets), stockage du **hash** (sha256), envoi de l'email avec lien `/auth/reset-password?token=…` (validité 1 h) ; réponse toujours identique.
-- [ ] Page `/auth/forgot-password` (remplace le placeholder) : formulaire email (icône `Mail`), état « envoyé » générique, lien retour connexion.
-- [ ] Page `/auth/reset-password` : lecture du token, formulaire nouveau mot de passe + confirmation (mêmes règles : 8 car., maj., min., chiffre), erreurs « lien invalide ou expiré », succès → redirection `/auth/login` avec message de confirmation.
-- [ ] Server Action `resetPassword(token, password)` : vérifie hash + expiration + non-usage, met à jour `password_hash`, marque `used_at`, invalide les autres tokens de l'utilisateur.
-- [ ] Tests E2E écrits : demande avec email inconnu (même message, aucun email), demande valide (lien reçu en simulation), token expiré refusé, token réutilisé refusé, reset puis connexion réussie ; unitaire : hachage/expiration des tokens, non-énumération.
+- [x] Table `password_reset_tokens` (id, user_id FK CASCADE, **token_hash** varchar(64) UNIQUE, expires_at, used_at nullable, created_at) — index `user_id` ; **le token n'est jamais stocké en clair** (sha256), expiration **1 h**, **usage unique** ; les anciens tokens sont invalidés à chaque nouvelle demande.
+- [x] Server Action `requestPasswordReset(email)` : validation Zod, rate-limit 3/15 min par email, **réponse TOUJOURS générique** (anti-énumération), email via Resend (template HTML + texte `renderPasswordResetEmail*`) avec lien `/auth/reset-password?token=…` ; **agents exclus** (emails synthétiques — seul l'organisateur réinitialise) ; en dev sans clé, l'URL est loggée.
+- [x] Page `/auth/forgot-password` (remplace le placeholder) : formulaire email, état « envoyé » générique, retour connexion.
+- [x] Page `/auth/reset-password` : token lu côté serveur et fourni au formulaire ; nouveau mot de passe + confirmation (règles : 8 car., maj., min., chiffre), erreurs « lien invalide ou expiré », succès → lien connexion.
+- [x] Server Action `resetPassword(token, password)` : vérifie hash + expiration + non-usage, met à jour `password_hash`, supprime tous les tokens de l'utilisateur (transaction).
+- [x] Tests : unitaires (hachage, génération, expiration/usage unique — 6 tests) + E2E écrits (email inconnu/connu = même message, token invalide, token absent).
 
 ---
 
@@ -916,7 +907,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - **Phase 8 (polish)** : ✅ TERMINÉE — tests unitaires Vitest (25), rate-limit login, normalisation/sécurisation des codes et rôles, PWA légère (manifest + SW) ; export listes invités reporté en Phase 13.
 - **Phase 9 (vitrine publique)** : ✅ TERMINÉE — `getPublicEvents` (source unique), bandeau « À venir » sur la landing (3 événements, jamais de brouillon), rubrique « Billetterie » = listing complet (chips catégories, recherche, tri, états chargement/erreur/vide), carte `EventCard` « talon » partagée (→ `/e/[slug]`), page publique organisateur `/o/[slug]` (`users.slug` auto-généré) ; route `/events` SEO reportée au routing par URL.
 - **Phase 10 (monétisation & reversement)** : 📌 SPEC FONCTIONNELLE — implémentation **fusionnée avec la Phase 16** (back-office : approbation/exécution des retraits + UI organisateur solde/historique). Termes financiers figés par la Phase 11. Ordre recommandé : 11 → 12 → 13 → 14 → 15 → **16 (avec 10)**.
-- **Phase 11 (confiance & contrat)** : 🟡 EN COURS — **11.1, 11.2 et 11.3 faites** (5 pages légales + contact ; acceptation versionnée `contract_acceptances` « consentement au bon moment » — CGU à l'inscription, règles de reversement au dashboard/publication, bandeau + commission affichée ; badge « vérifié » préparé, activation en 16) ; reste : 11.4 (tests E2E déjà écrits) et **11.5 mot de passe oublié** (module indépendant).
+- **Phase 11 (confiance & contrat)** : ✅ **TERMINÉE** — 11.1 (5 pages légales + contact), 11.2 (acceptation versionnée « consentement au bon moment »), 11.3 (badge vérifié préparé, activation en 16), 11.4 (tests E2E écrits), **11.5 (mot de passe oublié : token haché 1 h à usage unique, anti-énumération, rate-limit, agents exclus)**.
 - **Phase 12 (vérification billet)** : ❌ À VENIR — page `/verify` publique + re-téléchargement.
 - **Phase 13 (export & reporting)** : ❌ À VENIR — rapport PDF + export CSV des participants.
 - **Phase 14 (entrées libres & RSVP)** : 🟡 PARTIELLE — le flux « total 0 → aucun paiement, billets émis » fonctionne (6.4) ; reste l'expérience complète (14.1-14.5 : helper de création, wording, jauge pleine, anti-abus par téléphone, KPIs participation).
