@@ -15,6 +15,7 @@ import { Globe, Instagram } from 'iconoir-react'
 import { Logo } from '@/components/layout/Logo'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { EventCard } from '@/components/features/events/EventCard'
+import { Badge } from '@/components/ui/badge'
 import { FadeIn } from '@/components/ui/motion'
 import { Eyebrow } from '@/components/ui/eyebrow'
 import { getOrganizerPublicBySlug } from '@/lib/actions/organizers'
@@ -85,8 +86,15 @@ export default async function OrganizerPage({ params }: OrganizerPageProps) {
 
             <div className="min-w-0">
               <Eyebrow className="text-cyan-400">Organisateur</Eyebrow>
-              <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">
+              <h1 className="mt-3 flex flex-wrap items-center gap-3 text-4xl font-bold tracking-tight sm:text-5xl">
                 {organizer.fullName}
+                {/* Badge « vérifié » — affiché uniquement quand activé par le
+                    superadmin (Phase 16). Aucun badge par défaut. */}
+                {organizer.verified && (
+                  <Badge variant="success" data-testid="organizer-verified">
+                    Vérifié
+                  </Badge>
+                )}
               </h1>
               <p className="mt-2 max-w-xl text-slate-300">
                 {organizer.events.length > 0

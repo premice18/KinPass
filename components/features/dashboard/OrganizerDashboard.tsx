@@ -44,6 +44,8 @@ import {
   publishEvent,
   type EventWithStats,
 } from "@/lib/actions/events";
+import { acceptPrestationContract, getContractStatus } from "@/lib/actions/contracts";
+import { KINPASS_FEE_PERCENT } from "@/lib/constants";
 
 interface DashboardProps {
   // Navigation par état : ouvre le formulaire en mode création.
@@ -105,6 +107,9 @@ export function OrganizerDashboard({
   // Identifiants d'événements en cours d'action (spinner sur le bouton).
   const [pendingPublishId, setPendingPublishId] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  // Acceptation des règles de reversement (Phase 11.2).
+  const [needsPrestation, setNeedsPrestation] = useState(false);
+  const [accepting, setAccepting] = useState(false);
 
   // Photos de couverture (Pexels) pour les cartes d'événements.
   // Une seule requête, images réparties sur les cartes ; fallback de marque sinon.
@@ -126,6 +131,23 @@ export function OrganizerDashboard({
   useEffect(() => {
     load();
   }, [load]);
+
+  // État d'acceptation des règles de reversement (bandeau si nécessaire).
+  useEffect(() => {
+    getContractStatus()
+      .then((result) => {
+        if (result.success) setNeedsPrestation(result.data.needsPrestationAcceptance);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  // Accepte les règles de reversement (bandeau) — débloque la publication.
+  const handleAcceptPrestation = async () => {
+    setAccepting(true);
+    const result = await acceptPrestationContract();
+    setAccepting(false);
+    if (result.success) setNeedsPrestation(false);
+  };
 
   // Publication d'un événement (brouillon → publié).
   const handlePublish = async (event: EventWithStats) => {
@@ -194,6 +216,11 @@ export function OrganizerDashboard({
             <p className="mt-1 text-muted-foreground">
               Suivez vos événements et vos ventes en temps réel.
             </p>
+            {/* Mention permanente de la commission (Phase 11.2) */}
+            <p className="mt-1 text-xs text-muted-foreground" data-testid="commission-notice">
+              kinPass prélève {KINPASS_FEE_PERCENT} % par billet vendu — retrait à la demande
+              (minimum 25 $).
+            </p>
           </div>
           {/* Boutons d'action : passage à la ligne autorisé sur petit écran
               pour éviter tout débordement horizontal */}
@@ -217,6 +244,30 @@ export function OrganizerDashboard({
             </Button>
           </div>
         </div>
+
+        {/* Acceptation des règles de reversement (Phase 11.2 — « consentement
+            au bon moment » : au moment de publier, pas à l'inscription). */}
+        {needsPrestation && (
+          <div
+            role="status"
+            data-testid="contract-banner"
+            className="mt-6 flex flex-col gap-3 rounded-lg border border-cyan-500/40 bg-cyan-500/5 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div>
+              <p className="font-medium">Une formalité avant de publier</p>
+              <p className="mt-0.5 text-muted-foreground">
+                kinPass prélève {KINPASS_FEE_PERCENT} % par billet vendu, avec retrait à la demande
+                (minimum 25 $).{' '}
+                <a href="/legal/contract" target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                  Lire les règles de reversement
+                </a>
+              </p>
+            </div>
+            <Button size="sm" onClick={handleAcceptPrestation} disabled={accepting} data-testid="contract-accept">
+              {accepting ? "Enregistrement…" : "J’accepte les règles"}
+            </Button>
+          </div>
+        )}
 
         {/* Message d'erreur global */}
         {error && (

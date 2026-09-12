@@ -40,6 +40,9 @@ export const users = pgTable(
     // Désactivation douce (agents suspendus par l'organisateur, Phase 7.1) :
     // false = connexion refusée, sans supprimer l'historique des scans.
     active: boolean('active').notNull().default(true),
+    // Badge « Organisateur vérifié » (Phase 11.3, activé depuis le superadmin
+    // en Phase 16) — jamais affiché tant que non vérifié.
+    verified: boolean('verified').notNull().default(false),
     // 'email' | 'google' — Auth.js (cf. plan §4.2)
     provider: varchar('provider', { length: 20 }).notNull().default('email'),
     // Identifiant auprès du provider (ex. sub Google) — NULL pour email/password.
@@ -281,6 +284,32 @@ export const agentEventAccess = pgTable(
   ],
 )
 
+// Paramètres globaux de l'application (Phase 11.2/16) : versions de contrat,
+// commission, feature flags — clé/valeur simple, modifiable par le superadmin.
+export const appSettings = pgTable('app_settings', {
+  key: varchar('key', { length: 100 }).primaryKey(),
+  value: text('value').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+// Acceptations de documents légaux (Phase 11.2) : une ligne par acceptation
+// (document + version), jamais modifiée — la re-signature crée une nouvelle
+// ligne quand la version change.
+export const contractAcceptances = pgTable(
+  'contract_acceptances',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    // 'cgu' | 'contract'
+    documentType: varchar('document_type', { length: 20 }).notNull(),
+    version: varchar('version', { length: 20 }).notNull(),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index('contract_acceptances_user_idx').on(table.userId, table.documentType)],
+)
+
 // Types exportés pour un typage strict côté application.
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
@@ -300,4 +329,6 @@ export type Scan = typeof scans.$inferSelect
 export type NewScan = typeof scans.$inferInsert
 export type AgentEventAccess = typeof agentEventAccess.$inferSelect
 export type NewAgentEventAccess = typeof agentEventAccess.$inferInsert
+export type AppSetting = typeof appSettings.$inferSelect
+export type ContractAcceptance = typeof contractAcceptances.$inferSelect
 export type PayoutMethod = typeof payoutMethods.$inferSelect

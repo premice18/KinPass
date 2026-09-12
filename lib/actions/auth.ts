@@ -16,6 +16,8 @@ import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { users } from '@/lib/db/schema'
 import { generateUserSlug } from '@/lib/db/user-slug'
+import { recordAcceptance } from '@/lib/actions/contracts'
+import { CGU_VERSION } from '@/lib/constants'
 import { hashPassword } from '@/lib/password'
 import { registerSchema, type RegisterInput } from '@/lib/validators/auth'
 
@@ -61,6 +63,11 @@ export async function register(input: RegisterInput): Promise<AuthResult> {
         provider: 'email',
       })
       .returning()
+
+    // Phase 11.2 : l'acceptation de la CGU (case obligatoire à l'inscription)
+    // est TRACÉE (document + version) — l'acceptation des règles de
+    // reversement se fera au moment utile (première publication/retrait).
+    await recordAcceptance(created.id, 'cgu', CGU_VERSION)
 
     return {
       success: true,
