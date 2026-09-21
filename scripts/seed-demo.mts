@@ -19,10 +19,10 @@ import { config } from 'dotenv'
 import postgres from 'postgres'
 import bcrypt from 'bcryptjs'
 import { drizzle } from 'drizzle-orm/postgres-js'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 
 import { contractAcceptances, eventImages, events, payoutMethods, scans, tickets, ticketTypes, users } from '../lib/db/schema.ts'
-import { DEFAULT_ORGANIZER_ID } from '../lib/constants.ts'
+import { CGU_VERSION, DEFAULT_ORGANIZER_ID, PRESTATION_VERSION } from '../lib/constants.ts'
 
 config({ path: '.env.local' })
 
@@ -94,15 +94,25 @@ await db.transaction(async (tx) => {
   })
 
   // Acceptations légales du compte démo (Phase 11.2) : la démo et les tests
-  // restent fluides (pas de bandeau « règles de reversement »).
-  for (const documentType of ['cgu', 'contract']) {
+  // restent fluides (pas de bandeau « règles de reversement »). On accepte la
+  // version COURANTE (les versions évoluent : 1.0 → 1.1 pour la commission 2 %).
+  for (const [documentType, version] of [
+    ['cgu', CGU_VERSION],
+    ['contract', PRESTATION_VERSION],
+  ] as const) {
     const existing = await tx
       .select({ id: contractAcceptances.id })
       .from(contractAcceptances)
-      .where(eq(contractAcceptances.userId, DEFAULT_ORGANIZER_ID))
+      .where(
+        and(
+          eq(contractAcceptances.userId, DEFAULT_ORGANIZER_ID),
+          eq(contractAcceptances.documentType, documentType),
+          eq(contractAcceptances.version, version),
+        ),
+      )
       .limit(1)
     if (existing.length === 0) {
-      await tx.insert(contractAcceptances).values({ userId: DEFAULT_ORGANIZER_ID, documentType, version: '1.0' })
+      await tx.insert(contractAcceptances).values({ userId: DEFAULT_ORGANIZER_ID, documentType, version })
     }
   }
 

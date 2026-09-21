@@ -23,7 +23,7 @@ test.describe('Acceptation des règles de reversement (Phase 11.2)', () => {
     await page.waitForURL(/view=dashboard/, { timeout: 15000 })
 
     // ── 2. Mention de commission + bandeau d'acceptation ────────────────────
-    await expect(page.getByTestId('commission-notice')).toContainText('0.3')
+    await expect(page.getByTestId('commission-notice')).toContainText('2 %')
     const banner = page.getByTestId('contract-banner')
     await expect(banner).toBeVisible()
     await expect(banner.getByText(/minimum 25 \$/)).toBeVisible()

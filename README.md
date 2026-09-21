@@ -91,6 +91,7 @@ L'interface intègre également :
 - **Couche de validation** (`lib/validators/`) : schémas Zod partagés, séparés des actions (contrainte `"use server"`).
 - **Accès aux données** (`lib/db/`) : schéma Drizzle (tables : `users`, `payout_methods`, `events`, `event_images`, `ticket_types`, `tickets`, `scans`) et client singleton.
 - **Composants** : primitives réutilisables dans `components/ui/`, composants de coquille dans `components/layout/`, vues métier dans `components/features/` (une par domaine).
+- **UI** : **Tailwind CSS v4 + Base UI** pour toute l'app publique et organisateur (signature visuelle « talon », tokens oklch, Iconoir, `next-themes`). **Mantine UI v9** est réservé au back-office `/superadmin` (Phase 16, décision du 21/09/2026) : sous-système isolé (`@layer mantine`, provider dédié), aucune dépendance Mantine dans le bundle public.
 
 ## Prérequis
 
@@ -214,7 +215,7 @@ drizzle.config.ts        # Configuration drizzle-kit
 - **Paiement Mobile Money** (Phase 6.4) : intégration **KPay** (push USSD RD Congo, clés test `kpay_test_…`) + webhook sécurisé `/api/kpay/webhook` (signature HMAC, idempotent) → passage `paid`, **émission des billets** (QR + codes), envoi par email (PDF). **Sans clés KPay : mode « Simuler le paiement »** (démo/E2E). Conversion USD → CDF via `KPAY_USD_CDF_RATE` (KPay COD sans paramètre de devise).
 - **Confirmation** (Phase 6.5) : pages `/e/[slug]/checkout/success` (récap commande payée, cartes billets QR + PDF/PNG/JPG, « Ajouter au calendrier » `.ics`, « Renvoyer par email ») et `/e/[slug]/checkout/cancel` (annulation + Réessayer).
 - **Partage d'événement** (Phase 6.7) : panneau modal « Partager » (page publique + vue Détail) — URL canonique copiable, QR code, WhatsApp / Telegram / X / Facebook, partage natif du système quand disponible.
-- **Pages légales & contact** (Phase 11.1) : CGU, Politique de confidentialité, Contrat de prestation & règles de reversement (commission 0,3 %, retrait minimum 25 $), À propos, Contact (formulaire avec `replyTo` + rate-limit) — liées depuis le footer.
+- **Pages légales & contact** (Phase 11.1) : CGU, Politique de confidentialité, Contrat de prestation & règles de reversement (commission 2 % côté organisateur — acheteur sans frais, retrait minimum 25 $), À propos, Contact (formulaire avec `replyTo` + rate-limit) — liées depuis le footer.
 - **Vérification de billet** (Phase 12) : page publique `/verify` — saisie du code (6 caractères), états VERT/ORANGE/ROUGE, téléchargement PDF/PNG/JPG et renvoi par email ; lien discret depuis la page événement.
 - **Équipe / Scanneurs** (Phase 7.1) : l'organisateur crée des comptes agents (email + mot de passe auto-générés, transmission WhatsApp/copie), les assigne à ses événements, les suspend/réactive — accès scan uniquement.
 - **Espace agent** (Phase 7.2) : connexion unique `/auth/login`, redirection par rôle — l'agent arrive sur `/scan` (événements assignés), le middleware le bloque hors du dashboard ; l'interface de scan arrive en 7.3.
@@ -235,3 +236,7 @@ Le plan détaillé (avec spécifications par phase) est dans [`project_info.md`]
 8. **Export & reporting** : rapport PDF et export CSV des participants.
 9. **Événements à entrée libre** : événements gratuits de bout en bout (commission 0, inscription sans paiement).
 10. **Innovations différenciantes** : WhatsApp-first, QR dynamique anti-fraude, diaspora « je paie, un proche profite », paiement cash à l'entrée, affiliation des rabatteurs.
+11. **Back-office superadmin** (`/superadmin`) : KPIs, gestion complète, reversements (monétisation fusionnée), boîte de réception support — UI dense en **Mantine v9 isolée** (aucun impact sur l'app publique).
+12. **Communication & soutien** : newsletter, contact humain, page « Soutenir kinPass ».
+13. **Monétisation & agrégateur** : mise au clair chiffrée des frais KPay, renégociation (paliers) ou changement d'agrégateur (Freshpay, MaxiCash, CinetPay…) via une abstraction `PaymentProvider` — décision documentée dans `project_info.md` §4.18.
+
