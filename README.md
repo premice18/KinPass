@@ -37,6 +37,7 @@ Trois profils utilisent la plateforme :
 | -------------------------------- | ------------------------------------------------------------------- |
 | Landing page                     | Terminé (bandeau « Événements à venir » inclus)                     |
 | Vitrine publique                 | Terminé (Phase 9 : listing Billetterie, filtres, recherche, tri, page organisateur /o/[slug]) |
+| Vérification de billet (public)  | Terminé (Phase 12 : /verify, états V/O/R, téléchargements PDF/PNG/JPG, renvoi email) |
 | Dashboard organisateur           | Terminé (données réelles : KPIs, publication, édition, suppression) |
 | Création / édition d'événement   | Terminé (persistance en base, multi-types de billets, galerie 1-3 photos, slug unique) |
 | Page publique événement `/e/[slug]` | Terminé (Phase 6.1 : SEO dynamique, galerie carrousel, partage WhatsApp) |
@@ -162,6 +163,7 @@ app/e/[slug]/            # Page publique événement (SEO, Phase 6.1)
 app/e/[slug]/checkout/   # Tunnel d'achat (Phase 6.2-6.4)
 app/o/[slug]/            # Page publique organisateur (Phase 9.5)
 app/legal/               # CGU, confidentialité, contrat, à propos, contact (11.1)
+app/verify/              # Vérification publique de billet (Phase 12)
 components/
   KinPassApp.tsx         # Coquille SPA (navigation par état)
   layout/                # Composants de coquille (Logo, ThemeToggle)
@@ -213,6 +215,7 @@ drizzle.config.ts        # Configuration drizzle-kit
 - **Confirmation** (Phase 6.5) : pages `/e/[slug]/checkout/success` (récap commande payée, cartes billets QR + PDF/PNG/JPG, « Ajouter au calendrier » `.ics`, « Renvoyer par email ») et `/e/[slug]/checkout/cancel` (annulation + Réessayer).
 - **Partage d'événement** (Phase 6.7) : panneau modal « Partager » (page publique + vue Détail) — URL canonique copiable, QR code, WhatsApp / Telegram / X / Facebook, partage natif du système quand disponible.
 - **Pages légales & contact** (Phase 11.1) : CGU, Politique de confidentialité, Contrat de prestation & règles de reversement (commission 0,3 %, retrait minimum 25 $), À propos, Contact (formulaire avec `replyTo` + rate-limit) — liées depuis le footer.
+- **Vérification de billet** (Phase 12) : page publique `/verify` — saisie du code (6 caractères), états VERT/ORANGE/ROUGE, téléchargement PDF/PNG/JPG et renvoi par email ; lien discret depuis la page événement.
 - **Équipe / Scanneurs** (Phase 7.1) : l'organisateur crée des comptes agents (email + mot de passe auto-générés, transmission WhatsApp/copie), les assigne à ses événements, les suspend/réactive — accès scan uniquement.
 - **Espace agent** (Phase 7.2) : connexion unique `/auth/login`, redirection par rôle — l'agent arrive sur `/scan` (événements assignés), le middleware le bloque hors du dashboard ; l'interface de scan arrive en 7.3.
 - **Scanner** (maquette) : saisie manuelle du code avec retours VERT / ORANGE / ROUGE.
