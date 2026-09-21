@@ -530,7 +530,7 @@ Schéma défini dans `lib/db/schema.ts`, appliqué en base via `drizzle-kit push
 - [x] `tests/e2e/vitrine.spec.ts` : landing (seuls les publiés du seed, brouillon masqué, badge « Entrée libre »), listing (filtres par catégorie, recherche, tri asc/desc, navigation carte → `/e/[slug]`, clavier des chips).
 - [x] Specs existants adaptés : dashboard (KPIs 450 $ / 22 billets — seed enrichi — et publication sur un événement **jetable** pour préserver le brouillon de démo utilisé par `event-public.spec`), landing (CTA → Billetterie), checkout (mock atteint via `/e/[slug]` → « Réserver »).
 
-### 📌 Phase 10 — Monétisation & reversement des revenus (SPEC FONCTIONNELLE — implémentation FUSIONNÉE avec la Phase 16)
+### 📌 Phase 10 — Monétisation & reversement des revenus (SPEC FONCTIONNELLE — implémentation FUSIONNÉE avec la Phase 16 ; coûts agrégateur, renégociation KPay ou bascule : Phase 18)
 
 **Décision (validée)** : le modèle retenu est le **retrait à la demande** (« pull ») :
 1. Plus simple à implémenter (pas de tâche planifiée ni de compte d'attente).
@@ -545,7 +545,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 > **Prérequis amont conservés** : la **Phase 11 (contrat)** doit figer les termes financiers (commission, retrait à la demande, minimum) AVANT l'implémentation ; `payout_methods` (4.3) et l'infra KPay retrait (webhook `payout.*`, `GET /payments/balance`, `exchange-rate`) sont prêts.
 >
 > **Spec (cible, construite en 16)** :
-- [ ] Constante `KINPASS_FEE_PERCENT` (ex. 0.3 %) dans `lib/constants.ts`, surchargeable par variable d'environnement.
+- [ ] Constante `KINPASS_FEE_PERCENT` (**2 %** — l'acheteur paie le prix affiché ; marge nette kinPass ≈ 1,8 % après les 5 %+5 % KPay) dans `lib/constants.ts`, surchargeable par variable d'environnement.
 - [ ] Dashboard : carte « Solde disponible » (revenus nets = `orders` PAYÉS − `payouts`, par devise — jamais les billets seedés), historique des reversements (montant brut, commission, net, statut, date), bouton « Retirer ».
 - [ ] Table `payouts` (id, organizer_id, amount_total, fee_percent, fee_amount, net_amount, provider, account_label, reference, status, requested_at, paid_at) — index sur `organizer_id` et `status`.
 - [ ] Server Action `requestPayout(amount)` : vérifie le solde disponible, crée un `payout` en `pending`, calcule `fee_amount` et `net_amount`.
@@ -567,7 +567,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 
 - [x] **CGU** (`/legal/cgu`) : définitions, comptes/rôles (organisateur, acheteur, agent), usage, billets/contrôle, paiements, annulations, responsabilités, propriété intellectuelle, données, droit applicable RDC.
 - [x] **Politique de Confidentialité** (`/legal/privacy`) : données collectées (comptes, commandes, techniques), finalités, bases légales, sous-traitants (Neon, Vercel, KPay, Resend), durées de conservation, droits, sécurité (bcrypt/HTTPS, aucune donnée bancaire), cookies (strictement nécessaires + audience agrégée).
-- [x] **Contrat de prestation & règles de reversement** (`/legal/contract`) : commission **0,3 %** affichée, encaissement KPay, **retrait à la demande** (minimum 25 $, 1 retrait en cours, délai 24-72 h, net après commission et frais opérateur), obligations de l’organisateur, annulations/reports, suspension, responsabilités, droit congolais. **Fige les termes financiers** de la Phase 10/16.
+- [x] **Contrat de prestation & règles de reversement** (`/legal/contract`) : commission **2 %** affichée (acheteur sans frais, prélèvement côté organisateur), encaissement KPay, **retrait à la demande** (minimum 25 $, 1 retrait en cours, délai 24-72 h, net après commission et frais opérateur), obligations de l’organisateur, annulations/reports, suspension, responsabilités, droit congolais. **Fige les termes financiers** de la Phase 10/16.
 - [x] **Page À propos** (`/legal/about`) : mission, ce que fait kinPass, principes.
 - [x] **Page Contact/Support** (`/legal/contact`) : **formulaire** (nom, email, sujet, message — validation Zod, rate-limit 3/10 min par email, `replyTo` = adresse de l’utilisateur) + adresse directe **`MAIL_CONTACT`** (défaut `contact@premicekombozi.com`, bascule `contact@kinpass.com` à la vérification du domaine) + accusé honnête « réponse sous 24-48 h ».
 - [x] Coquille commune `LegalPage` (version `1.0`, navigation croisée entre documents) + **footer de la landing** lié aux 5 pages.
@@ -578,15 +578,15 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 **Décision (validée)** : **pas de double signature à l'inscription** (friction inutile : personne ne lit 3 pages avant de créer un événement). Le consentement est posé **là où il a du sens** — transparence continue + acceptation formelle au moment de l'argent :
 
 1. **À l'inscription** : une **seule** case « conditions d'utilisation » (déjà en place, libellé simplifié) — aucun second document à lire.
-2. **Transparence continue** : commission affichée en clair au dashboard et au récapitulatif de création d'événement (« kinPass prélève 0,3 % par billet vendu »).
+2. **Transparence continue** : commission affichée en clair au dashboard et au récapitulatif de création d'événement (« kinPass prélève 2 % par billet vendu »).
 3. **Acceptation formelle au PREMIER RETRAIT** (Phase 16) : récap simple à l'écran (commission, frais, net, minimum 25 $) + case « J'accepte les règles de reversement (v 1.0) » → enregistrée dans `contract_acceptances`.
 4. **Évolution du contrat** : re-acceptation **au prochain retrait** (ou prochaine publication d'événement), **jamais un blocage au login** (règle UX « User Freedom » : ne pas forcer d'étape).
 5. **Accès au document** : la page reste **publique** (pas de mur de connexion — une acceptation doit pointer vers un document lisible avant acceptation), mais elle n'est **pas exposée dans le footer visiteur** : liens depuis l'inscription, le dashboard (mention commission) et l'écran de retrait ; nav interne des pages légales uniquement.
 
 - [x] Table `contract_acceptances` (id, user_id FK CASCADE, document_type `cgu`|`contract`, version varchar, accepted_at) — index `(user_id, document_type)` ; table `app_settings` (clé/valeur) appliquée en base.
 - [x] Versions courantes dans `lib/constants.ts` (`CGU_VERSION`, `PRESTATION_VERSION`) — `app_settings` prendra le relais en Phase 16.
-- [x] Acceptation CGU **enregistrée à l'inscription** (`register` → `recordAcceptance`) ; acceptation des règles de reversement **au moment utile** : bandeau du dashboard (avec récap commission 0,3 % / minimum 25 $ / lien contrat) → `acceptPrestationContract` ; `publishEvent` **refuse la publication** tant que la version courante n'est pas acceptée (défense serveur). Seed : le compte démo a déjà accepté.
-- [x] Dashboard : mention **permanente** de la commission (`commission-notice`) + `KINPASS_FEE_PERCENT` (défaut 0,3 %, surchargeable par env).
+- [x] Acceptation CGU **enregistrée à l'inscription** (`register` → `recordAcceptance`) ; acceptation des règles de reversement **au moment utile** : bandeau du dashboard (avec récap commission 2 % / minimum 25 $ / lien contrat) → `acceptPrestationContract` ; `publishEvent` **refuse la publication** tant que la version courante n'est pas acceptée (défense serveur). Seed : le compte démo a déjà accepté.
+- [x] Dashboard : mention **permanente** de la commission (`commission-notice`) + `KINPASS_FEE_PERCENT` (défaut 2 %, surchargeable par env).
 - [x] Tests E2E écrits (`contract.spec.ts` : nouveau compte → bandeau → acceptation → disparition ; compte démo sans bandeau).
 
 #### 11.3 Confiance ✅ PRÉPARÉE (activation en Phase 16)
@@ -771,6 +771,26 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - **URL distincte** `/superadmin` + **page de connexion dédiée** `/superadmin/login` (branding back-office distinct, pas de page marketing).
 - **Pas de page d'inscription publique.** Les comptes superadmin sont **provisionnés par seed** (`scripts/seed-superadmin.mts`) ; les emails autorisés sont dans `.env.local` (`SUPERADMIN_EMAILS`). Zéro surface d'inscription = zéro risque de compte créé par un tiers. Un superadmin peut ajouter d'autres superadmins depuis le back-office.
 - **Un seul système d'authentification** : rôle `superadmin` ajouté à `users.role` (aux côtés de `organizer` et `agent`), même session/cookie. `/superadmin/login` n'accepte **que** le rôle `superadmin` (les autres reçoivent un message neutre « accès réservé ») ; `/auth/login` redirige un superadmin vers `/superadmin`.
+- **Décision (validée — 21/09/2026) : Mantine UI en sous-système isolé du back-office** (cf. 16.0). L'app publique/organisateur reste **Tailwind v4 + Base UI** ; Mantine n'est utilisé que dans `/superadmin` pour les écrans denses (tables, KPI, inbox).
+
+#### 16.0 Setup Mantine UI isolé (sous-système back-office)
+
+**Étude réalisée (21/09/2026)** : Mantine **v9.6.2** (120+ composants, 70+ hooks) — CSS **natif sans runtime** (plus d'Emotion depuis v9), support officiel Next.js App Router, React 19.2+ requis (projet en 19.2.4 ✓), coexistence Tailwind via **CSS layers** (`@mantine/core/styles.layer.css` + `@layer mantine`), dark mode à ponter avec `next-themes`. Verdict : migration complète **non recommandée** (identité visuelle « talon », bundle public, RSC) ; adoption **isolée** recommandée — gain estimé ~2-3 semaines sur la Phase 16 (DataTable, Charts, Notifications, Modals manager, Spotlight, DatePicker).
+
+**Règles non négociables** :
+
+- Mantine est **interdit hors** de `app/superadmin/**` et `components/superadmin/**` (l'app publique reste Tailwind/Base UI — aucun impact bundle sur les pages acheteurs/organisateurs).
+- Composants Mantine = **client components uniquement** (pas de RSC) — le back-office est déjà une zone client.
+- **Un seul système de dark mode** : `next-themes` (classe `.dark`) reste la source de vérité ; Mantine reçoit `forceColorScheme` (pas de `ColorSchemeScript`/manager Mantine en parallèle).
+
+- [ ] Dépendances : `@mantine/core` + `@mantine/hooks` d'abord ; extensions à la demande (`@mantine/dates`, `@mantine/charts`, `@mantine/notifications`, `@mantine/modals`, `@mantine/spotlight`, `@mantine/form`) ; dev : `postcss-preset-mantine`, `postcss-simple-vars`.
+- [ ] `postcss.config.mjs` : ajouter `postcss-preset-mantine` + `postcss-simple-vars` (variables `mantine-breakpoint-*`) **sans casser** `@tailwindcss/postcss`.
+- [ ] `app/globals.css` : déclarer `@layer mantine, theme, base, components, utilities;` **avant** `@import 'tailwindcss'` → les utilitaires Tailwind gagnent toujours sur Mantine.
+- [ ] `app/superadmin/layout.tsx` : import `@mantine/core/styles.layer.css` (+ extensions) — **jamais** `styles.css` et `styles.layer.css` ensemble.
+- [ ] `next.config.ts` : `experimental.optimizePackageImports: ['@mantine/core', '@mantine/hooks']` (tree-shaking App Router).
+- [ ] `components/superadmin/MantineShell.tsx` (client) : `MantineProvider` + `createTheme` mappé sur la charte kinPass (échelle 10 nuances du violet oklch, radius, typographie) + `forceColorScheme` depuis `useTheme().resolvedTheme` de `next-themes`.
+- [ ] Vérifications : landing/public **inchangés** (bundle public identique), `/superadmin` OK en clair/sombre, `pnpm typecheck`, `pnpm test:unit`, `pnpm build` verts ; E2E superadmin (écrits, exécution sur demande).
+- [ ] Optionnel agent : `@mantine/mcp-server` + `llms.txt` Mantine pour des docs à jour côté IA.
 
 #### 16.1 Modèle de données (ajouts)
 
@@ -809,8 +829,8 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 
 #### 16.5 UI back-office
 
-- [ ] Layout dense type « console » (tables, filtres, pagination) — réutiliser `components/ui` ; distinct de l'app publique (pas de hero marketing, accent visuel « zone à risque » sur les actions destructives).
-- [ ] Navigation latérale par module ; mode sombre/clair cohérent avec le reste.
+- [ ] Layout dense type « console » (tables, filtres, pagination) — **construit avec Mantine** (périmètre isolé 16.0 : DataTable, Charts, Notifications, Modals manager, Spotlight pour la recherche rapide) ; accent visuel « zone à risque » sur les actions destructives.
+- [ ] Navigation latérale par module ; mode sombre/clair **synchronisé** avec `next-themes` (source de vérité unique, cf. 16.0).
 
 #### 16.6 Server Actions & tests
 
@@ -875,6 +895,54 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 
 ---
 
+### ❌ Phase 18 — Monétisation & agrégateur : mise au clair, renégociation KPay ou changement (À VENIR — DERNIÈRE ÉTAPE)
+
+**Objectif** : trancher définitivement la question du **coût réel de l'encaissement** — aujourd'hui KPay prélève **5 % au dépôt + 5 % au retrait (~9,75 % tout compris)**, ce qui laisse à l'organisateur **88,35 %** du prix (ex. 883,50 $ sur 1 000 $) alors que le concurrent **Town-Event** (Freshpay, déduction unique de 10 % partagée) laisse **90 %** (900 $) et se paie sur la même enveloppe (~2-4 % estimé). La commission kinPass (2 %, soit ~19 $ net par 1 000 $) n'est **pas** le problème : l'écart vient de l'agrégateur. Cette phase doit : (a) **mettre au clair les chiffres réels** (mesurés sur les vrais décaissements KPay), (b) **renégocier KPay** avec un dossier chiffré, (c) **obtenir des devis d'agrégateurs alternatifs** (Freshpay, MaxiCash, CinetPay…) et (d) préparer une **bascule propre** si l'écart le justifie — sans big-bang (abstraction multi-agrégateur).
+
+**Déclencheur (gate)** : à lancer dès les **premiers vrais encaissements** (ou après ~10 événements payants / volume suffisant pour négocier) — le volume est le seul vrai levier de négociation. Ne pas refactorer la couche paiement avant que la décision commerciale soit prise.
+
+**Décision (validée)** : l'acheteur paie **exactement le prix affiché** ; la commission kinPass reste **côté organisateur** (2 % du brut, retenue au wallet) ; les frais de l'agrégateur sont **pass-through** (déduits par l'agrégateur, jamais un revenu kinPass).
+
+#### 18.1 Mise au clair chiffrée (document de vérité)
+
+- [ ] **Mesurer le réel** : sur les 10 premiers décaissements KPay, relever dans le dashboard les montants exacts (dépôt, payout, frais, conversion CDF/XAF, tranches max 500 000 par retrait) → tableau « coût effectif par 1 000 $ vendus » (organisateur / kinPass / agrégateur).
+- [ ] **Comparer au marché** : Town-Event (10 % déduction unique, organisateur 900 $/1 000 $), d'autres billetteries locales si trouvables ; noter ce qui est **public** vs **estimé** (ne jamais publier une estimation comme un fait).
+- [ ] **Document interne `docs/agregateur.md`** (ou section de `kpay.md`) : grille de frais, minimums/maximums, délais, risques (tranches de retrait, conversions) + recommandation chiffrée.
+- [ ] **Page publique « Tarifs » ou FAQ** (une fois la décision prise) : commission 2 %, « l'acheteur ne paie rien de plus que le prix affiché », frais opérateurs expliqués en clair — argument de transparence que Town-Event n'a pas.
+
+#### 18.2 Renégociation KPay (voie n°1)
+
+- [ ] **Dossier de négociation** : GMV projeté, nombre d'événements, volume de billets, comparaison factuelle (Freshpay déduction unique ~10 % tout compris vs KPay 5 %+5 %), demande de **paliers dégressifs** (ex. 4 %+4 %, puis 3 %+3 % au volume).
+- [ ] **Obtenir un engagement écrit** (contrat ou email officiel KPay) : taux, conditions, durée ; vérifier l'impact sur le minimum de retrait (25 $) et les tranches 500 000.
+- [ ] **Décision documentée** : rester chez KPay (nouveau taux) ou passer à l'évaluation 18.3 — jamais les deux en production sur les mêmes événements.
+
+#### 18.3 Devis & matrice d'agrégateurs alternatifs (voie n°2)
+
+- [ ] **Demander des devis écrits** : Freshpay (site injoignable au dernier essai — recontacter via contact direct), MaxiCash, CinetPay (et tout autre opérateur DRC viable) — frais collecte, frais payout, frais par transaction vs pourcentage, conversion CDF/XAF, pays/opérateurs supportés (M-Pesa, Orange, Airtel).
+- [ ] **Matrice comparative** notée /5 : frais, délais de règlement, qualité/robustesse API (sandbox, webhooks signés, idempotence), réconciliation (exports, dashboard), support technique, stabilité (statut, références locales), contrat (résiliation, exclusivité).
+- [ ] **Vérifier la compatibilité modèle** : le candidat doit permettre (a) encaissement acheteur, (b) **retrait à la demande vers le numéro de l'organisateur**, (c) webhooks fiables, (d) environnement de test complet — sinon rejeter même si moins cher.
+
+#### 18.4 Abstraction multi-agrégateur (prérequis technique, sans bascule)
+
+- [ ] **Interface `PaymentProvider`** (`lib/payments/provider.ts`) : `createPayment`, `verifyWebhook`, `getPaymentStatus`, `requestPayout`, `getBalance` — implémentations `kpay` (existante, `lib/kpay.ts`) et futures (`freshpay`, `maxicash`…).
+- [ ] **Sélection par env** `PAYMENT_PROVIDER=kpay` (défaut) ; `lib/payments.ts` ne parle plus qu'à l'interface ; les routes (`/api/kpay/webhook`, checkout, `/api/payouts`) deviennent agnostiques (adaptateur par provider).
+- [ ] **Tests unitaires** de l'interface (fake provider) + tests d'adaptateur webhook (signature, idempotence) ; aucune régression sur le flux KPay existant (38 tests verts).
+
+#### 18.5 Bascule éventuelle (checklist go-live, si décision de changer)
+
+- [ ] **Période de double-run** : nouveaux événements de test uniquement, en sandbox du nouveau provider, jusqu'à validation complète (paiement → billet → scan → payout).
+- [ ] **Réconciliation** : comparer soldes KPay vs nouveau provider sur une période ; geler les retraits KPay restants et solder les wallets avant bascule.
+- [ ] **Communication** : prévenir les organisateurs (délais de règlement éventuels), mettre à jour CGU/contrat (version + re-acceptation, Phase 11.2) et `README`/`kpay.md` (le nom du provider devient un détail technique).
+- [ ] **Plan de rollback** : `PAYMENT_PROVIDER=kpay` doit suffire à revenir en arrière en 1 variable d'environnement + redéploiement.
+- [ ] **Contrat & conformité** : vérifier RCCM/identification du nouveau prestataire, DPA/données, et que les CGU n'affirment rien de faux (ex. « encaissement KPay » → « encaissement via notre agrégateur de paiement »).
+
+#### 18.6 Positionnement final & argumentaire
+
+- [ ] **Fiche commerciale organisateur** : ce qu'il touche concrètement (simulateur sur 1 000 $), comparaison honnête vs Town-Event (eux : 900 $ automatique ; nous : scan QR, dashboard temps réel, PDF, support, acheteur sans frais) — gagner sur le **produit**, pas promettre d'être le moins cher tant que l'écart KPay existe.
+- [ ] **Si renégociation réussie** : communiquer le nouveau taux organisateur (dashboard + contrat + README) et **mettre à jour ce document** (Phase 18 cochée, chiffres réels).
+
+---
+
 ## 5. CONTENU OBLIGATOIRE DU FICHIER `README.md`
 
 1. **Titre & description** — kinPass, billetterie et contrôle d'accès en RDC.
@@ -906,14 +974,15 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - **Phase 7 (scanner)** : ✅ **TERMINÉE** (7.1 → 7.3) — comptes agents RBAC (identifiants auto-générés, transmission WhatsApp/copie), connexion unique + redirection par rôle (agent → `/scan`), middleware double protection, **interface de scan réelle** (saisie manuelle + caméra QR, pop-up VERT/ORANGE/ROUGE, son + vibration, historique agent, journal `scans.agent_id`, activité par agent côté organisateur). Restes hors phase : rate-limit login (Phase 8).
 - **Phase 8 (polish)** : ✅ TERMINÉE — tests unitaires Vitest (25), rate-limit login, normalisation/sécurisation des codes et rôles, PWA légère (manifest + SW) ; export listes invités reporté en Phase 13.
 - **Phase 9 (vitrine publique)** : ✅ TERMINÉE — `getPublicEvents` (source unique), bandeau « À venir » sur la landing (3 événements, jamais de brouillon), rubrique « Billetterie » = listing complet (chips catégories, recherche, tri, états chargement/erreur/vide), carte `EventCard` « talon » partagée (→ `/e/[slug]`), page publique organisateur `/o/[slug]` (`users.slug` auto-généré) ; route `/events` SEO reportée au routing par URL.
-- **Phase 10 (monétisation & reversement)** : 📌 SPEC FONCTIONNELLE — implémentation **fusionnée avec la Phase 16** (back-office : approbation/exécution des retraits + UI organisateur solde/historique). Termes financiers figés par la Phase 11. Ordre recommandé : 11 → 12 → 13 → 14 → 15 → **16 (avec 10)**.
+- **Phase 10 (monétisation & reversement)** : 📌 SPEC FONCTIONNELLE — implémentation **fusionnée avec la Phase 16** (back-office : approbation/exécution des retraits + UI organisateur solde/historique). Termes financiers figés par la Phase 11. Ordre recommandé : 11 → 12 → 13 → 14 → 15 → **16 (avec 10)** → 17 → **18 (agrégateur, en dernier)**.
 - **Phase 11 (confiance & contrat)** : ✅ **TERMINÉE** — 11.1 (5 pages légales + contact), 11.2 (acceptation versionnée « consentement au bon moment »), 11.3 (badge vérifié préparé, activation en 16), 11.4 (tests E2E écrits), **11.5 (mot de passe oublié : token haché 1 h à usage unique, anti-énumération, rate-limit, agents exclus)**.
 - **Phase 12 (vérification billet)** : ✅ TERMINÉE — page publique `/verify` (VERT/ORANGE/ROUGE), téléchargements PDF/PNG/JPG, renvoi email générique, rate-limit IP+code, lien depuis `/e/[slug]`.
 - **Phase 13 (export & reporting)** : ❌ À VENIR — rapport PDF + export CSV des participants.
 - **Phase 14 (entrées libres & RSVP)** : 🟡 PARTIELLE — le flux « total 0 → aucun paiement, billets émis » fonctionne (6.4) ; reste l'expérience complète (14.1-14.5 : helper de création, wording, jauge pleine, anti-abus par téléphone, KPIs participation).
 - **Phase 15 (innovations différenciantes)** : ❌ À VENIR — WhatsApp-first, QR dynamique anti-fraude, diaspora « je paie, un proche profite », paiement cash à l'entrée, affiliation des rabatteurs.
-- **Phase 16 (admin superadmin + monétisation 10)** : ❌ À VENIR — back-office `/superadmin` du créateur : vue globale (KPIs), gestion des organisateurs/événements/billets/reversements, paramètres globaux, journal d'audit **+ exécution de la monétisation (Phase 10 fusionnée)** **+ boîte de réception support (16.7 : lire et répondre aux messages du formulaire de contact depuis l'admin)**. Comptes provisionnés par seed (`SUPERADMIN_EMAILS`), rôle `superadmin`.
+- **Phase 16 (admin superadmin + monétisation 10)** : ❌ À VENIR — back-office `/superadmin` du créateur : vue globale (KPIs), gestion des organisateurs/événements/billets/reversements, paramètres globaux, journal d'audit **+ exécution de la monétisation (Phase 10 fusionnée)** **+ boîte de réception support (16.7 : lire et répondre aux messages du formulaire de contact depuis l'admin)** **+ UI Mantine isolée (16.0 — décision 21/09/2026 : Mantine v9 uniquement dans `/superadmin`, l'app publique reste Tailwind/Base UI)**. Comptes provisionnés par seed (`SUPERADMIN_EMAILS`), rôle `superadmin`.
 - **Phase 17 (communication, contact & soutien)** : ❌ À VENIR — newsletter (consentement, désinscription, envois React Email), page contact humain (replyTo + rate-limit), page « Soutenir kinPass ». Adresses via env (`MAIL_NEWSLETTER`/`MAIL_CONTACT`) — domaine `@premicekombozi.com` en attendant la vérification de `kinpass.com`.
+- **Phase 18 (monétisation & agrégateur)** : ❌ À VENIR (dernière étape) — mise au clair chiffrée des coûts réels KPay (5 %+5 % : l'organisateur ne touche que 88,35 % sur 1 000 $ vs 90 % chez Town-Event), dossier de **renégociation KPay** (paliers dégressifs), **devis d'agrégateurs alternatifs** (Freshpay, MaxiCash, CinetPay…) + matrice comparative, **abstraction `PaymentProvider`** (bascule en 1 variable d'env, rollback idem), checklist go-live et positionnement commercial (gagner sur le produit, pas sur le prix). Déclencheur : premiers encaissements réels / ~10 événements payants.
 
 **Avancement global estimé : ~55 %** (UI + fondations base de données + gestion des événements de bout en bout ; auth, page publique événement ET vitrine publique en place — commandes/paiement, monétisation, scanner et back-office restent à faire).
 
@@ -1011,5 +1080,7 @@ drizzle.config.ts     # Config drizzle-kit
 | `pnpm db:studio`             | Ouvre Drizzle Studio                                                       |
 | `pnpm test:e2e`              | Tests end-to-end Playwright (démarre le serveur automatiquement)           |
 | `node scripts/seed-demo.mts` | Seed organisateur de test + données démo (`--reset` pour repartir de zéro) |
+
+
 
 
