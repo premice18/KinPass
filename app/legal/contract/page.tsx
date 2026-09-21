@@ -30,10 +30,11 @@ export default function ContractPage() {
 
       <h2>2. Commission kinPass</h2>
       <ul>
-        <li>kinPass prélève une <strong>commission de 0,3 %</strong> sur le montant brut de chaque billet vendu (constante technique `KINPASS_FEE_PERCENT`, susceptible d’évoluer avec information préalable).</li>
-        <li>La commission est affichée dans le tableau de bord et déduite au moment du retrait.</li>
+        <li>kinPass prélève une <strong>commission de 2 %</strong> sur le montant brut de chaque billet vendu (constante technique `KINPASS_FEE_PERCENT`, susceptible d'évoluer avec information préalable et nouvelle acceptation).</li>
+        <li><strong>L'acheteur ne paie jamais plus que le prix affiché</strong> : la commission est prélevée côté organisateur, au moment du retrait.</li>
+        <li>La commission est affichée dans le tableau de bord et détenue dans le wallet kinPass jusqu'au retrait.</li>
         <li>Les <strong>événements à entrée libre</strong> (prix à 0) ne génèrent aucune commission (0 × taux = 0).</li>
-        <li>Les frais des opérateurs Mobile Money et de l’agrégateur de paiement sont distincts de la commission kinPass et peuvent s’appliquer aux dépôts et aux retraits.</li>
+        <li>Les frais de l'agrégateur de paiement (KPay : 5 % au dépôt et 5 % au retrait) et des opérateurs Mobile Money s'appliquent en sus et sont déduits par l'agrégateur — ils ne constituent pas un revenu de kinPass.</li>
       </ul>
 
       <h2>3. Encaissement des ventes</h2>
