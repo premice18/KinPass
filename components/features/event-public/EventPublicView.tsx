@@ -130,9 +130,14 @@ export function EventPublicView({ event }: EventPublicViewProps) {
               </div>
             </div>
 
-            {/* Partage (Phase 6.7) : panneau complet — copie, QR, canaux,
-                partage natif du système. */}
+            {/* Partage (Phase 6.7) + vérification de billet (Phase 12). */}
             <div className="flex flex-wrap items-center gap-2">
+              <a
+                href="/verify"
+                className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2.5 text-[0.8rem] font-medium text-slate-200 transition-colors hover:bg-white/10"
+              >
+                Vérifier mon billet
+              </a>
               <button
                 type="button"
                 data-testid="event-public-share-open"
