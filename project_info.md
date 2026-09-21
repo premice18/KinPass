@@ -611,28 +611,28 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 
 ---
 
-### ❌ Phase 12 — Vérification & re-téléchargement du billet (public) (À VENIR)
+### ✅ Phase 12 — Vérification & re-téléchargement du billet (public) (FAITE)
 
 **Objectif** : n'importe qui (acheteur ou agent) peut vérifier la validité d'un billet en saisissant son code, et le re-télécharger (PDF/PNG/JPG) ou le renvoyer par email — sans compte.
 
 **Décisions (validées)** : pas d'énumération (message générique pour « introuvable ») ; **rate-limit** par IP/email ; la sémantique des 3 états réutilise celle du scanner (VERT/ORANGE/ROUGE + libellé, jamais la couleur seule) ; le re-téléchargement réutilise les moteurs existants (`/api/tickets/[code]/pdf`, exports PNG/JPG du client).
 
-#### 12.1 Données publiques
+#### 12.1 Données publiques ✅ FAITE
 
-- [ ] Server Action publique `verifyTicket(code)` : normalisation (`normalizeTicketCode`), recherche `tickets.code` (UNIQUE), jointure événement + type + scan initial ; retour : statut (`valid` | `used` | `unknown`), événement (titre, dates, lieu), type, acheteur (nom), heure du premier passage si utilisé. **Jamais** de données de paiement ni de téléphone complet.
-- [ ] Anti-abus : `isRateLimited` sur IP (en-tête) et code (5 essais/min) ; réponse identique pour « introuvable » et « étranger » (pas d'énumération).
+- [x] Server Action publique `verifyTicket(code)` : normalisation (`normalizeTicketCode`), recherche `tickets.code` (UNIQUE), jointure événement + type + scan initial ; retour : statut (`valid` | `used` | `unknown`), événement (titre, dates, lieu), type, acheteur (nom), heure du premier passage si utilisé. **Jamais** de données de paiement ni de téléphone complet.
+- [x] Anti-abus : `isRateLimited` sur **IP (en-tête x-forwarded-for)** et code (5/min) ; réponse identique pour « introuvable » et « étranger » (pas d'énumération).
 
-#### 12.2 Route publique `/verify`
+#### 12.2 Route publique `/verify` ✅ FAITE
 
-- [ ] Page publique (`noindex`) : champ code (6 caractères, majuscules auto, tirets ignorés, format `XXX-XXX`) + bouton « Vérifier » ; états VERT/ORANGE/ROUGE affichés en carte (icône + libellé + détails).
-- [ ] Si **valide** : boutons « Télécharger le PDF », « Télécharger l'image (PNG/JPG) », « Renvoyer par email » (email saisi — jamais stocké pour une simple vérification).
-- [ ] Si **utilisé** : heure du premier passage + rappel « contactez l'organisateur si problème ».
-- [ ] Accès depuis la page publique `/e/[slug]` : lien discret « Vérifier mon billet » (dans le bandeau d'action).
+- [x] Page publique (`noindex`) : champ code (6 caractères, majuscules auto, tirets ignorés, format `XXX-XXX`) + bouton « Vérifier » ; états VERT/ORANGE/ROUGE affichés en carte (icône + libellé + détails).
+- [x] Si **valide** : boutons « Télécharger le PDF », « Télécharger l'image (PNG/JPG) », « Renvoyer par email » (email saisi — jamais stocké pour une simple vérification).
+- [x] Si **utilisé** : heure du premier passage + rappel « contactez l'organisateur si problème ».
+- [x] Accès depuis la page publique `/e/[slug]` : lien discret « Vérifier mon billet » (dans le bandeau d'action).
 
-#### 12.3 Tests
+#### 12.3 Tests ✅ ÉCRITS
 
-- [ ] E2E : vérification valide / utilisée / inconnue ; re-téléchargement PDF ; renvoi email (simulation sans clé Resend).
-- [ ] Unitaire : normalisation des saisies, rate-limit, absence d'énumération.
+- [x] E2E (écrits ; exécution sur demande) : vérification valide / utilisée / inconnue ; re-téléchargement PDF ; renvoi email (simulation sans clé Resend).
+- [x] Unitaire : normalisation des saisies (déjà en 6.2), **rate-limit** (tests dédiés), absence d'énumération (réponses génériques).
 
 ---
 
@@ -908,7 +908,7 @@ Un **reversement automatique périodique** (ex. chaque vendredi) pourra être pr
 - **Phase 9 (vitrine publique)** : ✅ TERMINÉE — `getPublicEvents` (source unique), bandeau « À venir » sur la landing (3 événements, jamais de brouillon), rubrique « Billetterie » = listing complet (chips catégories, recherche, tri, états chargement/erreur/vide), carte `EventCard` « talon » partagée (→ `/e/[slug]`), page publique organisateur `/o/[slug]` (`users.slug` auto-généré) ; route `/events` SEO reportée au routing par URL.
 - **Phase 10 (monétisation & reversement)** : 📌 SPEC FONCTIONNELLE — implémentation **fusionnée avec la Phase 16** (back-office : approbation/exécution des retraits + UI organisateur solde/historique). Termes financiers figés par la Phase 11. Ordre recommandé : 11 → 12 → 13 → 14 → 15 → **16 (avec 10)**.
 - **Phase 11 (confiance & contrat)** : ✅ **TERMINÉE** — 11.1 (5 pages légales + contact), 11.2 (acceptation versionnée « consentement au bon moment »), 11.3 (badge vérifié préparé, activation en 16), 11.4 (tests E2E écrits), **11.5 (mot de passe oublié : token haché 1 h à usage unique, anti-énumération, rate-limit, agents exclus)**.
-- **Phase 12 (vérification billet)** : ❌ À VENIR — page `/verify` publique + re-téléchargement.
+- **Phase 12 (vérification billet)** : ✅ TERMINÉE — page publique `/verify` (VERT/ORANGE/ROUGE), téléchargements PDF/PNG/JPG, renvoi email générique, rate-limit IP+code, lien depuis `/e/[slug]`.
 - **Phase 13 (export & reporting)** : ❌ À VENIR — rapport PDF + export CSV des participants.
 - **Phase 14 (entrées libres & RSVP)** : 🟡 PARTIELLE — le flux « total 0 → aucun paiement, billets émis » fonctionne (6.4) ; reste l'expérience complète (14.1-14.5 : helper de création, wording, jauge pleine, anti-abus par téléphone, KPIs participation).
 - **Phase 15 (innovations différenciantes)** : ❌ À VENIR — WhatsApp-first, QR dynamique anti-fraude, diaspora « je paie, un proche profite », paiement cash à l'entrée, affiliation des rabatteurs.
@@ -1011,3 +1011,5 @@ drizzle.config.ts     # Config drizzle-kit
 | `pnpm db:studio`             | Ouvre Drizzle Studio                                                       |
 | `pnpm test:e2e`              | Tests end-to-end Playwright (démarre le serveur automatiquement)           |
 | `node scripts/seed-demo.mts` | Seed organisateur de test + données démo (`--reset` pour repartir de zéro) |
+
+

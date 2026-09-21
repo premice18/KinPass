@@ -45,6 +45,7 @@ tests/
     legal.spec.ts        # Pages légales & contact (Phase 11.1)
     contract.spec.ts     # Acceptation des règles de reversement (Phase 11.2)
     password-reset.spec.ts # Mot de passe oublié (Phase 11.5)
+    verify.spec.ts       # Vérification publique de billet (Phase 12)
 ```
 
 ## Conventions
@@ -109,6 +110,9 @@ Convention de nommage : **kebab-case en anglais**, préfixé par le domaine.
 | `organizer-verified` | `app/o/[slug]/page.tsx` | Badge « Vérifié » (11.3, activé en 16) |
 | `forgot-email` / `forgot-submit` / `forgot-success` | `app/auth/forgot-password/page.tsx` | Mot de passe oublié (11.5) |
 | `reset-password` / `reset-confirm` / `reset-submit` / `reset-success` | `auth/ResetPasswordForm.tsx` | Nouveau mot de passe (11.5) |
+| `verify-code-input` / `verify-submit` / `verify-result` | `verify/VerifyView.tsx` | Vérification publique (12) |
+| `verify-valid-icon` / `verify-used-icon` / `verify-unknown-icon` | `verify/VerifyView.tsx` | États VERT / ORANGE / ROUGE publics |
+| `verify-download-pdf` / `verify-download-png` / `verify-download-jpg` / `verify-resend-email` / `verify-resend-submit` / `verify-resend-message` | `verify/VerifyView.tsx` | Téléchargements + renvoi email |
 | `public-event-card` | `events/EventCard.tsx` | Carte « talon » d'un événement public |
 | `listing-chip` / `listing-search` / `listing-sort` | `events/EventListing.tsx` | Filtres de la vitrine (Billetterie) |
 | `listing-retry` / `listing-skeleton` / `listing-count` | `events/EventListing.tsx` | États chargement / erreur / compteur |
